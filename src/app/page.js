@@ -80,8 +80,8 @@ export default function Page() {
     const y = e.clientY - rect.top;
     const xc = rect.width / 2;
     const yc = rect.height / 2;
-    const rotateY = ((x - xc) / xc) * 6; // max 6 degrees tilt
-    const rotateX = -((y - yc) / yc) * 6;
+    const rotateY = ((x - xc) / xc) * 15; // max 15 degrees tilt
+    const rotateX = -((y - yc) / yc) * 15;
     setSimTiltX(rotateX);
     setSimTiltY(rotateY);
   };
@@ -431,13 +431,14 @@ export default function Page() {
 
   const loadAccount = async () => {
     try {
-      const res = await fetch('/api/auth/account');
+      const res = await fetch('/api/sessions/account');
       if (res.ok) {
         const data = await res.json();
-        setAccount(data);
-        setCreditsLeft(data.credits_remaining !== null ? Number(data.credits_remaining).toFixed(1) : '0.0');
-        setUsedCredits(data.credits_used !== null ? Number(data.credits_used).toFixed(1) : '0.0');
-        setTrialsLeft(data.trials_remaining !== null ? data.trials_remaining : 0);
+        const acc = data.account || {};
+        setAccount(acc);
+        setCreditsLeft(acc.credits !== undefined && acc.credits !== null ? Number(acc.credits).toFixed(1) : '0.0');
+        setUsedCredits(acc.credits_used !== undefined && acc.credits_used !== null ? Number(acc.credits_used).toFixed(1) : '0.0');
+        setTrialsLeft(acc.trials_remaining !== undefined && acc.trials_remaining !== null ? acc.trials_remaining : 0);
       }
     } catch (err) {
       console.error('Error loading account:', err);
@@ -725,18 +726,19 @@ export default function Page() {
     }
   };
 
-  const handleReviewAskSubmit = async (e) => {
-    e.preventDefault();
-    if (!reviewAskInput.trim()) return;
+  const handleReviewAskSubmit = async (e, suggestionKey = null, suggestionLabel = null) => {
+    if (e) e.preventDefault();
+    const queryText = suggestionLabel || reviewAskInput;
+    if (!queryText.trim() && !suggestionKey) return;
 
-    const userMsg = { role: 'user', content: reviewAskInput };
+    const userMsg = { role: 'user', content: queryText };
     setReviewMessages(prev => [...prev, userMsg]);
-    const promptText = reviewAskInput;
     setReviewAskInput('');
 
-    const { ok, data } = await postJSON(`/api/sessions/${reviewSessionId}/chat`, { prompt: promptText });
-    if (ok && data.response) {
-      setReviewMessages(prev => [...prev, { role: 'assistant', content: data.response }]);
+    const body = suggestionKey ? { suggestion: suggestionKey } : { question: queryText };
+    const { ok, data } = await postJSON(`/api/sessions/${reviewSessionId}/ask`, body);
+    if (ok && data.answer) {
+      setReviewMessages(prev => [...prev, { role: 'assistant', content: data.answer }]);
     } else {
       setReviewMessages(prev => [...prev, { role: 'assistant', content: 'Could not fetch a response.' }]);
     }
@@ -955,59 +957,75 @@ export default function Page() {
             </div>
 
             <div className="hero-content-right">
-              <div className="hero-3d-graphic-container">
-                <div className="hero-3d-graphic">
-                  {/* Laser Connectors */}
-                  <div className="graphic-laser"></div>
-                  <div className="graphic-laser-2"></div>
-
-                  {/* Top Layer: HUD */}
-                  <div className="graphic-layer layer-top">
-                    <div className="layer-title">Output: Glass HUD Card</div>
-                    <div className="layer-item-box" style={{ background: 'rgba(133, 57, 83, 0.15)', borderColor: '#853953' }}>
-                      <span className="tally-dot active-answering"></span>
-                      <strong style={{ color: '#fff' }}>Cue: Process vs Thread</strong>
+              <div className="hologram-container">
+                {/* 3D Orbiting Rings */}
+                <div className="hologram-ring ring-outer"></div>
+                <div className="hologram-ring ring-inner"></div>
+                
+                {/* Main Floating 3D Console */}
+                <div className="hologram-console">
+                  {/* Glowing Core */}
+                  <div className="console-core"></div>
+                  
+                  {/* HUD Header */}
+                  <div className="console-header">
+                    <span className="console-status-dot"></span>
+                    <span className="console-title">SYSTEM CUE LOG</span>
+                    <span className="console-telemetry">PING: 12MS</span>
+                  </div>
+                  
+                  {/* Waveform Visualization */}
+                  <div className="console-wave-area">
+                    <div className="hologram-wave">
+                      <span className="wave-line"></span>
+                      <span className="wave-line"></span>
+                      <span className="wave-line"></span>
+                      <span className="wave-line"></span>
+                      <span className="wave-line"></span>
+                      <span className="wave-line"></span>
+                      <span className="wave-line"></span>
                     </div>
+                    <span className="console-meta-text">VOICE DECODING CHUNKS...</span>
                   </div>
 
-                  {/* Middle Layer: Voice Transcription */}
-                  <div className="graphic-layer layer-middle">
-                    <div className="layer-title">Process: Live Transcription</div>
-                    <div className="layer-item-box">
-                      <div className="sim-voice-wave wave-active">
-                        <span className="wave-bar"></span>
-                        <span className="wave-bar"></span>
-                        <span className="wave-bar"></span>
-                      </div>
-                      <span style={{ color: '#cbd5e1' }}>Streaming chunks...</span>
-                    </div>
+                  {/* Active Context Card */}
+                  <div className="console-context-card">
+                    <div className="card-lbl">ACTIVE RAG CONTEXT</div>
+                    <div className="card-val">📄 resume_backend_dev.pdf (Active)</div>
                   </div>
 
-                  {/* Bottom Layer: Uploads */}
-                  <div className="graphic-layer layer-bottom">
-                    <div className="layer-title">Input: Context Guidelines</div>
-                    <div className="layer-item-box">
-                      <span>📄 resume_backend.pdf</span>
-                    </div>
+                  {/* Glass Card HUD Answer Panel (Offset in Z-space) */}
+                  <div className="console-hud-overlay">
+                    <div className="hud-lbl">COPILOT HUD ANSWER</div>
+                    <div className="hud-title">Cue: Process vs Thread</div>
+                    <p className="hud-snippet">
+                      Processes own resources and run in isolated memory spaces. Threads share memory space and are lightweight.
+                    </p>
                   </div>
                 </div>
+
+                {/* Satellite floaters orbiting in 3D */}
+                <div className="hologram-particle p1"></div>
+                <div className="hologram-particle p2"></div>
+                <div className="hologram-particle p3"></div>
               </div>
             </div>
           </div>
         </section>
 
         {/* Interactive Simulator Section */}
-        <section className="sim-section">
-          <div
-            className="sim-container"
-            onMouseMove={handleSimMouseMove}
-            onMouseLeave={handleSimMouseLeave}
-            ref={simContainerRef}
-            style={{
-              transform: `perspective(1000px) rotateX(${simTiltX}deg) rotateY(${simTiltY}deg)`,
-              transition: simTiltX === 0 ? 'transform 0.5s cubic-bezier(0.16, 1, 0.3, 1)' : 'none'
-            }}
-          >
+        <section className="sim-section" id="copilot">
+          <div className="sim-3d-wrapper">
+            <div
+              className="sim-container"
+              onMouseMove={handleSimMouseMove}
+              onMouseLeave={handleSimMouseLeave}
+              ref={simContainerRef}
+              style={{
+                transform: `perspective(1000px) rotateX(${simTiltX}deg) rotateY(${simTiltY}deg)`,
+                transition: simTiltX === 0 ? 'transform 0.5s cubic-bezier(0.16, 1, 0.3, 1)' : 'none'
+              }}
+            >
             {/* Left Column: Interactive Controls */}
             <div className="sim-controls">
               <h3>Try Copilot in Real-Time</h3>
@@ -1121,6 +1139,26 @@ export default function Page() {
                 </div>
               )}
             </div>
+            </div>
+          </div>
+        </section>
+
+        {/* System HUD Showcase Section */}
+        <section className="showcase-section">
+          <h2 className="section-title">The HUD Teleprompter Console</h2>
+          <p className="section-subtitle">
+            A state-of-the-art overlay workspace showing live voice transcriptions, context-aware resume matches, and structural code templates side-by-side.
+          </p>
+          <div className="showcase-image-container">
+            <img
+              src="/copilot_mockup.jpg"
+              alt="FeonixAI System HUD Interface"
+              className="showcase-img"
+              loading="lazy"
+            />
+            {/* Ambient glows behind the mockup */}
+            <div className="showcase-glow-1"></div>
+            <div className="showcase-glow-2"></div>
           </div>
         </section>
 
@@ -1138,7 +1176,7 @@ export default function Page() {
         </section>
 
         {/* Features Section */}
-        <section className="features-section" id="features">
+        <section className="features-section" id="coder">
           <h2 className="section-title">Engineered for Technical Interaction</h2>
           <p className="section-subtitle">
             FeonixAI runs dynamically in the background to analyze conversation cues, provide code suggestions, and supply real-time facts.
@@ -1193,7 +1231,7 @@ export default function Page() {
         </section>
 
         {/* Dual Mode Section */}
-        <section className="dual-mode-section" id="copilot">
+        <section className="dual-mode-section" id="duo">
           <div className="dual-mode-container">
             <div className="mode-box copilot">
               <div className="mode-badge">Real-Time</div>
@@ -1219,6 +1257,14 @@ export default function Page() {
                   <span>Manual prompt question overrides</span>
                 </li>
               </ul>
+              <div className="mode-card-preview">
+                <img
+                  src="/copilot_mode_preview.jpg"
+                  alt="AI Copilot Mode HUD Preview"
+                  className="mode-preview-img"
+                  loading="lazy"
+                />
+              </div>
             </div>
 
             <div className="mode-box coach">
@@ -1245,6 +1291,14 @@ export default function Page() {
                   <span>Saved transcripts and response maps</span>
                 </li>
               </ul>
+              <div className="mode-card-preview">
+                <img
+                  src="/coach_mode_preview.jpg"
+                  alt="AI Coach Mode Report Preview"
+                  className="mode-preview-img"
+                  loading="lazy"
+                />
+              </div>
             </div>
           </div>
         </section>
@@ -1270,6 +1324,106 @@ export default function Page() {
               <div className="step-number">3</div>
               <h3>Get Real-Time Cues</h3>
               <p>Speak naturally. The Copilot will analyze questions and display styled answers on the glassmorphic HUD panel.</p>
+            </div>
+          </div>
+        </section>
+
+        {/* Pricing Section */}
+        <section className="pricing-section" id="pricing">
+          <h2 className="section-title">Flexible Plans for Every Engineer</h2>
+          <p className="section-subtitle">
+            Start preparing for your next career jump with our flexible, usage-based credits or trial limits.
+          </p>
+          
+          <div className="pricing-grid">
+            <div className="pricing-card">
+              <div className="pricing-card-badge">Get Started</div>
+              <h3>Free Trial</h3>
+              <div className="price">
+                <span className="currency">$</span>
+                <span className="amount">0</span>
+                <span className="period">/ forever</span>
+              </div>
+              <p className="price-desc">Perfect for trying out FeonixAI before your live call.</p>
+              <ul className="price-features">
+                <li>
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                  <span>10-minute trial session limit</span>
+                </li>
+                <li>
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                  <span>Standard AI model (GPT-4o mini)</span>
+                </li>
+                <li>
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                  <span>Upload up to 1 Resume / JD</span>
+                </li>
+              </ul>
+              <button
+                className="price-btn"
+                onClick={() => {
+                  setAuthMode('register');
+                  setAuthMsg({ text: '', type: '' });
+                  setShowAuthModal(true);
+                }}
+                type="button"
+              >
+                Sign Up Free
+              </button>
+            </div>
+
+            <div className="pricing-card featured">
+              <div className="pricing-card-badge">Popular</div>
+              <h3>Pro Plan</h3>
+              <div className="price">
+                <span className="currency">$</span>
+                <span className="amount">19</span>
+                <span className="period">/ 100 credits</span>
+              </div>
+              <p className="price-desc">Designed for active job seekers undergoing intensive rounds.</p>
+              <ul className="price-features">
+                <li>
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                  <span>Unlimited session durations</span>
+                </li>
+                <li>
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                  <span>Advanced AI model access (GPT-4o)</span>
+                </li>
+                <li>
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                  <span>Unlimited Resume & JD uploads</span>
+                </li>
+                <li>
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                  <span>Advanced post-call AI review chat</span>
+                </li>
+              </ul>
+              <button
+                className="price-btn featured-btn"
+                onClick={() => {
+                  setAuthMode('register');
+                  setAuthMsg({ text: '', type: '' });
+                  setShowAuthModal(true);
+                }}
+                type="button"
+              >
+                Get Started
+              </button>
             </div>
           </div>
         </section>
@@ -1438,6 +1592,8 @@ export default function Page() {
           themeMode={themeMode}
           toggleTheme={toggleTheme}
           handleLogout={handleLogout}
+          trialsLeft={trialsLeft}
+          creditsLeft={creditsLeft}
         />
 
         {activePane === 'sessions' && (

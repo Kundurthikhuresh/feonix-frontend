@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { formatWhen } from '../../lib/utils';
 
 export default function ReviewSessionView({
@@ -11,6 +11,21 @@ export default function ReviewSessionView({
   handleReviewAskSubmit,
   setCurrentView,
 }) {
+  const [suggestions, setSuggestions] = useState([]);
+
+  useEffect(() => {
+    if (reviewPane === 'ask') {
+      fetch('/api/sessions/suggestions')
+        .then(res => res.json())
+        .then(data => {
+          if (data.suggestions) {
+            setSuggestions(data.suggestions);
+          }
+        })
+        .catch(err => console.error('Error fetching suggestions:', err));
+    }
+  }, [reviewPane]);
+
   return (
     <div id="reviewView">
       <aside className="review-rail">
@@ -111,6 +126,23 @@ export default function ReviewSessionView({
                   </p>
                 )}
               </div>
+
+              {suggestions.length > 0 && (
+                <div className="suggestion-chips" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', padding: '8px 16px', marginBottom: '8px' }}>
+                  {suggestions.map((s) => (
+                    <button
+                      key={s.key}
+                      className="btn btn-quiet"
+                      style={{ fontSize: '0.85rem', padding: '4px 10px', borderRadius: '16px' }}
+                      type="button"
+                      onClick={() => handleReviewAskSubmit(null, s.key, s.label)}
+                    >
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               <form className="ask-form" onSubmit={handleReviewAskSubmit}>
                 <input
                   value={reviewAskInput}

@@ -5,9 +5,9 @@
   --line:        rgba(255, 255, 255, 0.09);
   --line-subtle: rgba(255, 255, 255, 0.05);
   
-  --primary:     #853953;
-  --primary-hover:#733248;
-  --secondary:   #612D53;
+  --primary:     #18C37D;
+  --primary-hover:#14a268;
+  --secondary:   #6b7280;
   --danger:      #FF5C5C;
   
   --text:        #F3F4F4;
@@ -326,6 +326,21 @@ button, input, select, .no-drag {
 .footer-back {
   margin-top: auto;
   padding-top: 10px;
+  display: flex;
+  justify-content: center;
+}
+.footer-back .btn-secondary {
+  border: 0;
+  background: transparent;
+  color: var(--text-sec);
+  box-shadow: none;
+  font-weight: 600;
+  width: auto;
+  padding: 0 16px;
+}
+.footer-back .btn-secondary:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .msg-banner {
