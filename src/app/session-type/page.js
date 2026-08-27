@@ -340,7 +340,6 @@ function SessionTypeContent() {
                 ← Back to Dashboard
               </button>
             </div>
-            </div>
 
             <div className={`msg-banner ${message.isError ? 'err' : ''}`}>
               {message.busy && <span className="spinner"></span>}
