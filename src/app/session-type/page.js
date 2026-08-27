@@ -296,8 +296,8 @@ function SessionTypeContent() {
           {/* Body Content */}
           <div className="body">
             <div className="header">
-              <h1>Select session type</h1>
-              <p>Configure telemetry and AI agent mode.</p>
+              <h1>Start Interview Session</h1>
+              <p>Choose your session type to launch the live copilot overlay.</p>
               {session && (
                 <div className="session-title">
                   {session.company} {session.role && `· ${session.role}`}
@@ -306,39 +306,40 @@ function SessionTypeContent() {
             </div>
 
             <div className="cards-stack">
-              {/* Option: Copilot + Coach */}
+              {/* Option: Full Session */}
               <div className="option-card">
                 <div className="card-top">
-                  <h3>Full Copilot</h3>
-                  <span className="tag green">Dual Layer</span>
+                  <h3>Full Session</h3>
+                  <span className="tag green">0.5 credits</span>
                 </div>
                 <p className="card-desc">
-                  Runs AI Copilot for teleprompter answers and AI Coach in parallel for feedback.
+                  30 minute full interview session. Auto extends before expiration so answers stream without interruption.
                 </p>
                 <button className="btn-primary" onClick={() => handleStart('full')} disabled={buttonsDisabled} type="button">
-                  Launch full session
+                  ▶ Start Interview
                 </button>
               </div>
 
-              {/* Option: AI Coach Only */}
+              {/* Option: Free Session */}
               <div className="option-card">
                 <div className="card-top">
-                  <h3>Free / Telemetry Only</h3>
-                  <span className="tag">Coach Only</span>
+                  <h3>Free Session</h3>
+                  <span className="tag">Free</span>
                 </div>
                 <p className="card-desc">
-                  Records transcript telemetry only. Provides feedback report without real-time answers.
+                  10 minute trial session. Great for testing your setup before a real interview.
                 </p>
                 <button className="btn-secondary" onClick={() => handleStart('free')} disabled={buttonsDisabled} type="button">
-                  Launch telemetry session
+                  Start Free Session
                 </button>
               </div>
             </div>
 
             <div className="footer-back">
               <button className="btn-secondary" onClick={handleGoBack} type="button">
-                ← Back to dashboard
+                ← Back to Dashboard
               </button>
+            </div>
             </div>
 
             <div className={`msg-banner ${message.isError ? 'err' : ''}`}>

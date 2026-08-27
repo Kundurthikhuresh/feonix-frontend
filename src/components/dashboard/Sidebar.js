@@ -1,6 +1,10 @@
 import React from 'react';
 
-export default function Sidebar({ user, activePane, setActivePane, themeMode, toggleTheme, handleLogout }) {
+export default function Sidebar({ user, activePane, setActivePane, themeMode, toggleTheme, handleLogout, trialsLeft, creditsLeft }) {
+  const displayTrials = trialsLeft !== undefined && trialsLeft !== null ? trialsLeft : '—';
+  const displayCredits = creditsLeft !== undefined && creditsLeft !== null ? creditsLeft : '—';
+  const progressPercent = typeof trialsLeft === 'number' ? Math.min(100, trialsLeft * 20) : 100;
+
   return (
     <aside className="nav">
       <div className="brand">
@@ -45,11 +49,11 @@ export default function Sidebar({ user, activePane, setActivePane, themeMode, to
       <div className="nav-foot">
         <div className="quota-card">
           <div className="quota-card-head">
-            <span>{user?.role === 'owner' ? 'Unlimited' : 'Managed'}</span>
-            <span className="quota-card-sub">credits / trials</span>
+            <span>{displayTrials} free {Number(displayTrials) === 1 ? 'trial' : 'trials'}</span>
+            <span className="quota-card-sub">{displayCredits} credits left</span>
           </div>
           <div className="meter">
-            <div className="meter-fill" style={{ width: '100%' }}></div>
+            <div className="meter-fill" style={{ width: `${progressPercent}%` }}></div>
           </div>
           <div className="quota-card-note">Managed by Admin.</div>
         </div>

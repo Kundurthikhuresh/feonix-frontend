@@ -1,4 +1,4 @@
-const BACKEND = process.env.BACKEND_URL || 'http://localhost:4000';
+const BACKEND = process.env.BACKEND_URL || 'http://127.0.0.1:4000';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -12,7 +12,8 @@ async function proxy(req, context) {
 
     const headers = new Headers();
     req.headers.forEach((value, key) => {
-      if (key === 'host' || key === 'connection') return;
+      const lowerKey = key.toLowerCase();
+      if (lowerKey === 'host' || lowerKey === 'connection' || lowerKey === 'content-length') return;
       headers.set(key, value);
     });
 
