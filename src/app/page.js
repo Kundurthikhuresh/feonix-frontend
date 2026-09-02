@@ -16,6 +16,22 @@ import AdminPane from '../components/dashboard/AdminPane';
 import CopilotAppView from '../components/copilot/CopilotAppView';
 import ReviewSessionView from '../components/review/ReviewSessionView';
 
+// 3D & Futuristic Landing Components
+import ParticleBackground from '../components/3d/ParticleBackground';
+import Navbar3D from '../components/landing/Navbar3D';
+import Hero3DSection from '../components/landing/Hero3DSection';
+import Stats3DSection from '../components/landing/Stats3DSection';
+import Features3DSection from '../components/landing/Features3DSection';
+import AIShowcase3DSection from '../components/landing/AIShowcase3DSection';
+import InteractiveSimulator3D from '../components/landing/InteractiveSimulator3D';
+import DualModeSection from '../components/landing/DualModeSection';
+import HowItWorks3DSection from '../components/landing/HowItWorks3DSection';
+import Pricing3DSection from '../components/landing/Pricing3DSection';
+import FAQ3DSection from '../components/landing/FAQ3DSection';
+import CTA3DSection from '../components/landing/CTA3DSection';
+import Footer3D from '../components/landing/Footer3D';
+import FloatingAskAI from '../components/landing/FloatingAskAI';
+
 const SIM_SAMPLES = [
   {
     id: 1,
@@ -111,7 +127,7 @@ export default function Page() {
   
   // Auth Modal State
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [authMode, setAuthMode] = useState('login'); // 'login', 'register'
+  const [authMode, setAuthMode] = useState('login'); // 'login', 'register', 'forgot'
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [authSignupCode, setAuthSignupCode] = useState('');
@@ -412,12 +428,12 @@ export default function Page() {
   // ----------------------------------------------------
   const loadCatalogue = async () => {
     try {
-      const res = await fetch('/api/catalogue');
+      const res = await fetch('/api/answer/catalogue');
       if (res.ok) {
         const data = await res.json();
         setCatalogue(data);
         if (data.languages && data.languages.length > 0) {
-          setNewLanguage(data.languages[0].code);
+          setNewLanguage(data.languages[0]);
         }
         if (data.agents && data.agents.length > 0) {
           const rec = data.agents.find(a => a.recommended) || data.agents[0];
@@ -548,6 +564,16 @@ export default function Page() {
     e.preventDefault();
     setAuthLoading(true);
     setAuthMsg({ text: 'Working…', type: '' });
+
+    if (authMode === 'forgot') {
+      const { ok, data } = await postJSON('/api/auth/forgot-password', { email: authEmail });
+      setAuthLoading(false);
+      setAuthMsg({
+        text: ok ? data.message : (data.message || data.error || 'Something went wrong.'),
+        type: ok ? 'ok' : 'err',
+      });
+      return;
+    }
 
     const body = { email: authEmail, password: authPassword };
     if (authMode === 'register' && authSignupCode) {
@@ -860,704 +886,119 @@ export default function Page() {
     return <div style={{ minHeight: '100vh', background: '#0b0f14' }} />;
   }
 
-  // 1. Marketing Landing Page View
+  // 1. Futuristic 3D Marketing Landing Page View
   if (currentView === 'landing') {
     return (
-      <div id="landingView">
-        {/* Navbar */}
-        <header className="landing-header">
-          <div className="landing-nav-container">
-            <div className="landing-brand">
-              <span className="landing-brand-mark">F</span>
-              <span className="landing-brand-name">FEONIX AI<span className="tm">™</span></span>
-            </div>
-            <nav className="landing-nav">
-              <a href="#copilot" className="nav-link">Interview Copilot</a>
-              <a href="#coder" className="nav-link">Coding Assistant</a>
-              <a href="#desktop" className="nav-link">Desktop App</a>
-              <a href="#duo" className="nav-link">Duo <span className="nav-link-sub">(Remote Assist)</span></a>
-              <a href="#pricing" className="nav-link">Pricing</a>
-            </nav>
-            <div className="landing-actions">
-              <button
-                className="landing-theme-toggle"
-                onClick={toggleTheme}
-                title={themeMode === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
-                type="button"
-              >
-                {themeMode === 'light' ? (
-                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="12" r="4" />
-                    <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
-                  </svg>
-                ) : (
-                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
-                  </svg>
-                )}
-              </button>
-              <button
-                className="landing-btn-login"
-                onClick={() => {
-                  if (user) {
-                    enterApp(user);
-                  } else {
-                    setAuthMode('login');
-                    setAuthMsg({ text: '', type: '' });
-                    setShowAuthModal(true);
-                  }
-                }}
-                type="button"
-              >
-                {user ? 'Dashboard' : 'Login'}
-              </button>
-              <button
-                className="landing-btn-signup"
-                onClick={() => {
-                  setAuthMode('register');
-                  setAuthMsg({ text: '', type: '' });
-                  setShowAuthModal(true);
-                }}
-                type="button"
-              >
-                Sign Up
-              </button>
-            </div>
-          </div>
-        </header>
+      <div id="landingView" className="landing-3d-root">
+        {/* Dynamic 3D Particle Starfield & Neural Field */}
+        <ParticleBackground />
 
-        {/* Hero Section */}
-        <section className="hero-section">
-          <div className="hero-glow-1"></div>
-          <div className="hero-glow-2"></div>
-          
-          <div className="hero-grid-split">
-            <div className="hero-content-left">
-              <h1 className="hero-title">
-                Interview & Meeting<br />
-                <span className="gradient-text">AI Copilot</span>
-              </h1>
-              <p className="hero-subtitle">
-                Trusted by 869,852+ users. An innovative dual-layer AI Copilot system that provides AI Copilot and AI Coach running in parallel.
-              </p>
-              <div className="hero-cta-group">
-                <button
-                  className="hero-btn-primary"
-                  onClick={() => {
-                    setAuthMode('register');
-                    setAuthMsg({ text: '', type: '' });
-                    setShowAuthModal(true);
-                  }}
-                  type="button"
-                >
-                  Start For Free <span className="arrow">→</span>
-                </button>
-                <span className="hero-btn-subtext">Free to start · No credit card required</span>
-              </div>
-            </div>
+        <div className="landing-3d-content">
+          {/* Glassmorphism Navbar with Theme Switcher */}
+          <Navbar3D
+            user={user}
+            themeMode={themeMode}
+            toggleTheme={toggleTheme}
+            onLoginClick={() => {
+              if (user) {
+                enterApp(user);
+              } else {
+                setAuthMode('login');
+                setAuthMsg({ text: '', type: '' });
+                setShowAuthModal(true);
+              }
+            }}
+            onSignupClick={() => {
+              if (user) {
+                enterApp(user);
+              } else {
+                setAuthMode('register');
+                setAuthMsg({ text: '', type: '' });
+                setShowAuthModal(true);
+              }
+            }}
+          />
 
-            <div className="hero-content-right">
-              <div className="hologram-container">
-                {/* 3D Orbiting Rings */}
-                <div className="hologram-ring ring-outer"></div>
-                <div className="hologram-ring ring-inner"></div>
-                
-                {/* Main Floating 3D Console */}
-                <div className="hologram-console">
-                  {/* Glowing Core */}
-                  <div className="console-core"></div>
-                  
-                  {/* HUD Header */}
-                  <div className="console-header">
-                    <span className="console-status-dot"></span>
-                    <span className="console-title">SYSTEM CUE LOG</span>
-                    <span className="console-telemetry">PING: 12MS</span>
-                  </div>
-                  
-                  {/* Waveform Visualization */}
-                  <div className="console-wave-area">
-                    <div className="hologram-wave">
-                      <span className="wave-line"></span>
-                      <span className="wave-line"></span>
-                      <span className="wave-line"></span>
-                      <span className="wave-line"></span>
-                      <span className="wave-line"></span>
-                      <span className="wave-line"></span>
-                      <span className="wave-line"></span>
-                    </div>
-                    <span className="console-meta-text">VOICE DECODING CHUNKS...</span>
-                  </div>
+          {/* Hero Section with Interactive 3D AI Core Canvas */}
+          <Hero3DSection
+            onGetStarted={() => {
+              if (user) {
+                enterApp(user);
+              } else {
+                setAuthMode('register');
+                setAuthMsg({ text: '', type: '' });
+                setShowAuthModal(true);
+              }
+            }}
+            onExplore={() => {
+              const el = document.getElementById('copilot');
+              if (el) el.scrollIntoView({ behavior: 'smooth' });
+            }}
+          />
 
-                  {/* Active Context Card */}
-                  <div className="console-context-card">
-                    <div className="card-lbl">ACTIVE RAG CONTEXT</div>
-                    <div className="card-val">📄 resume_backend_dev.pdf (Active)</div>
-                  </div>
+          {/* 3D Holographic Statistics Counter Cards */}
+          <Stats3DSection />
 
-                  {/* Glass Card HUD Answer Panel (Offset in Z-space) */}
-                  <div className="console-hud-overlay">
-                    <div className="hud-lbl">COPILOT HUD ANSWER</div>
-                    <div className="hud-title">Cue: Process vs Thread</div>
-                    <p className="hud-snippet">
-                      Processes own resources and run in isolated memory spaces. Threads share memory space and are lightweight.
-                    </p>
-                  </div>
-                </div>
+          {/* Real-time Interactive 3D Copilot Teleprompter Simulator */}
+          <InteractiveSimulator3D />
 
-                {/* Satellite floaters orbiting in 3D */}
-                <div className="hologram-particle p1"></div>
-                <div className="hologram-particle p2"></div>
-                <div className="hologram-particle p3"></div>
-              </div>
-            </div>
-          </div>
-        </section>
+          {/* Futuristic 3D Interactive Features with Mouse Tilt Physics */}
+          <Features3DSection />
 
-        {/* Interactive Simulator Section */}
-        <section className="sim-section" id="copilot">
-          <div className="sim-3d-wrapper">
-            <div
-              className="sim-container"
-              onMouseMove={handleSimMouseMove}
-              onMouseLeave={handleSimMouseLeave}
-              ref={simContainerRef}
-              style={{
-                transform: `perspective(1000px) rotateX(${simTiltX}deg) rotateY(${simTiltY}deg)`,
-                transition: simTiltX === 0 ? 'transform 0.5s cubic-bezier(0.16, 1, 0.3, 1)' : 'none'
-              }}
-            >
-            {/* Left Column: Interactive Controls */}
-            <div className="sim-controls">
-              <h3>Try Copilot in Real-Time</h3>
-              <p>Experience the low-latency transcribing and answer HUD before signing up. Select a question below or enter a custom prompt.</p>
-              
-              <div className="sim-btn-list">
-                {SIM_SAMPLES.map((sample) => (
-                  <button
-                    key={sample.id}
-                    className={`sim-btn-item ${simActiveId === sample.id ? 'active' : ''}`}
-                    onClick={() => runSimulation(sample.id, sample.question, sample.answer)}
-                    type="button"
-                  >
-                    <span>{sample.label}</span>
-                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <polygon points="5 3 19 12 5 21 5 3" />
-                    </svg>
-                  </button>
-                ))}
-              </div>
+          {/* Interactive 3D Neural Network AI Core Showcase */}
+          <AIShowcase3DSection />
 
-              <form className="sim-input-box" onSubmit={handleSimCustomSubmit}>
-                <input
-                  type="text"
-                  className="sim-input"
-                  placeholder="Type any custom question..."
-                  value={simInput}
-                  onChange={(e) => setSimInput(e.target.value)}
-                  disabled={simState === 'transcribing' || simState === 'thinking'}
-                />
-                <button
-                  type="submit"
-                  className="sim-input-submit"
-                  disabled={simState === 'transcribing' || simState === 'thinking'}
-                >
-                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="22" y1="2" x2="11" y2="13" />
-                    <polygon points="22 2 15 22 11 13 2 9 22 2" />
-                  </svg>
-                </button>
-              </form>
+          {/* Parallel AI Duo Mode (Copilot + Coach) */}
+          <DualModeSection />
 
-              <div className={`sim-voice-wave ${simState === 'transcribing' ? 'wave-active' : ''}`}>
-                <span className="wave-bar"></span>
-                <span className="wave-bar"></span>
-                <span className="wave-bar"></span>
-                <span className="wave-bar"></span>
-                <span className="wave-bar"></span>
-                <span style={{ color: '#cbd5e1', fontSize: '12px', fontWeight: '600', marginLeft: '8px' }}>
-                  {simState === 'transcribing' && "Simulating Voice Input..."}
-                  {simState === 'thinking' && "AI is thinking..."}
-                  {simState === 'answering' && "HUD Answer Sync Complete!"}
-                  {simState === 'idle' && "Microphone Stream Idle"}
-                </span>
-              </div>
-            </div>
+          {/* 3-Step Futuristic Workflow Timeline */}
+          <HowItWorks3DSection />
 
-            {/* Right Column: Live HUD UI Mockup */}
-            <div className="sim-hud">
-              <div className="hud-tally-bar">
-                <span className={`tally-dot ${simState === 'transcribing' || simState === 'thinking' ? 'active-tally' : simState === 'answering' ? 'active-answering' : ''}`}></span>
-                <span>
-                  {simState === 'idle' && "TALLY: STANDBY"}
-                  {simState === 'transcribing' && "TALLY: TRANSCRIBING"}
-                  {simState === 'thinking' && "TALLY: THINKING"}
-                  {simState === 'answering' && "TALLY: HUD READY"}
-                </span>
-              </div>
+          {/* Futuristic 3D Glassmorphism Pricing Tier Cards */}
+          <Pricing3DSection
+            onSelectPlan={(plan) => {
+              if (user) {
+                enterApp(user);
+              } else {
+                setAuthMode('register');
+                setAuthMsg({ text: '', type: '' });
+                setShowAuthModal(true);
+              }
+            }}
+          />
 
-              {simQuestion ? (
-                <div className="hud-question-box">
-                  <div className="hud-question-label">Live Cue Line</div>
-                  <div className="hud-question-text">"{simQuestion}"</div>
-                </div>
-              ) : (
-                <div className="hud-question-box" style={{ opacity: 0.15 }}>
-                  <div className="hud-question-label">Live Cue Line</div>
-                  <div className="hud-question-text" style={{ fontStyle: 'italic' }}>Listening for question...</div>
-                </div>
-              )}
+          {/* Knowledge Base & FAQ Accordion */}
+          <FAQ3DSection />
 
-              {simState === 'thinking' && (
-                <div className="hud-answer-box" style={{ justifyContent: 'center', alignItems: 'center' }}>
-                  <div style={{ color: '#ff7a18', fontSize: '13px', fontWeight: 'bold', letterSpacing: '0.05em' }}>
-                    GENERATING REAL-TIME ANSWER CARD...
-                  </div>
-                </div>
-              )}
+          {/* High-Impact 3D AI Energy Orb CTA Section */}
+          <CTA3DSection
+            onStartBuilding={() => {
+              if (user) {
+                enterApp(user);
+              } else {
+                setAuthMode('register');
+                setAuthMsg({ text: '', type: '' });
+                setShowAuthModal(true);
+              }
+            }}
+          />
 
-              {simState === 'answering' && simAnswer && (
-                <div className="hud-answer-box">
-                  <div>
-                    <div className="mock-tag">{simAnswer.kind.toUpperCase()}</div>
-                    <div
-                      className="hud-answer-text"
-                      dangerouslySetInnerHTML={{ __html: simAnswer.content }}
-                    />
-                  </div>
-                  <div className="hud-answer-footer">
-                    <span>Confidence: {simAnswer.confidence}</span>
-                    <span>Source: {simAnswer.source}</span>
-                  </div>
-                </div>
-              )}
+          {/* Futuristic Glassmorphic Footer */}
+          <Footer3D />
 
-              {(simState === 'idle' || simState === 'transcribing') && (
-                <div className="hud-answer-box" style={{ opacity: 0.15 }}>
-                  <div className="hud-placeholder">
-                    Select a question on the left to simulate the real-time teleprompter answer card generation.
-                  </div>
-                </div>
-              )}
-            </div>
-            </div>
-          </div>
-        </section>
-
-        {/* System HUD Showcase Section */}
-        <section className="showcase-section">
-          <h2 className="section-title">The HUD Teleprompter Console</h2>
-          <p className="section-subtitle">
-            A state-of-the-art overlay workspace showing live voice transcriptions, context-aware resume matches, and structural code templates side-by-side.
-          </p>
-          <div className="showcase-image-container">
-            <img
-              src="/copilot_mockup.jpg"
-              alt="FeonixAI System HUD Interface"
-              className="showcase-img"
-              loading="lazy"
-            />
-            {/* Ambient glows behind the mockup */}
-            <div className="showcase-glow-1"></div>
-            <div className="showcase-glow-2"></div>
-          </div>
-        </section>
-
-        {/* Logo Cloud Section */}
-        <section className="logo-cloud">
-          <p>Trusted by elite software engineers worldwide</p>
-          <div className="logo-grid">
-            <span className="logo-item">Google</span>
-            <span className="logo-item">Microsoft</span>
-            <span className="logo-item">Meta</span>
-            <span className="logo-item">Amazon</span>
-            <span className="logo-item">Apple</span>
-            <span className="logo-item">Netflix</span>
-          </div>
-        </section>
-
-        {/* Features Section */}
-        <section className="features-section" id="coder">
-          <h2 className="section-title">Engineered for Technical Interaction</h2>
-          <p className="section-subtitle">
-            FeonixAI runs dynamically in the background to analyze conversation cues, provide code suggestions, and supply real-time facts.
-          </p>
-          <div className="features-grid">
-            <div className="feature-card">
-              <div className="feature-icon">
-                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="10" />
-                  <polyline points="12 6 12 12 16 14" />
-                </svg>
-              </div>
-              <h3>Ultra-Low Latency</h3>
-              <p>Detects and transcribes voice cues in real-time (under 1.5 seconds) using optimized local chunk streaming handlers.</p>
-            </div>
-            
-            <div className="feature-card">
-              <div className="feature-icon">
-                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                  <polyline points="14 2 14 8 20 8" />
-                  <line x1="16" y1="13" x2="8" y2="13" />
-                  <line x1="16" y1="17" x2="8" y2="17" />
-                  <polyline points="10 9 9 9 8 9" />
-                </svg>
-              </div>
-              <h3>Context-Aware HUD</h3>
-              <p>AI answers dynamically sync with your uploaded resumes, CVs, and custom session guidelines for personalized prompt alignment.</p>
-            </div>
-
-            <div className="feature-card">
-              <div className="feature-icon">
-                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polygon points="5 3 19 12 5 21 5 3" />
-                </svg>
-              </div>
-              <h3>Multi-Modal Assistant</h3>
-              <p>Get instant access to structural code templates, algorithmic steps, system designs, or standard behavioral scenarios on the fly.</p>
-            </div>
-
-            <div className="feature-card">
-              <div className="feature-icon">
-                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                </svg>
-              </div>
-              <h3>Privacy-First Sandbox</h3>
-              <p>Secure end-to-end sandbox operations. Your voice recordings and transcripts are private and stored locally on your own profile.</p>
-            </div>
-          </div>
-        </section>
-
-        {/* Dual Mode Section */}
-        <section className="dual-mode-section" id="duo">
-          <div className="dual-mode-container">
-            <div className="mode-box copilot">
-              <div className="mode-badge">Real-Time</div>
-              <h3>AI Copilot Mode</h3>
-              <p>Runs silently in the background during your technical calls. It transcribes questions and displays concise answer cues instantly on your HUD.</p>
-              <ul className="mode-features">
-                <li>
-                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                  <span>Teleprompter-scale readable fonts</span>
-                </li>
-                <li>
-                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                  <span>Automatic voice-activated trigger</span>
-                </li>
-                <li>
-                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                  <span>Manual prompt question overrides</span>
-                </li>
-              </ul>
-              <div className="mode-card-preview">
-                <img
-                  src="/copilot_mode_preview.jpg"
-                  alt="AI Copilot Mode HUD Preview"
-                  className="mode-preview-img"
-                  loading="lazy"
-                />
-              </div>
-            </div>
-
-            <div className="mode-box coach">
-              <div className="mode-badge">Analysis</div>
-              <h3>AI Coach Mode</h3>
-              <p>Evaluates your mock sessions and real calls afterwards. Provides detailed reports on response structure, speed, and content coverage.</p>
-              <ul className="mode-features">
-                <li>
-                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                  <span>Detailed structural performance feedback</span>
-                </li>
-                <li>
-                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                  <span>Interactive review chat interface</span>
-                </li>
-                <li>
-                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                  <span>Saved transcripts and response maps</span>
-                </li>
-              </ul>
-              <div className="mode-card-preview">
-                <img
-                  src="/coach_mode_preview.jpg"
-                  alt="AI Coach Mode Report Preview"
-                  className="mode-preview-img"
-                  loading="lazy"
-                />
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* How It Works Section */}
-        <section className="how-it-works-section" id="desktop">
-          <h2 className="section-title">How It Works</h2>
-          <p className="section-subtitle">Get set up and start utilizing your personal AI helper in less than 2 minutes.</p>
-          <div className="steps-container">
-            <div className="step-item">
-              <div className="step-number">1</div>
-              <h3>Configure Guidelines</h3>
-              <p>Upload your resumes, documents, or paste a specific job description to set the AI knowledge context.</p>
-            </div>
-            
-            <div className="step-item">
-              <div className="step-number">2</div>
-              <h3>Launch the Copilot</h3>
-              <p>Create a session, select the AI agent, and trigger the live voice/mic listening toggle on the workspace.</p>
-            </div>
-
-            <div className="step-item">
-              <div className="step-number">3</div>
-              <h3>Get Real-Time Cues</h3>
-              <p>Speak naturally. The Copilot will analyze questions and display styled answers on the glassmorphic HUD panel.</p>
-            </div>
-          </div>
-        </section>
-
-        {/* Pricing Section */}
-        <section className="pricing-section" id="pricing">
-          <h2 className="section-title">Flexible Plans for Every Engineer</h2>
-          <p className="section-subtitle">
-            Start preparing for your next career jump with our flexible, usage-based credits or trial limits.
-          </p>
-          
-          <div className="pricing-grid">
-            <div className="pricing-card">
-              <div className="pricing-card-badge">Get Started</div>
-              <h3>Free Trial</h3>
-              <div className="price">
-                <span className="currency">$</span>
-                <span className="amount">0</span>
-                <span className="period">/ forever</span>
-              </div>
-              <p className="price-desc">Perfect for trying out FeonixAI before your live call.</p>
-              <ul className="price-features">
-                <li>
-                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                  <span>10-minute trial session limit</span>
-                </li>
-                <li>
-                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                  <span>Standard AI model (GPT-4o mini)</span>
-                </li>
-                <li>
-                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                  <span>Upload up to 1 Resume / JD</span>
-                </li>
-              </ul>
-              <button
-                className="price-btn"
-                onClick={() => {
-                  setAuthMode('register');
-                  setAuthMsg({ text: '', type: '' });
-                  setShowAuthModal(true);
-                }}
-                type="button"
-              >
-                Sign Up Free
-              </button>
-            </div>
-
-            <div className="pricing-card featured">
-              <div className="pricing-card-badge">Popular</div>
-              <h3>Pro Plan</h3>
-              <div className="price">
-                <span className="currency">$</span>
-                <span className="amount">19</span>
-                <span className="period">/ 100 credits</span>
-              </div>
-              <p className="price-desc">Designed for active job seekers undergoing intensive rounds.</p>
-              <ul className="price-features">
-                <li>
-                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                  <span>Unlimited session durations</span>
-                </li>
-                <li>
-                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                  <span>Advanced AI model access (GPT-4o)</span>
-                </li>
-                <li>
-                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                  <span>Unlimited Resume & JD uploads</span>
-                </li>
-                <li>
-                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                  <span>Advanced post-call AI review chat</span>
-                </li>
-              </ul>
-              <button
-                className="price-btn featured-btn"
-                onClick={() => {
-                  setAuthMode('register');
-                  setAuthMsg({ text: '', type: '' });
-                  setShowAuthModal(true);
-                }}
-                type="button"
-              >
-                Get Started
-              </button>
-            </div>
-          </div>
-        </section>
-
-        {/* FAQ Section */}
-        <section className="faq-section" id="faq">
-          <h2 className="section-title">Frequently Asked Questions</h2>
-          <p className="section-subtitle">Got questions? We've got answers.</p>
-          <div className="faq-list">
-            <div className={`faq-item ${activeFaq === 0 ? 'is-open' : ''}`}>
-              <button className="faq-trigger" onClick={() => setActiveFaq(activeFaq === 0 ? null : 0)} type="button">
-                <h3>How fast are the real-time AI answer suggestions?</h3>
-                <svg className="faq-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="6 9 12 15 18 9" />
-                </svg>
-              </button>
-              <div className="faq-content">
-                <p>Typically under 1.5 seconds! Our optimized backend pipelines process incoming audio chunks concurrently, converting voice cues into structured prompts immediately.</p>
-              </div>
-            </div>
-
-            <div className={`faq-item ${activeFaq === 1 ? 'is-open' : ''}`}>
-              <button className="faq-trigger" onClick={() => setActiveFaq(activeFaq === 1 ? null : 1)} type="button">
-                <h3>Is my interview data secure and private?</h3>
-                <svg className="faq-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="6 9 12 15 18 9" />
-                </svg>
-              </button>
-              <div className="faq-content">
-                <p>Yes, absolutely. All sessions are sandbox-protected. Your audio files and transcripts are isolated, private to your account profile, and can be permanently deleted at any time.</p>
-              </div>
-            </div>
-
-            <div className={`faq-item ${activeFaq === 2 ? 'is-open' : ''}`}>
-              <button className="faq-trigger" onClick={() => setActiveFaq(activeFaq === 2 ? null : 2)} type="button">
-                <h3>Can I customize the AI response guidelines?</h3>
-                <svg className="faq-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="6 9 12 15 18 9" />
-                </svg>
-              </button>
-              <div className="faq-content">
-                <p>Yes. You can upload custom resumes, CVs, and specific guidelines, or even paste entire job descriptions. The AI will cross-reference this information to match the context during your calls.</p>
-              </div>
-            </div>
-
-            <div className={`faq-item ${activeFaq === 3 ? 'is-open' : ''}`}>
-              <button className="faq-trigger" onClick={() => setActiveFaq(activeFaq === 3 ? null : 3)} type="button">
-                <h3>Does it support multiple programming languages?</h3>
-                <svg className="faq-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="6 9 12 15 18 9" />
-                </svg>
-              </button>
-              <div className="faq-content">
-                <p>Yes, it parses coding questions and displays syntax-highlighted solutions for JavaScript, Python, C++, Java, Go, Rust, and more.</p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Footer */}
-        <footer className="landing-footer">
-          <div className="footer-container">
-            <div className="footer-brand-col">
-              <div className="landing-brand">
-                <span className="landing-brand-mark">F</span>
-                <span className="landing-brand-name">FEONIX AI</span>
-              </div>
-              <p>High-stakes meeting and technical interview assistance powered by dual-layer real-time AI.</p>
-            </div>
-            
-            <div className="footer-col">
-              <h4>Product</h4>
-              <ul className="footer-links">
-                <li><a href="#copilot">AI Copilot</a></li>
-                <li><a href="#coder">Coding Assistant</a></li>
-                <li><a href="#desktop">Desktop App</a></li>
-                <li><a href="#pricing">Pricing Plans</a></li>
-              </ul>
-            </div>
-
-            <div className="footer-col">
-              <h4>Resources</h4>
-              <ul className="footer-links">
-                <li><a href="#docs">Documentation</a></li>
-                <li><a href="#faq">FAQ</a></li>
-                <li><a href="#support">Get Support</a></li>
-              </ul>
-            </div>
-
-            <div className="footer-col">
-              <h4>Company</h4>
-              <ul className="footer-links">
-                <li><a href="#about">About Us</a></li>
-                <li><a href="#privacy">Privacy Policy</a></li>
-                <li><a href="#terms">Terms of Service</a></li>
-              </ul>
-            </div>
-          </div>
-
-          <div className="footer-bottom">
-            <p>© {new Date().getFullYear()} Feonix AI. All rights reserved.</p>
-            <div className="footer-bottom-links">
-              <a href="#privacy">Privacy</a>
-              <a href="#terms">Terms</a>
-              <a href="#cookies">Cookies</a>
-            </div>
-          </div>
-        </footer>
-
-        {/* Floating Ask AI Button */}
-        <button
-          className="floating-ask-ai"
-          onClick={() => {
-            setAuthMode('login');
-            setAuthMsg({ text: '', type: '' });
-            setShowAuthModal(true);
-          }}
-          type="button"
-        >
-          <svg
-            viewBox="0 0 24 24"
-            width="16"
-            height="16"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-          </svg>
-          <span>Ask AI</span>
-          <span className="ask-ping"></span>
-        </button>
+          {/* Floating Radar Ask AI Helper */}
+          <FloatingAskAI
+            onClick={() => {
+              if (user) {
+                enterApp(user);
+              } else {
+                setAuthMode('login');
+                setAuthMsg({ text: '', type: '' });
+                setShowAuthModal(true);
+              }
+            }}
+          />
+        </div>
 
         {/* Auth Modal Overlay */}
         {showAuthModal && (

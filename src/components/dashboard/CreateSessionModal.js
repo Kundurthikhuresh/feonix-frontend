@@ -155,8 +155,8 @@ export default function CreateSessionModal({
               className="mode-select"
             >
               {catalogue?.languages?.map((l) => (
-                <option key={l.code} value={l.code}>
-                  {l.label}
+                <option key={l} value={l}>
+                  {l}
                 </option>
               ))}
             </select>

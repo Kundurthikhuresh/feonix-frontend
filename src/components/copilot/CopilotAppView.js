@@ -1,5 +1,6 @@
 import React from 'react';
 import { sanitizeHTML } from '../../lib/sanitize';
+import { formatParakeetAnswer } from '../../lib/answerFormatter';
 
 export default function CopilotAppView({
   activeSession,
@@ -27,6 +28,34 @@ export default function CopilotAppView({
   return (
     <div id="appView">
       <aside className="rail">
+        <div style={{ marginBottom: '14px' }}>
+          <button
+            className="btn-quiet"
+            onClick={() => {
+              stopListening();
+              setCurrentView('dash');
+            }}
+            type="button"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              width: '100%',
+              justifyContent: 'center',
+              padding: '6px 10px',
+              fontSize: '12.5px',
+              borderRadius: '8px',
+              cursor: 'pointer'
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="19" y1="12" x2="5" y2="12"></line>
+              <polyline points="12 19 5 12 12 5"></polyline>
+            </svg>
+            <span>Back to Dashboard</span>
+          </button>
+        </div>
+
         <div className="rail-section">
           <h2>Session</h2>
           <div className="rail-session">
@@ -96,8 +125,13 @@ export default function CopilotAppView({
               setCurrentView('dash');
             }}
             type="button"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', justifyContent: 'center' }}
           >
-            All sessions
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="19" y1="12" x2="5" y2="12"></line>
+              <polyline points="12 19 5 12 12 5"></polyline>
+            </svg>
+            <span>Back to Dashboard</span>
           </button>
         </div>
       </aside>
@@ -110,7 +144,7 @@ export default function CopilotAppView({
               <div className="qtype">{liveQType}</div>
               <div
                 className="answer"
-                dangerouslySetInnerHTML={{ __html: sanitizeHTML(liveAnswer) }}
+                dangerouslySetInnerHTML={{ __html: sanitizeHTML(formatParakeetAnswer(liveAnswer)) }}
               />
             </>
           ) : (
