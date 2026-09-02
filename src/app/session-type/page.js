@@ -275,6 +275,33 @@ function SessionTypeContent() {
               <button className="traffic-btn traffic-max" title="Maximize" type="button"></button>
             </div>
 
+            <button
+              className="back-btn-pill"
+              onClick={handleGoBack}
+              title="Back to Dashboard"
+              type="button"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                background: 'rgba(255, 255, 255, 0.08)',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                borderRadius: '999px',
+                padding: '4px 10px',
+                color: '#F3F4F4',
+                fontSize: '12px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                transition: 'all 150ms ease'
+              }}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="19" y1="12" x2="5" y2="12"></line>
+                <polyline points="12 19 5 12 12 5"></polyline>
+              </svg>
+              <span>Dashboard</span>
+            </button>
+
             <div className="brand-badge">
               <div className="brand-logo">⚡</div>
               <span>FeonixAI</span>
@@ -336,8 +363,17 @@ function SessionTypeContent() {
             </div>
 
             <div className="footer-back">
-              <button className="btn-secondary" onClick={handleGoBack} type="button">
-                ← Back to Dashboard
+              <button
+                className="btn-secondary"
+                onClick={handleGoBack}
+                type="button"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="19" y1="12" x2="5" y2="12"></line>
+                  <polyline points="12 19 5 12 12 5"></polyline>
+                </svg>
+                <span>Back to Dashboard</span>
               </button>
             </div>
 

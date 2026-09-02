@@ -192,6 +192,41 @@ function LaunchContent() {
             {msg.text}
           </div>
         )}
+
+        <div style={{ marginTop: '20px', borderTop: '1px solid rgba(255, 255, 255, 0.08)', paddingTop: '16px', display: 'flex', justifyContent: 'center' }}>
+          <button
+            onClick={() => router.replace('/?view=dash')}
+            type="button"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              background: 'transparent',
+              border: '1px solid rgba(255, 255, 255, 0.15)',
+              borderRadius: '999px',
+              padding: '6px 14px',
+              color: '#A1A7B3',
+              fontSize: '12.5px',
+              fontWeight: '600',
+              cursor: 'pointer',
+              transition: 'all 150ms ease'
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.color = '#FFFFFF';
+              e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.3)';
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.color = '#A1A7B3';
+              e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.15)';
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="19" y1="12" x2="5" y2="12"></line>
+              <polyline points="12 19 5 12 12 5"></polyline>
+            </svg>
+            <span>Back to Dashboard</span>
+          </button>
+        </div>
       </div>
     </div>
   );

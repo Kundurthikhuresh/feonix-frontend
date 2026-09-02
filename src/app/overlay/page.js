@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { formatParakeetAnswer } from '../../lib/answerFormatter';
 import './overlay.css';
 
 function OverlayContent() {
@@ -24,6 +25,7 @@ function OverlayContent() {
   const [qtype, setQtype] = useState('');
   const [transcriptChips, setTranscriptChips] = useState([]);
   const [elapsedText, setElapsedText] = useState('00:00');
+  const [remainingText, setRemainingText] = useState('');
   const [listening, setListening] = useState(false);
   const [creditsText, setCreditsText] = useState('— Credits');
   
@@ -32,13 +34,11 @@ function OverlayContent() {
   const [emergencyOpen, setEmergencyOpen] = useState(false);
   const [opacity, setOpacity] = useState(92); // 92%
   const [showWarningModal, setShowWarningModal] = useState(false);
-  const [showSettlementModal, setShowSettlementModal] = useState(false);
-  const [settlementSummary, setSettlementSummary] = useState(null);
   const [toastMsg, setToastMsg] = useState('');
   const [showToast, setShowToast] = useState(false);
   
   // Custom Size controls (browser mode drag resizing)
-  const [cardSize, setCardSize] = useState({ width: 640, height: 260 });
+  const [cardSize, setCardSize] = useState({ width: 880, height: 420 });
   const [isExpanded, setIsExpanded] = useState(false);
   const [listenSource, setListenSource] = useState('tab'); // 'tab', 'mic'
   const [manualInput, setManualInput] = useState('');
@@ -50,6 +50,32 @@ function OverlayContent() {
   const elapsedTimerRef = useRef(null);
   const answerAbortRef = useRef(null);
   const elapsedSecsRef = useRef(0);
+  const sessionEndedRef = useRef(false);
+  const cyclingRef = useRef(false);
+  const chipsContainerRef = useRef(null);
+
+  // Auto-scroll transcript chips to the latest transcribed chunk
+  useEffect(() => {
+    if (chipsContainerRef.current) {
+      chipsContainerRef.current.scrollTo({
+        left: chipsContainerRef.current.scrollWidth,
+        behavior: 'smooth'
+      });
+    }
+  }, [transcriptChips]);
+
+  // Sync window size with Desktop Overlay whenever content appears or expands
+  useEffect(() => {
+    if (window.feonix && typeof window.feonix.resize === 'function') {
+      if (cueLine) {
+        const height = (isExpanded ? 640 : cardSize.height) + 160;
+        const width = isExpanded ? 1100 : Math.max(cardSize.width, 880);
+        window.feonix.resize(width, height);
+      } else {
+        window.feonix.resize(880, 160);
+      }
+    }
+  }, [cueLine, cardSize.height, cardSize.width, isExpanded]);
 
   useEffect(() => {
     if (!querySessionId) {
@@ -72,14 +98,77 @@ function OverlayContent() {
     };
   }, [querySessionId]);
 
+  // Counts down to session.expires_at, warns at the 60s mark, and auto-ends
+  // the session the moment the entitlement runs out (the server rejects
+  // /answer once expired, but the client should end gracefully rather than
+  // wait for that 409).
+  useEffect(() => {
+    if (!session || !session.expires_at) {
+      setRemainingText('');
+      return;
+    }
+    const expiresAtMs = new Date(session.expires_at.replace(' ', 'T') + 'Z').getTime();
+    if (!Number.isFinite(expiresAtMs)) return;
+
+    let warned = false;
+    const tick = () => {
+      const remainingMs = expiresAtMs - Date.now();
+      if (remainingMs <= 0) {
+        setRemainingText('00:00');
+        clearInterval(iv);
+        if (!sessionEndedRef.current) handleEndSession();
+        return;
+      }
+      const totalSecs = Math.floor(remainingMs / 1000);
+      const m = Math.floor(totalSecs / 60);
+      const s = totalSecs % 60;
+      setRemainingText(`${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
+      if (!warned && remainingMs <= 60000) {
+        warned = true;
+        setShowWarningModal(true);
+        triggerToast('⚠️ 1 minute remaining');
+      }
+    };
+
+    tick();
+    const iv = setInterval(tick, 1000);
+    return () => clearInterval(iv);
+  }, [session && session.expires_at]);
+
   const loadSessionDetails = async () => {
     try {
       const res = await fetch('/api/sessions/' + querySessionId);
-      if (res.ok) {
-        const { session: s } = await res.json();
-        setSession(s);
-        fetchAccountBalance();
+      if (!res.ok) return;
+      const { session: s } = await res.json();
+
+      if (s.status === 'ended') {
+        sessionEndedRef.current = true;
+        router.replace('/?view=dash');
+        return;
       }
+
+      let activeSession = s;
+      if (s.status === 'ready') {
+        const billing = s.billing_kind || (plan === 'free' ? 'trial' : 'paid');
+        try {
+          const startRes = await fetch(`/api/sessions/${s.id}/start`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ billing }),
+          });
+          const startData = await startRes.json().catch(() => ({}));
+          if (startRes.ok) {
+            activeSession = startData.session;
+          } else {
+            triggerToast(startData.message || 'Could not start session');
+          }
+        } catch (err) {
+          console.error('Failed to start session:', err);
+        }
+      }
+
+      setSession(activeSession);
+      fetchAccountBalance();
     } catch (err) {
       console.error('Failed to load session details:', err);
     }
@@ -90,8 +179,8 @@ function OverlayContent() {
       const res = await fetch('/api/sessions/account');
       if (res.ok) {
         const data = await res.json();
-        const left = data.credits_remaining !== null ? Number(data.credits_remaining).toFixed(1) : '0';
-        setCreditsText(`${left} Credits`);
+        const account = data.account || {};
+        setCreditsText(account.unlimited ? 'Unlimited' : `${Number(account.credits || 0).toFixed(1)} Credits`);
       }
     } catch {}
   };
@@ -129,24 +218,32 @@ function OverlayContent() {
 
       const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
       recorderRef.current = mediaRecorder;
+      cyclingRef.current = true;
 
       let chunks = [];
       mediaRecorder.ondataavailable = (e) => {
         if (e.data && e.data.size > 0) chunks.push(e.data);
       };
 
-      mediaRecorder.onstop = async () => {
-        if (chunks.length === 0) return;
-        const blob = new Blob(chunks, { type: 'audio/webm' });
-        chunks = [];
-        await uploadAudioChunk(blob);
+      // stop() is asynchronous — the recorder isn't actually idle until this
+      // event fires, so restarting must happen here, not right after calling
+      // stop(). Calling start() before that teardown finishes is what threw
+      // "Failed to execute 'start' on 'MediaRecorder'" (NotSupportedError).
+      mediaRecorder.onstop = () => {
+        if (chunks.length > 0) {
+          const blob = new Blob(chunks, { type: 'audio/webm' });
+          chunks = [];
+          uploadAudioChunk(blob);
+        }
+        if (cyclingRef.current && recorderRef.current === mediaRecorder) {
+          mediaRecorder.start();
+        }
       };
 
       mediaRecorder.start();
       cycleTimerRef.current = setInterval(() => {
         if (mediaRecorder.state === 'recording') {
           mediaRecorder.stop();
-          mediaRecorder.start();
         }
       }, 2500);
 
@@ -160,6 +257,7 @@ function OverlayContent() {
 
   const stopRecording = async () => {
     setListening(false);
+    cyclingRef.current = false;
     clearInterval(elapsedTimerRef.current);
 
     if (cycleTimerRef.current) clearInterval(cycleTimerRef.current);
@@ -259,9 +357,9 @@ function OverlayContent() {
             const parsed = JSON.parse(data);
             if (name === 'token' && parsed.text) {
               textAccumulator += parsed.text;
-              setAnswerHtml(formatMarkdown(textAccumulator));
+              setAnswerHtml(formatParakeetAnswer(textAccumulator));
             } else if (name === 'error') {
-              setAnswerHtml('Stream error: ' + (parsed.message || ''));
+              setAnswerHtml('<div class="parakeet-error">Stream error: ' + (parsed.message || '') + '</div>');
             }
           } catch {}
         }
@@ -278,11 +376,7 @@ function OverlayContent() {
   };
 
   const formatMarkdown = (text) => {
-    // Simple bold and newline formatter for HUD view
-    return text
-      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\*(.*?)\*/g, '<em>$1</em>')
-      .replace(/\n/g, '<br/>');
+    return formatParakeetAnswer(text);
   };
 
   const handleManualInputSubmit = (e) => {
@@ -294,18 +388,55 @@ function OverlayContent() {
   };
 
   const handleEndSession = async () => {
+    if (sessionEndedRef.current) return;
+    sessionEndedRef.current = true;
+    setShowWarningModal(false);
     await stopRecording();
     try {
       const res = await fetch(`/api/sessions/${querySessionId}/end`, { method: 'POST' });
       if (res.ok) {
         const data = await res.json();
-        setSettlementSummary(data.summary || {});
-        setShowSettlementModal(true);
-      } else {
-        router.replace('/?view=dash');
+        const settlement = data.settlement;
+        if (settlement) {
+          const totalSecs = Math.round((settlement.minutes || 0) * 60);
+          const m = Math.floor(totalSecs / 60);
+          const s = totalSecs % 60;
+          const durationText = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+          const costText = settlement.kind === 'unlimited'
+            ? 'Unlimited plan'
+            : `${Number(settlement.credits || 0).toFixed(2)} Credits used`;
+          triggerToast(`Session ended — ${durationText} · ${costText}`);
+        }
       }
-    } catch {
-      router.replace('/?view=dash');
+    } catch (err) {
+      console.error('Failed to end session:', err);
+    } finally {
+      if (window.feonix && typeof window.feonix.quit === 'function') {
+        window.feonix.quit();
+      } else if (window.feonix && typeof window.feonix.minimize === 'function') {
+        window.feonix.minimize();
+      } else {
+        // Browsers only allow a script to close a tab it opened itself via
+        // window.open() — a normally-navigated tab like this one silently
+        // ignores window.close(). Try anyway, then fall back to the
+        // dashboard if the tab is still alive a moment later.
+        window.close();
+        setTimeout(() => router.replace('/?view=dash'), 300);
+      }
+    }
+  };
+
+  const handleBackToDashboard = async () => {
+    try {
+      await stopRecording();
+    } catch (err) {
+      console.error('Error stopping recording:', err);
+    }
+    clearInterval(elapsedTimerRef.current);
+    if (window.feonix && typeof window.feonix.back === 'function') {
+      window.feonix.back();
+    } else {
+      router.push('/?view=dash');
     }
   };
 
@@ -344,13 +475,13 @@ function OverlayContent() {
       if (direction.includes('n')) newHeight = startHeight - deltaY;
 
       // Limit minimum boundaries
-      newWidth = Math.max(340, Math.min(newWidth, 1200));
-      newHeight = Math.max(160, Math.min(newHeight, 800));
+      newWidth = Math.max(420, Math.min(newWidth, 1500));
+      newHeight = Math.max(220, Math.min(newHeight, 900));
 
       setCardSize({ width: newWidth, height: newHeight });
 
       if (window.feonix && typeof window.feonix.resize === 'function') {
-        window.feonix.resize(newWidth, newHeight + 100);
+        window.feonix.resize(newWidth, newHeight + 140);
       }
     };
 
@@ -371,7 +502,11 @@ function OverlayContent() {
           <div
             id="answerCard"
             className={`card ${isExpanded ? 'is-expanded' : ''}`}
-            style={{ width: `${cardSize.width}px`, height: `${cardSize.height}px` }}
+            style={{
+              width: `${cardSize.width}px`,
+              height: isExpanded ? '640px' : `${cardSize.height}px`,
+              maxHeight: 'calc(100vh - 130px)',
+            }}
           >
             {/* Resize Handles */}
             <div className="rs rs-n" onMouseDown={(e) => handleResizeDrag(e, 'n')}></div>
@@ -382,10 +517,10 @@ function OverlayContent() {
 
             <div className="card-head">
               <div className="nav-group">
-                <span className="meeting-badge">{qtype}</span>
+                <span className="meeting-badge">{qtype || 'Live Copilot'}</span>
               </div>
               <div className="head-actions">
-                <button className="ctl round" onClick={() => setIsExpanded(!isExpanded)} type="button">⤢</button>
+                <button className="ctl round" onClick={() => setIsExpanded(!isExpanded)} title={isExpanded ? "Collapse" : "Expand"} type="button">⤢</button>
               </div>
             </div>
 
@@ -421,9 +556,26 @@ function OverlayContent() {
               <span style={{ fontSize: '10px' }}>⏸</span>
             )}
           </div>
-          <div className="chips">
+          <div
+            className="chips"
+            ref={chipsContainerRef}
+            onWheel={(e) => {
+              if (e.deltaY) {
+                e.currentTarget.scrollLeft += e.deltaY;
+              }
+            }}
+          >
             {transcriptChips.map((chip, idx) => (
-              <span key={idx} className={`chip ${chip.isQuestion ? 'chip-question' : 'chip-idle'}`}>
+              <span
+                key={idx}
+                className={`chip ${chip.isQuestion ? 'chip-question' : 'chip-idle'}`}
+                onClick={() => {
+                  if (chip.isQuestion || chip.text.length > 5) {
+                    handleGenerateAnswer(chip.text);
+                  }
+                }}
+                title={chip.isQuestion ? 'Click to generate AI answer' : ''}
+              >
                 {chip.text}
               </span>
             ))}
@@ -435,12 +587,27 @@ function OverlayContent() {
 
         {/* Main Control Bar */}
         <div id="mainToolbar" className="bar">
+          <button
+            className="ctl round back-btn"
+            onClick={handleBackToDashboard}
+            title="Back to Dashboard"
+            aria-label="Back to Dashboard"
+            type="button"
+          >
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="19" y1="12" x2="5" y2="12"></line>
+              <polyline points="12 19 5 12 12 5"></polyline>
+            </svg>
+          </button>
+
           <button className="src" onClick={handleToggleListening} type="button">
             <span className="status-dot" style={{ backgroundColor: listening ? '#18C37D' : '#E5484D' }}></span>
-            <span>{listening ? 'Listening' : 'Start Recording'}</span>
+            <span>{listening ? `Listening ${elapsedText}` : 'Start Recording'}</span>
           </button>
 
           <div className="spacer"></div>
+
+          {remainingText && <div className="usage">{remainingText} left</div>}
 
           <div className="actions">
             <button className="ctl" onClick={() => setSettingsOpen(!settingsOpen)} type="button">Settings</button>
@@ -488,22 +655,15 @@ function OverlayContent() {
           </div>
         )}
 
-        {/* Settlement Summary Modal */}
-        {showSettlementModal && (
+        {/* Session-Expiring Warning Modal */}
+        {showWarningModal && (
           <div className="modal-backdrop">
             <div className="modal-card">
-              <h3>Session Complete</h3>
-              <p>Telemetry stats and credits consumption breakdown.</p>
-              {settlementSummary && (
-                <dl className="summary-grid">
-                  <dt>Duration</dt>
-                  <dd>{settlementSummary.duration || '00:00'}</dd>
-                  <dt>Tokens/API cost</dt>
-                  <dd>{settlementSummary.cost !== undefined ? Number(settlementSummary.cost).toFixed(2) : '0.00'} Credits</dd>
-                </dl>
-              )}
+              <h3>Time Almost Up</h3>
+              <p>Less than a minute remains on this session. It will end automatically when the time runs out.</p>
               <div className="modal-actions">
-                <button className="btn-danger" onClick={() => router.replace('/?view=dash')} type="button">Go to Dashboard</button>
+                <button className="btn-secondary" onClick={() => setShowWarningModal(false)} type="button">Dismiss</button>
+                <button className="btn-danger" onClick={handleEndSession} type="button">End Now</button>
               </div>
             </div>
           </div>
