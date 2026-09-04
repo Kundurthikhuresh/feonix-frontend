@@ -4,6 +4,46 @@
  * into a structured, high-contrast, professional teleprompter HUD UI format.
  */
 
+/**
+ * Plain text for "Copy Response" — targets the specific structure this file
+ * generates (.teleprompter-bullet-list, .bullet-text, .parakeet-para,
+ * .parakeet-code-block) rather than walking generic tags. The templates
+ * below are multi-line strings, so a generic li/p textContent grab picks up
+ * their own indentation whitespace and the decorative bullet-dot glyph
+ * alongside the real text — this reads only the meaningful pieces and
+ * normalizes whitespace itself.
+ */
+export function htmlToPlainText(html) {
+  if (!html || typeof document === 'undefined') return '';
+  const container = document.createElement('div');
+  container.innerHTML = html;
+  const clean = (text) => String(text || '').replace(/\s+/g, ' ').trim();
+
+  const parts = [];
+
+  container.querySelectorAll('.teleprompter-bullet-list > li').forEach((li) => {
+    const textEl = li.querySelector('.bullet-text') || li;
+    const text = clean(textEl.textContent);
+    if (text) parts.push(`- ${text}`);
+  });
+
+  container.querySelectorAll('.parakeet-para').forEach((p) => {
+    const text = clean(p.textContent);
+    if (text) parts.push(text);
+  });
+
+  container.querySelectorAll('.parakeet-code-block').forEach((code) => {
+    const text = code.textContent.trim();
+    if (text) parts.push(text);
+  });
+
+  if (parts.length) return parts.join('\n\n');
+
+  // Fallback for anything outside the known structure (error banners, a raw
+  // streaming preview that hasn't reached the final format yet).
+  return clean(container.textContent);
+}
+
 export function parseAnswerSections(rawText) {
   if (!rawText || typeof rawText !== 'string') {
     return {
@@ -89,7 +129,7 @@ export function parseAnswerSections(rawText) {
 function formatInlineMarkdown(text) {
   if (!text) return '';
   return text
-    .replace(/\*\*(.*?)\*\*/g, '<strong class="parakeet-highlight">$1</strong>')
+    .replace(/\*\*(.*?)\*\*/g, '<mark class="parakeet-hl">$1</mark>')
     .replace(/\*(.*?)\*/g, '<em class="parakeet-em">$1</em>')
     .replace(/`([^`]+)`/g, '<code class="parakeet-inline-code">$1</code>');
 }
@@ -106,15 +146,15 @@ function formatBodyWithCodeBlocks(text) {
     .map((part) => {
       if (part.startsWith('```') && part.endsWith('```')) {
         const lines = part.slice(3, -3).trim().split('\n');
-        let lang = 'code';
+        let lang = 'CODE';
         if (lines[0] && !lines[0].includes(' ') && lines[0].length < 15) {
-          lang = lines.shift() || 'code';
+          lang = (lines.shift() || 'CODE').toUpperCase();
         }
         const codeContent = lines.join('\n');
         return `
           <div class="parakeet-code-wrapper">
             <div class="parakeet-code-header">
-              <span class="parakeet-code-lang">${lang.toUpperCase()}</span>
+              <span class="parakeet-code-lang">${lang}</span>
               <span class="parakeet-code-hint">SOLUTION TEMPLATE</span>
             </div>
             <pre class="parakeet-code-block"><code>${escapeHtml(codeContent)}</code></pre>
@@ -144,6 +184,34 @@ function escapeHtml(str) {
 }
 
 /**
+ * Live-streaming preview, used while tokens are still arriving.
+ *
+ * The full formatParakeetAnswer() below re-classifies [TYPE]/[POINTS]/[ANSWER]
+ * from scratch on every partial substring, so mid-tag fragments ("[TY",
+ * "[POINT") get shown as raw body text for a few ticks and then vanish the
+ * instant the tag completes and the section state machine reclassifies them —
+ * that's the flicker/"blinking" a viewer sees. The backend's answer always
+ * carries this preamble ahead of the spoken reply, so instead of rendering
+ * anything before [ANSWER] is fully visible, this returns null and the caller
+ * keeps the thinking indicator up; once [ANSWER] is found, only the text after
+ * it is shown, and that text only ever grows — never reclassified, never
+ * removed, so nothing already on screen can disappear.
+ */
+export function formatStreamingAnswer(accumulatedText) {
+  const idx = String(accumulatedText || '').search(/\[ANSWER\]/i);
+  if (idx === -1) return null;
+  const after = accumulatedText.slice(idx).replace(/^\[ANSWER\]\s*\n?/i, '');
+  if (!after) return null;
+  return (
+    '<div class="parakeet-answer-container">' +
+      '<div class="teleprompter-explanation">' +
+        `<div class="explanation-body">${formatBodyWithCodeBlocks(after)}</div>` +
+      '</div>' +
+    '</div>'
+  );
+}
+
+/**
  * Main function: Formats any AI answer into Parakeet UI HTML
  */
 export function formatParakeetAnswer(rawText) {
@@ -151,44 +219,13 @@ export function formatParakeetAnswer(rawText) {
 
   const { type, points, answer, hasStructure } = parseAnswerSections(rawText);
 
-  // Type Tag Formatter
-  const normalizedType = (type || 'TECHNICAL').toUpperCase();
-  let typeBadgeColor = 'cyan';
-  if (normalizedType.includes('BEHAVIOR')) typeBadgeColor = 'violet';
-  else if (normalizedType.includes('CODE') || normalizedType.includes('SQL')) typeBadgeColor = 'emerald';
-  else if (normalizedType.includes('SYSTEM')) typeBadgeColor = 'sky';
-
   let html = `<div class="parakeet-answer-container">`;
 
-  // 1. Header Type Bar
-  html += `
-    <div class="parakeet-top-bar">
-      <div class="parakeet-badge-pill ${typeBadgeColor}">
-        <span class="parakeet-dot"></span>
-        <span class="parakeet-badge-label">${normalizedType}</span>
-      </div>
-      <div class="parakeet-meta-pill">
-        <span class="parakeet-tele-label">TELEPROMPTER SCALE</span>
-      </div>
-    </div>
-  `;
-
-  // 2. Key Talking Points Section (Parakeet Bullet Beats)
+  // 1. Direct Points List Format (Clean Bullet Points)
   if (points && points.length > 0) {
-    html += `
-      <div class="parakeet-points-card">
-        <div class="parakeet-section-title">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="10" />
-            <polygon points="10 8 16 12 10 16 10 8" />
-          </svg>
-          <span>KEY TALKING BEATS (GLANCE & SPEAK)</span>
-        </div>
-        <div class="parakeet-points-grid">
-    `;
+    html += `<ul class="teleprompter-bullet-list">`;
 
     points.forEach((point, idx) => {
-      // Check for STAR prefixes (S:, T:, A:, R:)
       const starMatch = point.match(/^([STAR])\s*:\s*(.*)/i);
 
       if (starMatch) {
@@ -198,52 +235,57 @@ export function formatParakeetAnswer(rawText) {
         const starColors = { S: 'star-s', T: 'star-t', A: 'star-a', R: 'star-r' };
 
         html += `
-          <div class="parakeet-point-item star-item">
+          <li class="teleprompter-bullet-item star-bullet-item">
             <span class="star-badge ${starColors[starLetter] || ''}">${starLetter}</span>
-            <div class="point-text-wrapper">
+            <div class="bullet-text">
               <strong class="star-label">${starNames[starLetter] || starLetter}:</strong>
               <span>${formatInlineMarkdown(starText)}</span>
             </div>
-          </div>
+          </li>
         `;
       } else {
         html += `
-          <div class="parakeet-point-item">
-            <span class="point-num-badge">${idx + 1}</span>
-            <div class="point-text-wrapper">
+          <li class="teleprompter-bullet-item">
+            <span class="bullet-glow-dot">•</span>
+            <div class="bullet-text">
               <span>${formatInlineMarkdown(point)}</span>
             </div>
-          </div>
+          </li>
         `;
       }
     });
 
-    html += `
-        </div>
-      </div>
-    `;
+    html += `</ul>`;
   }
 
-  // 3. Spoken Answer Narrative (Read Aloud Section)
+  // 2. Explanation / Narrative Delivery Section (if present)
   if (answer) {
     html += `
-      <div class="parakeet-spoken-card">
-        <div class="parakeet-section-title spoken">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-          </svg>
-          <span>FULL EXPLANATION (VERBAL DELIVERY)</span>
-        </div>
-        <div class="parakeet-spoken-body">
+      <div class="teleprompter-explanation">
+        ${points && points.length > 0 ? '<div class="explanation-divider"></div>' : ''}
+        <div class="explanation-body">
           ${formatBodyWithCodeBlocks(answer)}
         </div>
       </div>
     `;
-  } else if (!hasStructure && !points.length) {
-    // If raw unstructured answer
+  } else if (points && points.length > 0) {
+    // The model emitted [POINTS] but dropped the mandatory [ANSWER] tag — a
+    // known gpt-4o-mini flake (see the tag reminder in answer.js). Without
+    // this, the user sees a bare bullet list and nothing to actually say out
+    // loud, which is strictly worse than a rough fallback built from the
+    // fragments it did produce.
     html += `
-      <div class="parakeet-spoken-card">
-        <div class="parakeet-spoken-body">
+      <div class="teleprompter-explanation">
+        <div class="explanation-divider"></div>
+        <div class="explanation-body">
+          <p class="parakeet-para">${formatInlineMarkdown(points.join('. ') + '.')}</p>
+        </div>
+      </div>
+    `;
+  } else if (!hasStructure && !points.length) {
+    html += `
+      <div class="teleprompter-explanation">
+        <div class="explanation-body">
           ${formatBodyWithCodeBlocks(rawText)}
         </div>
       </div>

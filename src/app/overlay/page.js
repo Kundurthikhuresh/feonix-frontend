@@ -1,72 +1,394 @@
 "use client";
 
 import { useState, useEffect, useRef, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { formatParakeetAnswer } from '../../lib/answerFormatter';
+import { useSearchParams } from 'next/navigation';
+
+import { useInterview } from '../../hooks/useInterview';
+import TopBar from '../../components/overlay/TopBar';
+import QuestionPanel from '../../components/overlay/QuestionPanel';
+import AnswerPanel from '../../components/overlay/AnswerPanel';
+import ChatPanel from '../../components/overlay/ChatPanel';
+import AssistantSettings from '../../components/overlay/AssistantSettings';
+import AssistantPill from '../../components/overlay/AssistantPill';
+import { readFileAsDataUrl, captureScreenSnapshot } from '../../services/screenshotService';
+import { htmlToPlainText } from '../../lib/answerFormatter';
 import './overlay.css';
 
-function OverlayContent() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
+// Mirrors desktop-electron/src/main/settingsStore.js's DEFAULT_SETTINGS so
+// the panel shows correct-looking toggle states immediately, before the
+// (near-instant, but still async) window.feonix.getSettings() round trip
+// resolves and overwrites these with whatever's actually persisted.
+const DEFAULT_SETTINGS = {
+  shortcutToggle: 'CommandOrControl+Shift+Space',
+  shortcutHide: 'CommandOrControl+Shift+H',
+  startMinimized: false,
+  alwaysOnTop: true,
+  launchAtStartup: false,
+  showTrayIcon: true,
+  opacity: 92,
+  assistantSize: 'normal',
+  rememberPosition: true,
+  voiceEnabled: true,
+};
 
-  // Query Params
+const SIZE_PX = { compact: 720, normal: 900, large: 1080 };
+
+function OverlayContent() {
+  const searchParams = useSearchParams();
   const plan = searchParams.get('plan') || 'full';
   const querySessionId = searchParams.get('session');
   const queryAuto = searchParams.get('auto') === '1';
+  const queryStart = searchParams.get('start'); // 'minimized' | 'open' | null
 
-  // State mapping to overlay.js
-  const [session, setSession] = useState(null);
-  const [isPrivate, setIsPrivate] = useState(true);
-  const [autoAnswer, setAutoAnswer] = useState(queryAuto);
-  const [thinking, setThinking] = useState(false);
-  const [answerHtml, setAnswerHtml] = useState('');
-  const [answerMeta, setAnswerMeta] = useState('');
-  const [cueLine, setCueLine] = useState('');
-  const [qtype, setQtype] = useState('');
-  const [transcriptChips, setTranscriptChips] = useState([]);
-  const [elapsedText, setElapsedText] = useState('00:00');
-  const [remainingText, setRemainingText] = useState('');
-  const [listening, setListening] = useState(false);
-  const [creditsText, setCreditsText] = useState('— Credits');
-  
-  // Modals & Panels
+  // Chat compose box / screenshot attachment. Kept here rather than inside
+  // useInterview because it's UI state for "what to ask next", not part of
+  // the interview's own lifecycle — but useInterview needs to see the
+  // current values too, for auto-answer, so they're passed in below.
+  const [screenshotData, setScreenshotData] = useState(null);
+  const [screenshotMenuOpen, setScreenshotMenuOpen] = useState(false);
+  const [promptHubOpen, setPromptHubOpen] = useState(false);
+  const [answerStyle, setAnswerStyle] = useState('star'); // 'star' | 'code' | 'teleprompter' | 'quiz'
+  const [customPromptText, setCustomPromptText] = useState('');
+  const fileInputRef = useRef(null);
+
+  const interview = useInterview({ querySessionId, plan, queryAuto, screenshotData, answerStyle });
+  const {
+    session, autoAnswer, toggleAutoAnswer,
+    showWarningModal, setShowWarningModal,
+    toastMsg, showToast, triggerToast,
+    speech, answering, askQuestion,
+    handleEndSession,
+  } = interview;
+  const { listening, elapsedText, transcriptChips, setTranscriptChips, toggleListening } = speech;
+  const { thinking, answerHtml, cueLine, showAnswerCard, clearAnswer } = answering;
+
+  // Visibility: 'open' (full HUD) | 'minimized' (small status pill) |
+  // 'hidden' (nothing rendered at all). Every state is equally visible to
+  // anyone who can see the screen, including a screen share — there is no
+  // state that's shown to the user but not to whatever they're sharing.
+  //
+  // Persisted across reloads/relaunches, not just held in memory: without
+  // this, hiding the assistant only lasted until the next page load (dev
+  // HMR, a window recreated by Electron, reopening the app) — it would pop
+  // back open on its own instead of staying exactly how the user left it
+  // until they explicitly bring it back via the shortcut, tray, or pill.
+  //
+  // The initial value has to be the same deterministic default the server
+  // rendered (queryStart-based, never localStorage) — reading localStorage
+  // in a useState initializer runs during SSR too, where it doesn't exist,
+  // so the server and the first client render would disagree and React
+  // would throw a hydration mismatch. The saved value is applied a moment
+  // later instead, from an effect that only ever runs in the browser —
+  // same pattern already used below for the saved drag position.
+  const [visibility, setVisibility] = useState(queryStart === 'minimized' ? 'minimized' : 'open');
+
+  // Every "Start Interview" click sends a fresh, authoritative `start=` (see
+  // ipc.js's feonix:start-session, which computes it from the current
+  // startMinimized setting) — but createOverlayWindow REUSES the same
+  // BrowserWindow across clicks rather than making a new one, so this same
+  // effect runs on every click, not just a genuine reload. Restoring from
+  // localStorage there meant hiding/minimizing once — even weeks ago, even
+  // via a stray ESC — silently stuck every future "Start Interview" launch
+  // in that same state, since the window never actually re-rendered
+  // anything a user would recognize as "it opened." queryStart being
+  // present at all means this page load came from that authoritative
+  // main-process decision, so it wins outright; localStorage only gets a
+  // say when there's no such signal (e.g. the bare browser-fallback route).
+  useEffect(() => {
+    if (queryStart) return;
+    try {
+      const saved = localStorage.getItem('feonix.overlayVisibility');
+      if (saved === 'open' || saved === 'minimized' || saved === 'hidden') setVisibility(saved);
+    } catch { /* storage blocked */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    try { localStorage.setItem('feonix.overlayVisibility', visibility); } catch { /* storage blocked */ }
+  }, [visibility]);
+
+  // Assistant Settings — desktop-owned values (shortcuts, tray, startup,
+  // always-on-top) live entirely in the Electron main process; these four
+  // affect this page's own rendering/behavior, so they're the single
+  // source of truth here and just mirrored to the main process for
+  // persistence via window.feonix.setSetting.
+  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [emergencyOpen, setEmergencyOpen] = useState(false);
-  const [opacity, setOpacity] = useState(92); // 92%
-  const [showWarningModal, setShowWarningModal] = useState(false);
-  const [toastMsg, setToastMsg] = useState('');
-  const [showToast, setShowToast] = useState(false);
-  
-  // Custom Size controls (browser mode drag resizing)
-  const [cardSize, setCardSize] = useState({ width: 880, height: 420 });
   const [isExpanded, setIsExpanded] = useState(false);
-  const [listenSource, setListenSource] = useState('tab'); // 'tab', 'mic'
-  const [manualInput, setManualInput] = useState('');
-  
+  const cardSize = { width: 880, height: 520 };
+
+  useEffect(() => {
+    if (window.feonix && typeof window.feonix.getSettings === 'function') {
+      window.feonix.getSettings().then((s) => {
+        setSettings((prev) => ({ ...prev, ...s }));
+      }).catch(() => {});
+    }
+  }, []);
+
+  const updateSetting = (key, value) => {
+    setSettings((prev) => ({ ...prev, [key]: value }));
+    if (window.feonix && typeof window.feonix.setSetting === 'function') {
+      window.feonix.setSetting(key, value)
+        .then((updated) => setSettings((prev) => ({ ...prev, ...updated })))
+        .catch(() => {});
+    }
+  };
+
   // Refs
-  const streamRef = useRef(null);
-  const recorderRef = useRef(null);
-  const cycleTimerRef = useRef(null);
-  const elapsedTimerRef = useRef(null);
-  const answerAbortRef = useRef(null);
-  const elapsedSecsRef = useRef(0);
-  const sessionEndedRef = useRef(false);
-  const cyclingRef = useRef(false);
   const chipsContainerRef = useRef(null);
+  const shellRef = useRef(null);
+  const pillRef = useRef(null);
+
+  // Drag-to-move state
+  const [dragPos, setDragPos] = useState({ x: null, y: null }); // null = use CSS default
+  const dragRef = useRef({ dragging: false, hasMoved: false, startX: 0, startY: 0, originX: 0, originY: 0 });
+  const lastPosRef = useRef({ x: null, y: null });
+
+  // Keyboard shortcuts. The topbar buttons already display kbd hints (⌘↵,
+  // ⌘⇧↵, ⌘⇧⌫) that were purely decorative before. This wires them up.
+  //
+  // Kept as an "up-to-date ref" pattern: a no-deps effect below refreshes
+  // shortcutHandlersRef with this render's closures on every render, while
+  // the single 'keydown' listener is registered once and reads from that ref
+  // at call time — so shortcuts always act on current state without tearing
+  // down and re-registering a global listener on every keystroke of state
+  // change.
+  const shortcutHandlersRef = useRef({});
+  useEffect(() => {
+    shortcutHandlersRef.current = {
+      onAnswer: () => {
+        if (cueLine) {
+          askQuestion(cueLine, { image: screenshotData, style: answerStyle });
+        } else {
+          setPromptHubOpen(true);
+          triggerToast('💡 Type a question in Chat to generate an answer');
+        }
+      },
+      onScreenshotMenu: () => setScreenshotMenuOpen((prev) => !prev),
+      onChat: () => setPromptHubOpen((prev) => !prev),
+      onClearAnswer: () => clearAnswer(),
+      onEndSession: () => handleEndSession(),
+    };
+  });
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // ESC minimizes the open panel — never fires while typing (an input's
+      // own ESC behavior, e.g. clearing a field, should win).
+      if (e.key === 'Escape') {
+        const tag = document.activeElement && document.activeElement.tagName;
+        if (tag !== 'INPUT' && tag !== 'TEXTAREA') {
+          setVisibility((prev) => (prev === 'open' ? 'minimized' : prev));
+        }
+        return;
+      }
+
+      const mod = e.ctrlKey || e.metaKey;
+      if (!mod) return;
+
+      const tag = document.activeElement && document.activeElement.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+
+      const handlers = shortcutHandlersRef.current;
+      if (e.shiftKey && e.key === 'Enter') {
+        e.preventDefault();
+        handlers.onScreenshotMenu();
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        handlers.onAnswer();
+      } else if (e.shiftKey && e.key === 'Backspace') {
+        e.preventDefault();
+        handlers.onChat();
+      } else if (e.key === 'Backspace') {
+        e.preventDefault();
+        handlers.onClearAnswer();
+      } else if (e.shiftKey && (e.key === 'Q' || e.key === 'q')) {
+        e.preventDefault();
+        handlers.onEndSession();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Global shortcut + tray commands, pushed from the Electron main process
+  // (see desktop-electron/src/main/{shortcuts,tray}.js) — these work even
+  // when this window doesn't have OS focus, unlike the renderer-level
+  // shortcuts above. No-ops entirely outside Electron (window.feonix absent).
+  useEffect(() => {
+    if (!window.feonix) return undefined;
+    const unsubs = [];
+
+    if (window.feonix.onShortcutToggle) {
+      unsubs.push(window.feonix.onShortcutToggle(() => {
+        setVisibility((prev) => (prev === 'open' ? 'minimized' : 'open'));
+      }));
+    }
+    if (window.feonix.onShortcutHide) {
+      unsubs.push(window.feonix.onShortcutHide(() => {
+        setVisibility((prev) => (prev === 'hidden' ? 'open' : 'hidden'));
+      }));
+    }
+    if (window.feonix.onTrayShow) {
+      unsubs.push(window.feonix.onTrayShow(() => setVisibility('open')));
+    }
+    if (window.feonix.onTrayMinimize) {
+      unsubs.push(window.feonix.onTrayMinimize(() => setVisibility('minimized')));
+    }
+    if (window.feonix.onTrayToggleListening) {
+      unsubs.push(window.feonix.onTrayToggleListening(() => toggleListening()));
+    }
+    if (window.feonix.onTrayOpenSettings) {
+      unsubs.push(window.feonix.onTrayOpenSettings(() => {
+        setVisibility('open');
+        setSettingsOpen(true);
+      }));
+    }
+
+    return () => unsubs.forEach((off) => off && off());
+  }, [toggleListening]);
+
+  // Keeps the tray's Start/Stop Listening label accurate no matter where
+  // recording was actually toggled from (the panel button or the tray itself).
+  useEffect(() => {
+    if (window.feonix && typeof window.feonix.setListeningState === 'function') {
+      window.feonix.setListeningState(listening);
+    }
+  }, [listening]);
+
+  // Restore wherever the user last dragged the HUD — unless the user turned
+  // "Remember position" off, in which case it always opens centered.
+  useEffect(() => {
+    if (!settings.rememberPosition) return;
+    try {
+      const saved = JSON.parse(localStorage.getItem('feonix.overlayPos') || 'null');
+      if (saved && Number.isFinite(saved.x) && Number.isFinite(saved.y)) {
+        setDragPos({
+          x: Math.max(0, Math.min(window.innerWidth - 150, saved.x)),
+          y: Math.max(0, Math.min(window.innerHeight - 30, saved.y)),
+        });
+      }
+    } catch { /* storage fallback */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Auto-scroll transcript chips to the latest transcribed chunk
   useEffect(() => {
     if (chipsContainerRef.current) {
       chipsContainerRef.current.scrollTo({
         left: chipsContainerRef.current.scrollWidth,
-        behavior: 'smooth'
+        behavior: 'smooth',
       });
     }
   }, [transcriptChips]);
 
-  // Sync window size with Desktop Overlay whenever content appears or expands
+  // Drag-to-move: listen to global mousemove/mouseup
   useEffect(() => {
-    if (window.feonix && typeof window.feonix.resize === 'function') {
+    const onMove = (e) => {
+      if (!dragRef.current.dragging) return;
+      const dx = e.clientX - dragRef.current.startX;
+      const dy = e.clientY - dragRef.current.startY;
+
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+        dragRef.current.hasMoved = true;
+      }
+
+      const newX = dragRef.current.originX + dx;
+      const newY = dragRef.current.originY + dy;
+
+      const activeEl = visibility === 'minimized' ? pillRef.current : shellRef.current;
+      const w = activeEl ? activeEl.offsetWidth : (visibility === 'minimized' ? 200 : 900);
+
+      const clampedX = Math.max(0, Math.min(window.innerWidth - Math.min(w, 150), newX));
+      const clampedY = Math.max(0, Math.min(window.innerHeight - 30, newY));
+
+      lastPosRef.current = { x: clampedX, y: clampedY };
+      setDragPos({ x: clampedX, y: clampedY });
+    };
+
+    const onUp = () => {
+      if (dragRef.current.dragging) {
+        dragRef.current.dragging = false;
+        document.body.style.cursor = '';
+        if (settings.rememberPosition) {
+          try {
+            if (Number.isFinite(lastPosRef.current.x)) {
+              localStorage.setItem('feonix.overlayPos', JSON.stringify(lastPosRef.current));
+            }
+          } catch { /* storage blocked */ }
+        }
+      }
+    };
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, [visibility, settings.rememberPosition]);
+
+  const handleDragStart = (e) => {
+    const isDragHandle = Boolean(e.target.closest('.pk-drag-handle') || e.target.closest('.pk-drag-rail'));
+    const isPill = Boolean(e.target.closest('.pk-mini-pill'));
+
+    if (!isDragHandle && !isPill) {
+      if (e.target.closest('button') || e.target.closest('input') || e.target.closest('select') || e.target.closest('.pk-dropdown')) {
+        return;
+      }
+    }
+
+    const activeEl = isPill ? pillRef.current : shellRef.current;
+    if (!activeEl) return;
+    const rect = activeEl.getBoundingClientRect();
+
+    dragRef.current = {
+      dragging: true,
+      hasMoved: false,
+      startX: e.clientX,
+      startY: e.clientY,
+      originX: rect.left,
+      originY: rect.top,
+    };
+    e.preventDefault();
+  };
+
+  const handlePillClick = () => {
+    if (!dragRef.current.hasMoved) setVisibility('open');
+  };
+
+  // Global Ctrl+V Screenshot Paste Listener
+  useEffect(() => {
+    const handlePaste = (e) => {
+      const items = (e.clipboardData || window.clipboardData)?.items;
+      if (!items) return;
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+          const blob = items[i].getAsFile();
+          readFileAsDataUrl(blob).then((dataUrl) => {
+            setScreenshotData(dataUrl);
+            setPromptHubOpen(true);
+            triggerToast('📸 Screenshot pasted from clipboard');
+          });
+          e.preventDefault();
+          break;
+        }
+      }
+    };
+    window.addEventListener('paste', handlePaste);
+    return () => window.removeEventListener('paste', handlePaste);
+  }, [triggerToast]);
+
+  // Sync window size with the Electron overlay window for whichever
+  // visibility state is current — a full HUD needs room for content, the
+  // pill needs almost none, and hidden needs nothing on screen at all.
+  useEffect(() => {
+    if (!(window.feonix && typeof window.feonix.resize === 'function')) return;
+    if (visibility === 'hidden') {
+      window.feonix.resize(100, 100); // main process clamps to a 100px floor
+    } else if (visibility === 'minimized') {
+      window.feonix.resize(220, 44);
+    } else if (visibility === 'open') {
       if (cueLine) {
         const height = (isExpanded ? 640 : cardSize.height) + 160;
         const width = isExpanded ? 1100 : Math.max(cardSize.width, 880);
@@ -75,607 +397,216 @@ function OverlayContent() {
         window.feonix.resize(880, 160);
       }
     }
-  }, [cueLine, cardSize.height, cardSize.width, isExpanded]);
+  }, [visibility, cueLine, isExpanded]);
 
-  useEffect(() => {
-    if (!querySessionId) {
-      router.replace('/');
+  const handleToggleListening = () => {
+    if (!settings.voiceEnabled) {
+      triggerToast('🎙 Voice input is disabled in Settings');
       return;
     }
-    loadSessionDetails();
+    toggleListening();
+  };
 
-    // Check Tauri hook callbacks
-    if (window.feonix) {
-      window.feonix.onStateChange((data) => {
-        if (data.isPrivate !== undefined) setIsPrivate(data.isPrivate);
-        if (data.autoAnswer !== undefined) setAutoAnswer(data.autoAnswer);
-      });
-    }
-
-    return () => {
-      stopRecording();
-      clearInterval(elapsedTimerRef.current);
-    };
-  }, [querySessionId]);
-
-  // Counts down to session.expires_at, warns at the 60s mark, and auto-ends
-  // the session the moment the entitlement runs out (the server rejects
-  // /answer once expired, but the client should end gracefully rather than
-  // wait for that 409).
-  useEffect(() => {
-    if (!session || !session.expires_at) {
-      setRemainingText('');
-      return;
-    }
-    const expiresAtMs = new Date(session.expires_at.replace(' ', 'T') + 'Z').getTime();
-    if (!Number.isFinite(expiresAtMs)) return;
-
-    let warned = false;
-    const tick = () => {
-      const remainingMs = expiresAtMs - Date.now();
-      if (remainingMs <= 0) {
-        setRemainingText('00:00');
-        clearInterval(iv);
-        if (!sessionEndedRef.current) handleEndSession();
-        return;
-      }
-      const totalSecs = Math.floor(remainingMs / 1000);
-      const m = Math.floor(totalSecs / 60);
-      const s = totalSecs % 60;
-      setRemainingText(`${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
-      if (!warned && remainingMs <= 60000) {
-        warned = true;
-        setShowWarningModal(true);
-        triggerToast('⚠️ 1 minute remaining');
-      }
-    };
-
-    tick();
-    const iv = setInterval(tick, 1000);
-    return () => clearInterval(iv);
-  }, [session && session.expires_at]);
-
-  const loadSessionDetails = async () => {
+  const handleFileSelect = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
     try {
-      const res = await fetch('/api/sessions/' + querySessionId);
-      if (!res.ok) return;
-      const { session: s } = await res.json();
-
-      if (s.status === 'ended') {
-        sessionEndedRef.current = true;
-        router.replace('/?view=dash');
-        return;
-      }
-
-      let activeSession = s;
-      if (s.status === 'ready') {
-        const billing = s.billing_kind || (plan === 'free' ? 'trial' : 'paid');
-        try {
-          const startRes = await fetch(`/api/sessions/${s.id}/start`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ billing }),
-          });
-          const startData = await startRes.json().catch(() => ({}));
-          if (startRes.ok) {
-            activeSession = startData.session;
-          } else {
-            triggerToast(startData.message || 'Could not start session');
-          }
-        } catch (err) {
-          console.error('Failed to start session:', err);
-        }
-      }
-
-      setSession(activeSession);
-      fetchAccountBalance();
+      const dataUrl = await readFileAsDataUrl(file);
+      setScreenshotData(dataUrl);
+      setPromptHubOpen(true);
+      setScreenshotMenuOpen(false);
+      triggerToast('📸 Screenshot loaded — ready to solve');
     } catch (err) {
-      console.error('Failed to load session details:', err);
+      console.error('File read failed:', err);
     }
+    e.target.value = '';
   };
 
-  const fetchAccountBalance = async () => {
+  const handleCaptureScreen = async () => {
+    setScreenshotMenuOpen(false);
     try {
-      const res = await fetch('/api/sessions/account');
-      if (res.ok) {
-        const data = await res.json();
-        const account = data.account || {};
-        setCreditsText(account.unlimited ? 'Unlimited' : `${Number(account.credits || 0).toFixed(1)} Credits`);
-      }
-    } catch {}
-  };
-
-  const triggerToast = (msg) => {
-    setToastMsg(msg);
-    setShowToast(true);
-    setTimeout(() => setShowToast(false), 2200);
-  };
-
-  // Recording Logic
-  const handleToggleListening = async () => {
-    if (listening) {
-      await stopRecording();
-    } else {
-      await startRecording();
-    }
-  };
-
-  const startRecording = async () => {
-    setListening(true);
-    elapsedSecsRef.current = 0;
-    setElapsedText('00:00');
-
-    elapsedTimerRef.current = setInterval(() => {
-      elapsedSecsRef.current += 1;
-      const m = Math.floor(elapsedSecsRef.current / 60);
-      const s = elapsedSecsRef.current % 60;
-      setElapsedText(`${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
-    }, 1000);
-
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      streamRef.current = stream;
-
-      const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
-      recorderRef.current = mediaRecorder;
-      cyclingRef.current = true;
-
-      let chunks = [];
-      mediaRecorder.ondataavailable = (e) => {
-        if (e.data && e.data.size > 0) chunks.push(e.data);
-      };
-
-      // stop() is asynchronous — the recorder isn't actually idle until this
-      // event fires, so restarting must happen here, not right after calling
-      // stop(). Calling start() before that teardown finishes is what threw
-      // "Failed to execute 'start' on 'MediaRecorder'" (NotSupportedError).
-      mediaRecorder.onstop = () => {
-        if (chunks.length > 0) {
-          const blob = new Blob(chunks, { type: 'audio/webm' });
-          chunks = [];
-          uploadAudioChunk(blob);
-        }
-        if (cyclingRef.current && recorderRef.current === mediaRecorder) {
-          mediaRecorder.start();
-        }
-      };
-
-      mediaRecorder.start();
-      cycleTimerRef.current = setInterval(() => {
-        if (mediaRecorder.state === 'recording') {
-          mediaRecorder.stop();
-        }
-      }, 2500);
-
+      const dataUrl = await captureScreenSnapshot();
+      setScreenshotData(dataUrl);
+      setPromptHubOpen(true);
+      triggerToast('🖥️ Screen captured — ready to solve');
     } catch (err) {
-      console.error('Audio stream access failed:', err);
-      setListening(false);
-      clearInterval(elapsedTimerRef.current);
-      triggerToast('⚠️ Microphone access denied');
-    }
-  };
-
-  const stopRecording = async () => {
-    setListening(false);
-    cyclingRef.current = false;
-    clearInterval(elapsedTimerRef.current);
-
-    if (cycleTimerRef.current) clearInterval(cycleTimerRef.current);
-    if (recorderRef.current && recorderRef.current.state !== 'inactive') {
-      recorderRef.current.stop();
-    }
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-    }
-    streamRef.current = null;
-    recorderRef.current = null;
-  };
-
-  const uploadAudioChunk = async (blob) => {
-    if (!session) return;
-    const headers = {
-      'Content-Type': blob.type || 'audio/webm',
-      'X-Filename': 'chunk.webm',
-      'X-Session-Id': String(session.id),
-    };
-
-    try {
-      const res = await fetch('/api/transcribe', {
-        method: 'POST',
-        headers,
-        body: blob,
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.text) {
-          const isQ = data.text.trim().endsWith('?');
-          setTranscriptChips(prev => [...prev, { text: data.text, isQuestion: isQ }]);
-          
-          if (isQ && autoAnswer) {
-            handleGenerateAnswer(data.text);
-          }
-        }
-      }
-    } catch (err) {
-      console.error('Transcription chunk upload failed:', err);
-    }
-  };
-
-  const handleGenerateAnswer = async (question) => {
-    if (!session) return;
-    if (answerAbortRef.current) answerAbortRef.current.abort();
-    answerAbortRef.current = new AbortController();
-
-    setThinking(true);
-    setAnswerHtml('');
-    setCueLine(question);
-    setQtype('Generating Answer…');
-
-    try {
-      const res = await fetch('/api/answer', {
-        method: 'POST',
-        signal: answerAbortRef.current.signal,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          question,
-          transcript: transcriptChips.map(c => c.text).join('\n'),
-          session_id: session.id,
-          language: session.language || 'en',
-        }),
-      });
-
-      if (!res.ok) {
-        setThinking(false);
-        setQtype('Error');
-        setAnswerHtml('Could not fetch answer.');
-        return;
-      }
-
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder('utf-8');
-      let buffer = '';
-      let textAccumulator = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-
-        const frames = buffer.split('\n\n');
-        buffer = frames.pop();
-
-        for (const frame of frames) {
-          let name = 'message';
-          let data = '';
-          for (const line of frame.split('\n')) {
-            if (line.startsWith('event: ')) name = line.slice(7).trim();
-            else if (line.startsWith('data: ')) data += line.slice(6);
-          }
-          if (!data) continue;
-
-          try {
-            const parsed = JSON.parse(data);
-            if (name === 'token' && parsed.text) {
-              textAccumulator += parsed.text;
-              setAnswerHtml(formatParakeetAnswer(textAccumulator));
-            } else if (name === 'error') {
-              setAnswerHtml('<div class="parakeet-error">Stream error: ' + (parsed.message || '') + '</div>');
-            }
-          } catch {}
-        }
-      }
-      setThinking(false);
-      setQtype('Final Answer');
-    } catch (err) {
-      if (err.name !== 'AbortError') {
-        console.error('Answer fetch failed:', err);
-        setThinking(false);
-        setQtype('Failed');
-      }
-    }
-  };
-
-  const formatMarkdown = (text) => {
-    return formatParakeetAnswer(text);
-  };
-
-  const handleManualInputSubmit = (e) => {
-    e.preventDefault();
-    if (!manualInput.trim()) return;
-    setTranscriptChips(prev => [...prev, { text: manualInput, isQuestion: true }]);
-    handleGenerateAnswer(manualInput);
-    setManualInput('');
-  };
-
-  const handleEndSession = async () => {
-    if (sessionEndedRef.current) return;
-    sessionEndedRef.current = true;
-    setShowWarningModal(false);
-    await stopRecording();
-    try {
-      const res = await fetch(`/api/sessions/${querySessionId}/end`, { method: 'POST' });
-      if (res.ok) {
-        const data = await res.json();
-        const settlement = data.settlement;
-        if (settlement) {
-          const totalSecs = Math.round((settlement.minutes || 0) * 60);
-          const m = Math.floor(totalSecs / 60);
-          const s = totalSecs % 60;
-          const durationText = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-          const costText = settlement.kind === 'unlimited'
-            ? 'Unlimited plan'
-            : `${Number(settlement.credits || 0).toFixed(2)} Credits used`;
-          triggerToast(`Session ended — ${durationText} · ${costText}`);
-        }
-      }
-    } catch (err) {
-      console.error('Failed to end session:', err);
-    } finally {
-      if (window.feonix && typeof window.feonix.quit === 'function') {
-        window.feonix.quit();
-      } else if (window.feonix && typeof window.feonix.minimize === 'function') {
-        window.feonix.minimize();
+      if (err.code === 'NOT_SUPPORTED' || err.name === 'NotSupportedError') {
+        triggerToast('ℹ️ Screen snap not supported in this browser — opening file picker');
+        fileInputRef.current?.click();
       } else {
-        // Browsers only allow a script to close a tab it opened itself via
-        // window.open() — a normally-navigated tab like this one silently
-        // ignores window.close(). Try anyway, then fall back to the
-        // dashboard if the tab is still alive a moment later.
-        window.close();
-        setTimeout(() => router.replace('/?view=dash'), 300);
+        console.warn('Screen capture note:', err.message);
+        triggerToast('⚠️ Screen capture cancelled');
       }
     }
   };
 
-  const handleBackToDashboard = async () => {
-    try {
-      await stopRecording();
-    } catch (err) {
-      console.error('Error stopping recording:', err);
-    }
-    clearInterval(elapsedTimerRef.current);
-    if (window.feonix && typeof window.feonix.back === 'function') {
-      window.feonix.back();
+  const handleAnswerClick = () => {
+    if (cueLine) {
+      askQuestion(cueLine, { image: screenshotData, style: answerStyle });
     } else {
-      router.push('/?view=dash');
+      setPromptHubOpen(true);
+      triggerToast('💡 Type a question in Chat to generate an answer');
     }
   };
 
-  const handleTogglePrivate = () => {
-    const nextVal = !isPrivate;
-    setIsPrivate(nextVal);
-    if (window.feonix && typeof window.feonix.setPrivate === 'function') {
-      window.feonix.setPrivate(nextVal);
-    }
-    triggerToast(nextVal ? 'Private Shield On' : 'Private Shield Off');
+  const handleChipClick = (chip) => {
+    askQuestion(chip.text, { image: screenshotData, style: answerStyle });
   };
 
-  const handleToggleAuto = () => {
-    const nextVal = !autoAnswer;
-    setAutoAnswer(nextVal);
-    triggerToast(nextVal ? 'Automatic Answering On' : 'Automatic Answering Off');
-  };
-
-  const handleResizeDrag = (e, direction) => {
+  const handleCustomPromptSubmit = (e) => {
     e.preventDefault();
-    const startX = e.clientX;
-    const startY = e.clientY;
-    const startWidth = cardSize.width;
-    const startHeight = cardSize.height;
-
-    const doDrag = (moveEvent) => {
-      const deltaX = moveEvent.clientX - startX;
-      const deltaY = moveEvent.clientY - startY;
-
-      let newWidth = startWidth;
-      let newHeight = startHeight;
-
-      if (direction.includes('e')) newWidth = startWidth + deltaX;
-      if (direction.includes('w')) newWidth = startWidth - deltaX;
-      if (direction.includes('s')) newHeight = startHeight + deltaY;
-      if (direction.includes('n')) newHeight = startHeight - deltaY;
-
-      // Limit minimum boundaries
-      newWidth = Math.max(420, Math.min(newWidth, 1500));
-      newHeight = Math.max(220, Math.min(newHeight, 900));
-
-      setCardSize({ width: newWidth, height: newHeight });
-
-      if (window.feonix && typeof window.feonix.resize === 'function') {
-        window.feonix.resize(newWidth, newHeight + 140);
-      }
-    };
-
-    const stopDrag = () => {
-      window.removeEventListener('mousemove', doDrag);
-      window.removeEventListener('mouseup', stopDrag);
-    };
-
-    window.addEventListener('mousemove', doDrag);
-    window.addEventListener('mouseup', stopDrag);
+    if (!customPromptText.trim() && !screenshotData) return;
+    const prompt = customPromptText.trim() || 'Analyze the question and provide the solution.';
+    setTranscriptChips((prev) => [...prev, { text: prompt, isQuestion: true }]);
+    askQuestion(prompt, { image: screenshotData, style: answerStyle });
+    setCustomPromptText('');
   };
+
+  const handleQuickPromptClick = (presetText, style) => {
+    setAnswerStyle(style);
+    const fullPrompt = customPromptText.trim() ? `${customPromptText.trim()} (${presetText})` : presetText;
+    setTranscriptChips((prev) => [...prev, { text: fullPrompt, isQuestion: true }]);
+    askQuestion(fullPrompt, { image: screenshotData, style });
+  };
+
+  const handleSolveScreenshotNow = () => {
+    setScreenshotMenuOpen(false);
+    setPromptHubOpen(false);
+    askQuestion(cueLine || 'Analyze this screenshot and provide a solution', { image: screenshotData, style: answerStyle });
+  };
+
+  const handleCopyResponse = () => {
+    const text = htmlToPlainText(answerHtml);
+    if (text) navigator.clipboard?.writeText(text);
+    triggerToast(text ? '⧉ Response copied' : 'Nothing to copy yet');
+  };
+
+  const pillStatus = thinking ? 'processing' : listening ? 'listening' : 'ready';
 
   return (
-    <div className="overlay-page-shell" style={{ opacity: `${opacity}%` }}>
-      <div className="stack">
-        {/* Floating Answer Card */}
-        {cueLine && (
-          <div
-            id="answerCard"
-            className={`card ${isExpanded ? 'is-expanded' : ''}`}
-            style={{
-              width: `${cardSize.width}px`,
-              height: isExpanded ? '640px' : `${cardSize.height}px`,
-              maxHeight: 'calc(100vh - 130px)',
-            }}
-          >
-            {/* Resize Handles */}
-            <div className="rs rs-n" onMouseDown={(e) => handleResizeDrag(e, 'n')}></div>
-            <div className="rs rs-s" onMouseDown={(e) => handleResizeDrag(e, 's')}></div>
-            <div className="rs rs-e" onMouseDown={(e) => handleResizeDrag(e, 'e')}></div>
-            <div className="rs rs-w" onMouseDown={(e) => handleResizeDrag(e, 'w')}></div>
-            <div className="rs rs-se" onMouseDown={(e) => handleResizeDrag(e, 'se')}></div>
+    <div className="overlay-page-shell" style={{ opacity: settings.opacity / 100, pointerEvents: 'none' }}>
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileSelect}
+        accept="image/png, image/jpeg, image/jpg, image/webp"
+        style={{ display: 'none' }}
+      />
 
-            <div className="card-head">
-              <div className="nav-group">
-                <span className="meeting-badge">{qtype || 'Live Copilot'}</span>
-              </div>
-              <div className="head-actions">
-                <button className="ctl round" onClick={() => setIsExpanded(!isExpanded)} title={isExpanded ? "Collapse" : "Expand"} type="button">⤢</button>
-              </div>
+      {visibility === 'minimized' && (
+        <AssistantPill
+          ref={pillRef}
+          status={pillStatus}
+          dragPos={dragPos}
+          dragging={dragRef.current?.dragging}
+          onDragStart={handleDragStart}
+          onOpen={handlePillClick}
+        />
+      )}
+
+      {visibility === 'open' && (
+        <div
+          ref={shellRef}
+          className="pk-shell"
+          style={dragPos.x !== null ? {
+            position: 'fixed',
+            left: `${dragPos.x}px`,
+            top: `${dragPos.y}px`,
+            bottom: 'unset',
+            transform: 'none',
+            pointerEvents: 'all',
+            width: `${SIZE_PX[settings.assistantSize] || SIZE_PX.normal}px`,
+            maxWidth: '98vw',
+            zIndex: 9999,
+          } : {
+            pointerEvents: 'all',
+            width: '100%',
+            maxWidth: `${SIZE_PX[settings.assistantSize] || SIZE_PX.normal}px`,
+          }}
+        >
+          <TopBar
+            onDragStart={handleDragStart}
+            dragging={dragRef.current?.dragging}
+            listening={listening}
+            elapsedText={elapsedText}
+            onToggleListening={handleToggleListening}
+            thinking={thinking}
+            onAnswerClick={handleAnswerClick}
+            screenshotData={screenshotData}
+            screenshotMenuOpen={screenshotMenuOpen}
+            onToggleScreenshotMenu={() => setScreenshotMenuOpen((prev) => !prev)}
+            onUploadClick={() => { fileInputRef.current?.click(); setScreenshotMenuOpen(false); }}
+            onCaptureScreen={handleCaptureScreen}
+            onSolveScreenshotNow={handleSolveScreenshotNow}
+            onRemoveScreenshot={() => { setScreenshotData(null); setScreenshotMenuOpen(false); }}
+            promptHubOpen={promptHubOpen}
+            onToggleChat={() => setPromptHubOpen((prev) => !prev)}
+            isExpanded={isExpanded}
+            onToggleExpand={() => setIsExpanded((prev) => !prev)}
+            onMinimize={() => setVisibility('minimized')}
+            onClose={() => setVisibility('hidden')}
+            onToggleSettings={() => setSettingsOpen((prev) => !prev)}
+            onEndSession={handleEndSession}
+          />
+
+          <QuestionPanel
+            listening={listening}
+            transcriptChips={transcriptChips}
+            chipsContainerRef={chipsContainerRef}
+            onChipClick={handleChipClick}
+            onClear={() => setTranscriptChips([])}
+            onDragStart={handleDragStart}
+          />
+
+          <AnswerPanel
+            visible={showAnswerCard}
+            cueLine={cueLine}
+            answerHtml={answerHtml}
+            thinking={thinking}
+            isExpanded={isExpanded}
+            elapsedText={elapsedText}
+            onClear={clearAnswer}
+            onCopyQuestion={() => navigator.clipboard?.writeText(cueLine)}
+            onCopyResponse={handleCopyResponse}
+            onThumbUp={() => triggerToast('👍 Saved')}
+            onThumbDown={() => triggerToast('👎 Noted')}
+          />
+
+          <ChatPanel
+            open={promptHubOpen}
+            onClose={() => setPromptHubOpen(false)}
+            customPromptText={customPromptText}
+            onChangePromptText={setCustomPromptText}
+            screenshotData={screenshotData}
+            onSubmit={handleCustomPromptSubmit}
+            onQuickPrompt={handleQuickPromptClick}
+          />
+
+          <AssistantSettings
+            open={settingsOpen}
+            settings={settings}
+            onChange={updateSetting}
+            autoAnswer={autoAnswer}
+            onToggleAutoAnswer={toggleAutoAnswer}
+            onClose={() => setSettingsOpen(false)}
+          />
+        </div>
+      )}
+
+      {showToast && <div className="pk-toast">{toastMsg}</div>}
+
+      {showWarningModal && (
+        <div className="modal-backdrop">
+          <div className="modal-card">
+            <h3>Time Almost Up</h3>
+            <p>Less than a minute remains. Session ends automatically.</p>
+            <div className="modal-actions">
+              <button className="btn-secondary" onClick={() => setShowWarningModal(false)} type="button">Dismiss</button>
+              <button className="btn-danger" onClick={handleEndSession} type="button">End Now</button>
             </div>
-
-            <div className="card-body">
-              {thinking && (
-                <div className="thinking">
-                  <span className="dot"></span>
-                  <span className="dot"></span>
-                  <span className="dot"></span>
-                </div>
-              )}
-              <div className="answer" dangerouslySetInnerHTML={{ __html: answerHtml }} />
-            </div>
-
-            <div className="card-foot">
-              <span>FeonixAI HUD</span>
-              <div className="rate-group">
-                <button className="rate" onClick={() => triggerToast('👍 Thank you')} type="button">👍</button>
-                <button className="rate" onClick={() => triggerToast('👎 Noted')} type="button">👎</button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Transcript Strip */}
-        <div id="strip" className="strip">
-          <div className="wave">
-            {listening ? (
-              <>
-                <i></i><i></i><i></i>
-              </>
-            ) : (
-              <span style={{ fontSize: '10px' }}>⏸</span>
-            )}
-          </div>
-          <div
-            className="chips"
-            ref={chipsContainerRef}
-            onWheel={(e) => {
-              if (e.deltaY) {
-                e.currentTarget.scrollLeft += e.deltaY;
-              }
-            }}
-          >
-            {transcriptChips.map((chip, idx) => (
-              <span
-                key={idx}
-                className={`chip ${chip.isQuestion ? 'chip-question' : 'chip-idle'}`}
-                onClick={() => {
-                  if (chip.isQuestion || chip.text.length > 5) {
-                    handleGenerateAnswer(chip.text);
-                  }
-                }}
-                title={chip.isQuestion ? 'Click to generate AI answer' : ''}
-              >
-                {chip.text}
-              </span>
-            ))}
-            {transcriptChips.length === 0 && (
-              <span className="chip-idle">Waiting for conversation transcript...</span>
-            )}
           </div>
         </div>
-
-        {/* Main Control Bar */}
-        <div id="mainToolbar" className="bar">
-          <button
-            className="ctl round back-btn"
-            onClick={handleBackToDashboard}
-            title="Back to Dashboard"
-            aria-label="Back to Dashboard"
-            type="button"
-          >
-            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="19" y1="12" x2="5" y2="12"></line>
-              <polyline points="12 19 5 12 12 5"></polyline>
-            </svg>
-          </button>
-
-          <button className="src" onClick={handleToggleListening} type="button">
-            <span className="status-dot" style={{ backgroundColor: listening ? '#18C37D' : '#E5484D' }}></span>
-            <span>{listening ? `Listening ${elapsedText}` : 'Start Recording'}</span>
-          </button>
-
-          <div className="spacer"></div>
-
-          {remainingText && <div className="usage">{remainingText} left</div>}
-
-          <div className="actions">
-            <button className="ctl" onClick={() => setSettingsOpen(!settingsOpen)} type="button">Settings</button>
-            <button className="ctl" onClick={() => setEmergencyOpen(!emergencyOpen)} type="button">HUD Opts</button>
-            <button className="timer" onClick={handleEndSession} type="button">End Session</button>
-          </div>
-
-          <div className="usage">{creditsText}</div>
-        </div>
-
-        {/* Emergency Dropdown Menu */}
-        {emergencyOpen && (
-          <div className="emergency-menu">
-            <div className="menu-header">HUD Controls</div>
-            <button className="menu-item" onClick={handleToggleAuto} type="button">
-              <span>Auto Answer</span>
-              <span className="pm-state">{autoAnswer ? 'ON' : 'OFF'}</span>
-            </button>
-            <button className="menu-item" onClick={handleTogglePrivate} type="button">
-              <span>Private Shield</span>
-              <span className="pm-state">{isPrivate ? 'ON' : 'OFF'}</span>
-            </button>
-            <div className="menu-divider"></div>
-            <div className="menu-slider">
-              <label>Opacity</label>
-              <input type="range" min="30" max="100" value={opacity} onChange={(e) => setOpacity(e.target.value)} />
-              <span>{opacity}%</span>
-            </div>
-            <div className="menu-divider"></div>
-            <button className="menu-item danger" onClick={() => setEmergencyOpen(false)} type="button">Close Panel</button>
-          </div>
-        )}
-
-        {/* Settings Drawer Card */}
-        {settingsOpen && (
-          <div className="settings-card">
-            <div className="settings-head">
-              <h3>Overlay Settings</h3>
-              <button className="ctl" onClick={() => setSettingsOpen(false)} type="button">✕</button>
-            </div>
-            <form onSubmit={handleManualInputSubmit} className="chatbar" style={{ position: 'relative', border: 0, padding: 0, boxShadow: 'none' }}>
-              <input value={manualInput} onChange={(e) => setManualInput(e.target.value)} placeholder="Type manual question here..." />
-              <button className="act" type="submit">Ask HUD</button>
-            </form>
-          </div>
-        )}
-
-        {/* Session-Expiring Warning Modal */}
-        {showWarningModal && (
-          <div className="modal-backdrop">
-            <div className="modal-card">
-              <h3>Time Almost Up</h3>
-              <p>Less than a minute remains on this session. It will end automatically when the time runs out.</p>
-              <div className="modal-actions">
-                <button className="btn-secondary" onClick={() => setShowWarningModal(false)} type="button">Dismiss</button>
-                <button className="btn-danger" onClick={handleEndSession} type="button">End Now</button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Toast Alert */}
-        {showToast && (
-          <div className="toast-container">
-            <div className="toast">{toastMsg}</div>
-          </div>
-        )}
-      </div>
+      )}
     </div>
   );
 }

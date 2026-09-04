@@ -2,12 +2,14 @@
 
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
+import { useInViewport } from '../../hooks/useInViewport';
 
 export default function AIOrbCanvas() {
   const containerRef = useRef(null);
+  const inView = useInViewport(containerRef);
 
   useEffect(() => {
-    if (!containerRef.current) return;
+    if (!containerRef.current || !inView) return;
 
     const container = containerRef.current;
     const width = container.clientWidth || 600;
@@ -176,7 +178,7 @@ export default function AIOrbCanvas() {
       ringMat.dispose();
       renderer.dispose();
     };
-  }, []);
+  }, [inView]);
 
   return (
     <div

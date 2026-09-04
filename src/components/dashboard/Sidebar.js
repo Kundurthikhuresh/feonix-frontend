@@ -1,14 +1,14 @@
 import React from 'react';
 import Link from 'next/link';
 
-export default function Sidebar({ user, activePane, setActivePane, themeMode, toggleTheme, handleLogout, trialsLeft, creditsLeft }) {
+export default function Sidebar({ user, activePane, setActivePane, themeMode, toggleTheme, handleLogout, trialsLeft, creditsLeft, onGoLanding }) {
   const displayTrials = trialsLeft !== undefined && trialsLeft !== null ? trialsLeft : '—';
   const displayCredits = creditsLeft !== undefined && creditsLeft !== null ? creditsLeft : '—';
   const progressPercent = typeof trialsLeft === 'number' ? Math.min(100, trialsLeft * 20) : 100;
 
   return (
     <aside className="nav">
-      <div className="brand">
+      <div className="brand" onClick={onGoLanding} style={{ cursor: 'pointer' }} title="Back to Landing Page">
         <span className="brand-mark">F</span>
         <span className="brand-name">FeonixAI</span>
       </div>
@@ -53,11 +53,13 @@ export default function Sidebar({ user, activePane, setActivePane, themeMode, to
         <Link className="nav-item" href="/resumes">Resume Library</Link>
         <Link className="nav-item" href="/resume-builder">Resume Builder</Link>
         <Link className="nav-item" href="/job-analyzer">Job Analyzer</Link>
-        <Link className="nav-item" href="/job-match">Job Match</Link>
-        <Link className="nav-item" href="/cover-letter">Cover Letters</Link>
-        <Link className="nav-item" href="/interview-prep">Interview Prep</Link>
         <Link className="nav-item" href="/applications">Applications</Link>
         <Link className="nav-item" href="/pricing">Plans & Pricing</Link>
+      </div>
+
+      <div className="nav-group">
+        <h2>Account</h2>
+        <Link className="nav-item" href="/settings">Privacy &amp; Security</Link>
       </div>
 
       <div className="nav-foot">

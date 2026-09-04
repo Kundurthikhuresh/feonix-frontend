@@ -1,6 +1,21 @@
 "use client";
 
 import React, { useState, useRef } from 'react';
+import Image from 'next/image';
+import {
+  Mail,
+  Lock,
+  Sparkles,
+  ArrowRight,
+  ShieldCheck,
+  Eye,
+  EyeOff,
+  Bot,
+  KeyRound,
+  Zap,
+  X,
+  CheckCircle2
+} from 'lucide-react';
 
 export default function AuthModal({
   authMode,
@@ -19,7 +34,7 @@ export default function AuthModal({
 }) {
   const [showPassword, setShowPassword] = useState(false);
 
-  // 3D Tilt State
+  // 3D Parallax Tilt State
   const [tiltX, setTiltX] = useState(0);
   const [tiltY, setTiltY] = useState(0);
   const [glarePos, setGlarePos] = useState({ x: 50, y: 50 });
@@ -32,8 +47,8 @@ export default function AuthModal({
     const y = e.clientY - rect.top;
     const xc = rect.width / 2;
     const yc = rect.height / 2;
-    const rotateY = ((x - xc) / xc) * 12; // max 12deg
-    const rotateX = -((y - yc) / yc) * 12;
+    const rotateY = ((x - xc) / xc) * 10; // max 10 deg
+    const rotateX = -((y - yc) / yc) * 10;
     setTiltX(rotateX);
     setTiltY(rotateY);
 
@@ -48,16 +63,23 @@ export default function AuthModal({
     setGlarePos({ x: 50, y: 50 });
   };
 
+  const handleQuickDemoFill = () => {
+    setAuthEmail('demo@feonix.ai');
+    setAuthPassword('DemoUser2026!');
+    setAuthMsg({ text: 'Demo credentials populated. Click Sign In to continue!', type: 'ok' });
+  };
+
   return (
     <div id="authView" className="auth-3d-overlay" onClick={() => setShowAuthModal(false)}>
-      {/* Dynamic Background Ambient Light Orbs */}
+      {/* Background Ambient Glowing Light Orbs */}
       <div className="auth-ambient-orb orb-cyan" />
       <div className="auth-ambient-orb orb-violet" />
+      <div className="auth-mesh-grid-backdrop" />
 
-      {/* 3D Tilt Container */}
+      {/* 360-Degree Neon Flowing Border & Halo Wrapper */}
       <div
         ref={cardRef}
-        className="auth-card auth-card-3d"
+        className="auth-card-outer-glow-wrapper"
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
         onClick={(e) => e.stopPropagation()}
@@ -66,178 +88,277 @@ export default function AuthModal({
           transition: tiltX === 0 ? 'transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1)' : 'none',
         }}
       >
-        {/* Dynamic Holographic Glare Layer */}
-        <div
-          className="auth-glare-effect"
-          style={{
-            background: `radial-gradient(circle at ${glarePos.x}% ${glarePos.y}%, rgba(0, 245, 255, 0.15), transparent 70%)`,
-          }}
-        />
+        {/* Main 3D Glassmorphic Card */}
+        <div className="auth-card auth-card-3d">
+          {/* Full-Card Animated Fluid Aurora Glow */}
+          <div className="auth-inner-aurora-glow" />
 
-        {/* Floating Neon Border Glow */}
+          {/* Dynamic Holographic Glare Layer */}
+          <div
+            className="auth-glare-effect"
+            style={{
+              background: `radial-gradient(circle at ${glarePos.x}% ${glarePos.y}%, rgba(0, 245, 255, 0.2), transparent 65%)`,
+            }}
+          />
+
+        {/* Animated Cybernetic Conic Border */}
         <div className="auth-3d-glow-border" />
 
-        {/* Close Button */}
+        {/* Floating Close Button */}
         <button
           type="button"
           className="auth-close-btn"
           onClick={() => setShowAuthModal(false)}
           aria-label="Close"
         >
-          ✕
+          <X size={16} />
         </button>
 
-        {/* Top 3D AI Icon Badge */}
-        <div className="auth-brand-badge">
-          <span className="badge-pulse-dot" />
-          <span className="wordmark">FEONIX AI 3.0</span>
+        {/* Header with 3D Avatar & Live Status */}
+        <div className="auth-card-top-header">
+          <div className="auth-avatar-mini-halo">
+            <Image
+              src="/ai_robot_avatar_speaking.jpg"
+              alt="Feonix AI 3.0"
+              width={42}
+              height={42}
+              className="auth-avatar-mini-img"
+              priority
+              unoptimized={true}
+              onError={(e) => { e.currentTarget.src = '/images/ai_robot_avatar_speaking.jpg'; }}
+            />
+            <span className="auth-mini-live-dot" />
+          </div>
+          <div className="auth-header-meta">
+            <span className="auth-brand-chip">
+              <Sparkles size={11} className="text-cyan" />
+              <span>FEONIX AI 3.0 NEURAL GATE</span>
+            </span>
+            <span className="auth-header-caption">Secure Technical Interview Copilot</span>
+          </div>
         </div>
 
-        {/* Title */}
-        <h1 className="auth-title">
-          {authMode === 'register' ? 'Create Account' : authMode === 'forgot' ? 'Reset password' : 'Sign in'}
-        </h1>
-        <p className="lede">
-          {authMode === 'register'
-            ? 'Access all 3D AI features & career tools.'
-            : authMode === 'forgot'
-              ? "Enter your email and we'll send you a reset link."
-              : 'Your answers, your quota, your key.'}
-        </p>
+        {/* Interactive Tab Switcher Pill */}
+        {authMode !== 'forgot' && (
+          <div className="auth-tab-pill-bar">
+            <button
+              type="button"
+              className={`auth-tab-pill ${authMode === 'login' ? 'active' : ''}`}
+              onClick={() => {
+                setAuthMode('login');
+                setAuthMsg({ text: '', type: '' });
+              }}
+            >
+              <KeyRound size={13} />
+              <span>Sign In</span>
+            </button>
+            <button
+              type="button"
+              className={`auth-tab-pill ${authMode === 'register' ? 'active' : ''}`}
+              onClick={() => {
+                setAuthMode('register');
+                setAuthMsg({ text: '', type: '' });
+              }}
+            >
+              <Sparkles size={13} />
+              <span>Create Account</span>
+            </button>
+          </div>
+        )}
+
+        {/* Title & Subtitle */}
+        <div className="auth-headline-block">
+          <h1 className="auth-title">
+            {authMode === 'register' ? 'Create Account' : authMode === 'forgot' ? 'Reset Password' : 'Sign in to Feonix'}
+          </h1>
+          <p className="auth-sub-lede">
+            {authMode === 'register'
+              ? 'Unlock real-time 3D voice copilot & live teleprompter HUD.'
+              : authMode === 'forgot'
+              ? "Enter your account email to receive an instant recovery link."
+              : 'Enter your credentials to access your live interview sessions.'}
+          </p>
+        </div>
 
         {/* Auth Form */}
-        <form onSubmit={handleAuthSubmit}>
-          <div className="field">
-            <label htmlFor="email">EMAIL</label>
-            <input
-              id="email"
-              type="email"
-              placeholder="you@example.com"
-              value={authEmail}
-              onChange={(e) => setAuthEmail(e.target.value)}
-              required
-              autoComplete="username"
-              className="auth-input-3d"
-            />
+        <form onSubmit={handleAuthSubmit} className="auth-form-animated">
+          {/* Email Field */}
+          <div className="auth-input-group">
+            <label htmlFor="email" className="auth-input-label">
+              <span>EMAIL ADDRESS</span>
+            </label>
+            <div className="auth-input-field-wrap">
+              <Mail size={16} className="auth-field-leading-icon" />
+              <input
+                id="email"
+                type="email"
+                placeholder="name@company.com"
+                value={authEmail}
+                onChange={(e) => setAuthEmail(e.target.value)}
+                required
+                autoComplete="username"
+                className="auth-input-modern"
+              />
+            </div>
           </div>
 
+          {/* Password Field */}
           {authMode !== 'forgot' && (
-          <div className="field">
-            <label htmlFor="password">PASSWORD</label>
-            <div className="password-input-wrapper">
-              <input
-                id="password"
-                type={showPassword ? 'text' : 'password'}
-                placeholder="••••••••••••"
-                value={authPassword}
-                onChange={(e) => setAuthPassword(e.target.value)}
-                required
-                autoComplete={authMode === 'register' ? 'new-password' : 'current-password'}
-                className="auth-input-3d"
-              />
-              <button
-                type="button"
-                className="password-toggle-btn"
-                onClick={() => setShowPassword(!showPassword)}
-                title={showPassword ? 'Hide password' : 'Show password'}
-              >
-                {showPassword ? (
-                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" />
-                    <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" />
-                    <path d="M6.61 6.61A13.52 13.52 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" />
-                    <line x1="2" y1="2" x2="22" y2="22" />
-                  </svg>
-                ) : (
-                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
-                    <circle cx="12" cy="12" r="3" />
-                  </svg>
+            <div className="auth-input-group">
+              <div className="auth-label-split">
+                <label htmlFor="password" className="auth-input-label">
+                  <span>PASSWORD</span>
+                </label>
+                {authMode === 'login' && (
+                  <button
+                    type="button"
+                    className="auth-forgot-link"
+                    onClick={() => {
+                      setAuthMode('forgot');
+                      setAuthMsg({ text: '', type: '' });
+                    }}
+                  >
+                    Forgot password?
+                  </button>
                 )}
-              </button>
-            </div>
-            {authMode === 'register' && <div className="note">At least 10 characters.</div>}
-            {authMode === 'login' && (
-              <div className="forgot-password-row">
+              </div>
+              <div className="auth-input-field-wrap">
+                <Lock size={16} className="auth-field-leading-icon" />
+                <input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="••••••••••••"
+                  value={authPassword}
+                  onChange={(e) => setAuthPassword(e.target.value)}
+                  required
+                  autoComplete={authMode === 'register' ? 'new-password' : 'current-password'}
+                  className="auth-input-modern"
+                />
                 <button
                   type="button"
-                  className="btn-link"
-                  onClick={() => {
-                    setAuthMode('forgot');
-                    setAuthMsg({ text: '', type: '' });
-                  }}
+                  className="auth-password-toggle-btn"
+                  onClick={() => setShowPassword(!showPassword)}
+                  title={showPassword ? 'Hide password' : 'Show password'}
                 >
-                  Forgot password?
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
-            )}
-          </div>
-          )}
-
-          {authMode === 'register' && (
-            <div className="field">
-              <label htmlFor="signupCode">SIGNUP CODE</label>
-              <input
-                id="signupCode"
-                type="text"
-                placeholder="Optional invite code"
-                value={authSignupCode}
-                onChange={(e) => setAuthSignupCode(e.target.value)}
-                className="auth-input-3d"
-              />
-              <div className="note">Leave blank for open registration.</div>
+              {authMode === 'register' && (
+                <div className="auth-input-helper">
+                  <CheckCircle2 size={12} className="text-cyan" />
+                  <span>Must be at least 8 characters with numbers & symbols</span>
+                </div>
+              )}
             </div>
           )}
 
-          <button className="btn btn-wide btn-3d-primary" type="submit" disabled={authLoading}>
+          {/* Signup Code (Optional for registration) */}
+          {authMode === 'register' && (
+            <div className="auth-input-group">
+              <label htmlFor="signupCode" className="auth-input-label">
+                <span>INVITE CODE (OPTIONAL)</span>
+              </label>
+              <div className="auth-input-field-wrap">
+                <Zap size={16} className="auth-field-leading-icon" />
+                <input
+                  id="signupCode"
+                  type="text"
+                  placeholder="e.g. VIP-2026"
+                  value={authSignupCode}
+                  onChange={(e) => setAuthSignupCode(e.target.value)}
+                  className="auth-input-modern"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Quick 1-Click Demo Fill Pill */}
+          {authMode === 'login' && (
+            <div className="auth-quick-demo-wrapper">
+              <button
+                type="button"
+                className="auth-quick-demo-btn"
+                onClick={handleQuickDemoFill}
+                title="Fill demo credentials instantly"
+              >
+                <Zap size={13} className="demo-zap-icon" />
+                <span>Quick Demo Fill (1-Click)</span>
+              </button>
+            </div>
+          )}
+
+          {/* Primary Action Button with Glow Sweep */}
+          <button
+            className="auth-btn-primary-glow"
+            type="submit"
+            disabled={authLoading}
+          >
+            <div className="btn-sweep-shine" />
             {authLoading ? (
-              <span className="btn-loading-spin">
-                {authMode === 'forgot' ? 'Sending…' : 'Authenticating…'}
+              <span className="auth-btn-loader">
+                <span className="btn-spinner" />
+                <span>Authenticating…</span>
               </span>
             ) : (
-              <span>
-                {authMode === 'register' ? 'Create Account' : authMode === 'forgot' ? 'Send Reset Link' : 'Sign in'}
+              <span className="auth-btn-label">
+                <span>
+                  {authMode === 'register'
+                    ? 'Create Account & Launch'
+                    : authMode === 'forgot'
+                    ? 'Send Reset Link'
+                    : 'Sign in to Feonix'}
+                </span>
+                <ArrowRight size={16} className="auth-arrow-icon" />
               </span>
             )}
           </button>
 
+          {/* Feedback Message */}
           {authMsg.text && (
-            <div className={`msg ${authMsg.type === 'err' ? 'msg-err' : 'msg-ok'}`}>
-              {authMsg.text}
+            <div className={`auth-alert-message ${authMsg.type === 'err' ? 'is-err' : 'is-ok'}`}>
+              <span className="alert-dot" />
+              <span>{authMsg.text}</span>
             </div>
           )}
         </form>
 
         {/* Switch Mode Footer */}
-        <div className="auth-switch">
+        <div className="auth-card-footer">
           {authMode === 'forgot' ? (
             <button
-              className="btn-link auth-switch-link"
+              className="auth-bottom-switch-link"
               onClick={() => {
                 setAuthMode('login');
                 setAuthMsg({ text: '', type: '' });
               }}
               type="button"
             >
-              Back to sign in
+              ← Back to Sign In
             </button>
           ) : (
-            <>
-              <span>{authMode === 'register' ? 'Already have an account?' : 'No account yet?'} </span>
+            <div className="auth-footer-prompt">
+              <span>{authMode === 'register' ? 'Already have an account?' : 'New to Feonix AI?'}</span>
               <button
-                className="btn-link auth-switch-link"
+                className="auth-bottom-switch-link highlight"
                 onClick={() => {
                   setAuthMode(authMode === 'login' ? 'register' : 'login');
                   setAuthMsg({ text: '', type: '' });
                 }}
                 type="button"
               >
-                {authMode === 'register' ? 'Sign in' : 'Create one'}
+                {authMode === 'register' ? 'Sign In' : 'Create an account'}
               </button>
-            </>
+            </div>
           )}
+
+          {/* Privacy & Trust Badge */}
+          <div className="auth-trust-badge">
+            <ShieldCheck size={13} className="text-emerald" />
+            <span>256-bit encrypted · Sandbox privacy isolated</span>
+          </div>
         </div>
       </div>
     </div>
+  </div>
   );
 }

@@ -8,7 +8,7 @@ export function useAudioRecorder(onChunkAvailable) {
 
   const stopRecording = useCallback(async () => {
     setListening(false);
-    
+
     if (cycleTimerRef.current) {
       clearInterval(cycleTimerRef.current);
       cycleTimerRef.current = null;
@@ -49,7 +49,7 @@ export function useAudioRecorder(onChunkAvailable) {
       };
 
       mediaRecorder.start();
-      
+
       cycleTimerRef.current = setInterval(() => {
         if (mediaRecorder.state === 'recording') {
           mediaRecorder.stop();

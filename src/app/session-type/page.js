@@ -12,7 +12,6 @@ function SessionTypeContent() {
   const [sessionId, setSessionId] = useState(null);
   const [session, setSession] = useState(null);
   const [redeemed, setRedeemed] = useState(false);
-  const [isPrivate, setIsPrivate] = useState(true);
   const [autoAnswer, setAutoAnswer] = useState(true);
   const [creditsText, setCreditsText] = useState('— Credits');
   const [message, setMessage] = useState({ text: '', isError: false, busy: false });
@@ -74,7 +73,14 @@ function SessionTypeContent() {
         const meData = await meRes.json();
         showBalance(meData.user);
 
-        const active = await fetchActiveOrCreateSession();
+        let active = null;
+        if (urlSession) {
+          active = await loadSession(urlSession);
+        }
+        if (!active) {
+          active = await fetchActiveOrCreateSession();
+        }
+
         if (!active) {
           say('Create a session on the dashboard first.', true);
           setButtonsDisabled(true);
@@ -82,7 +88,7 @@ function SessionTypeContent() {
         }
         setSessionId(active.id);
         setRedeemed(true);
-        await loadSession(active.id);
+        say('');
         setButtonsDisabled(false);
       } catch (err) {
         console.error('Boot error:', err);
@@ -175,8 +181,10 @@ function SessionTypeContent() {
       const listRes = await fetch('/api/sessions');
       if (!listRes.ok) return null;
       const list = await listRes.json();
-      const active = list.sessions.find((s) => s.status === 'active')
-        || list.sessions.find((s) => s.status === 'ready');
+      const sessions = list.sessions || [];
+      const active = sessions.find((s) => s.status === 'active')
+        || sessions.find((s) => s.status === 'ready')
+        || sessions[0];
       if (active) return active;
 
       const madeRes = await fetch('/api/sessions', {
@@ -185,8 +193,8 @@ function SessionTypeContent() {
         body: JSON.stringify({ company: 'Interview Session', role: '', mode: 'interview' }),
       });
       if (!madeRes.ok) return null;
-      const madeData = await madeRes.json();
-      return madeData.session;
+      const madeData = await madeRes.json().catch(() => ({}));
+      return madeData.session || null;
     } catch {
       return null;
     }
@@ -224,15 +232,6 @@ function SessionTypeContent() {
       setButtonsDisabled(false);
       say('Could not start the session. Try again.', true);
     }
-  };
-
-  const togglePrivate = () => {
-    const nextPrivate = !isPrivate;
-    setIsPrivate(nextPrivate);
-    if (window.feonix && typeof window.feonix.setPrivate === 'function') {
-      window.feonix.setPrivate(nextPrivate);
-    }
-    triggerToast(nextPrivate ? '✓ Private Mode Enabled' : '✓ Private Mode Disabled');
   };
 
   const handleToggleAutoAnswer = () => {
@@ -313,9 +312,6 @@ function SessionTypeContent() {
             </div>
 
             <div className="tool-actions">
-              <button className={`priv-toggle ${isPrivate ? 'is-on' : 'is-off'}`} onClick={togglePrivate} type="button">
-                {isPrivate ? 'PRIV ON' : 'PRIV OFF'}
-              </button>
               <button className="icon-btn" onClick={() => setSettingsOpen(true)} title="Settings" type="button">⚙</button>
             </div>
           </div>
@@ -393,12 +389,6 @@ function SessionTypeContent() {
               <span className="setting-label">Automatic Answering</span>
               <button className={`priv-toggle ${autoAnswer ? 'is-on' : 'is-off'}`} onClick={handleToggleAutoAnswer} type="button">
                 {autoAnswer ? 'Auto: ON' : 'Auto: OFF'}
-              </button>
-            </div>
-            <div className="setting-item">
-              <span className="setting-label">Privacy Shield</span>
-              <button className={`priv-toggle ${isPrivate ? 'is-on' : 'is-off'}`} onClick={togglePrivate} type="button">
-                {isPrivate ? 'PRIV ON' : 'PRIV OFF'}
               </button>
             </div>
           </div>

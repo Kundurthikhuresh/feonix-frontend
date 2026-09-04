@@ -98,8 +98,8 @@ export default function SessionsPane({
                   {s.status === 'ready'
                     ? 'Ready to start'
                     : s.status === 'active'
-                    ? 'In progress'
-                    : s.status.charAt(0).toUpperCase() + s.status.slice(1)}
+                      ? 'In progress'
+                      : s.status.charAt(0).toUpperCase() + s.status.slice(1)}
                 </div>
                 <span className="sc-usage">
                   {s.tokens_used ? `${s.tokens_used} tokens` : 'No usage yet'}
