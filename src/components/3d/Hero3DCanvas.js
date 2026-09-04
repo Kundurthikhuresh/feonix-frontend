@@ -2,12 +2,14 @@
 
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
+import { useInViewport } from '../../hooks/useInViewport';
 
 export default function Hero3DCanvas() {
   const containerRef = useRef(null);
+  const inView = useInViewport(containerRef);
 
   useEffect(() => {
-    if (!containerRef.current) return;
+    if (!containerRef.current || !inView) return;
 
     const container = containerRef.current;
     const width = container.clientWidth || 540;
@@ -15,8 +17,18 @@ export default function Hero3DCanvas() {
 
     // 1. Scene & Camera Setup
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
-    camera.position.set(0, 0, 8.5);
+    const aspect = width / height;
+    const camera = new THREE.PerspectiveCamera(45, aspect, 0.1, 1000);
+    
+    // Auto-adjust camera distance based on aspect ratio so sphere never clips edges
+    const updateCamDist = (w, h) => {
+      const a = w / h;
+      const zDist = Math.max(11.5, 9.0 / Math.min(a, 1));
+      camera.aspect = a;
+      camera.position.set(0, 0, zDist);
+      camera.updateProjectionMatrix();
+    };
+    updateCamDist(width, height);
 
     // 2. Renderer with High Performance & Alpha
     let renderer;
@@ -31,6 +43,19 @@ export default function Hero3DCanvas() {
       console.warn('WebGL not supported for Hero3DCanvas', e);
       return;
     }
+
+    // ResizeObserver for Container Resizing
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const w = entry.contentRect.width;
+        const h = entry.contentRect.height;
+        if (w > 0 && h > 0 && renderer) {
+          renderer.setSize(w, h);
+          updateCamDist(w, h);
+        }
+      }
+    });
+    resizeObserver.observe(container);
 
     // 3. Lighting
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
@@ -258,8 +283,8 @@ export default function Hero3DCanvas() {
     // 11. Memory Cleanup
     return () => {
       cancelAnimationFrame(animationFrameId);
+      resizeObserver.disconnect();
       window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('resize', handleResize);
       container.removeEventListener('mouseenter', handleMouseEnter);
       container.removeEventListener('mouseleave', handleMouseLeave);
 
@@ -283,7 +308,7 @@ export default function Hero3DCanvas() {
       particlesMat.dispose();
       renderer.dispose();
     };
-  }, []);
+  }, [inView]);
 
   return (
     <div
@@ -293,11 +318,13 @@ export default function Hero3DCanvas() {
         width: '100%',
         height: '100%',
         minHeight: '440px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
+        display: 'block',
         position: 'relative',
         cursor: 'grab',
+        backgroundImage: 'radial-gradient(circle at center, rgba(0, 245, 255, 0.15) 0%, rgba(9, 14, 28, 0.85) 80%), url("/neural_mesh_core.jpg")',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
       }}
     />
   );

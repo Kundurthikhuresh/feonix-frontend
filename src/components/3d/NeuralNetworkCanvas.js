@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
+import { useInViewport } from '../../hooks/useInViewport';
 
 const NODES_DATA = [
   { id: 'core', label: 'AI CORE ENGINE', x: 0, y: 0, z: 0, size: 0.5, color: 0x00f5ff, primary: true },
@@ -19,9 +20,10 @@ const NODES_DATA = [
 export default function NeuralNetworkCanvas() {
   const containerRef = useRef(null);
   const [activeNode, setActiveNode] = useState(null);
+  const inView = useInViewport(containerRef);
 
   useEffect(() => {
-    if (!containerRef.current) return;
+    if (!containerRef.current || !inView) return;
 
     const container = containerRef.current;
     const width = container.clientWidth || 800;
@@ -231,7 +233,7 @@ export default function NeuralNetworkCanvas() {
       });
       renderer.dispose();
     };
-  }, []);
+  }, [inView]);
 
   return (
     <div

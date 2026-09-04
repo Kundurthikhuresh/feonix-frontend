@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Sparkles, Sun, Moon, Menu, X, ArrowRight } from 'lucide-react';
 
 export default function Navbar3D({
@@ -11,11 +11,26 @@ export default function Navbar3D({
   onSignupClick,
 }) {
   const [scrolled, setScrolled] = useState(false);
+  const [hidden, setHidden] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const lastScrollY = useRef(0);
 
   useEffect(() => {
     const handleScroll = () => {
-      setScrolled(window.scrollY > 24);
+      const y = window.scrollY;
+      setScrolled(y > 24);
+
+      // Hide on the way down, reveal on the way up — but never hide before
+      // the page has actually scrolled past the header's own height, or a
+      // small bounce/overscroll right at the top would flicker it away.
+      const scrolledDown = y > lastScrollY.current;
+      if (scrolledDown && y > 120) {
+        setHidden(true);
+        setMobileMenuOpen(false);
+      } else {
+        setHidden(false);
+      }
+      lastScrollY.current = y;
     };
 
     window.addEventListener('scroll', handleScroll, { passive: true });
@@ -23,7 +38,7 @@ export default function Navbar3D({
   }, []);
 
   return (
-    <header className={`navbar-3d-header ${scrolled ? 'is-scrolled' : ''}`}>
+    <header className={`navbar-3d-header ${scrolled ? 'is-scrolled' : ''} ${hidden ? 'is-hidden' : ''}`}>
       <div className="navbar-3d-container">
         {/* Brand Logo */}
         <a href="#hero" className="navbar-brand">

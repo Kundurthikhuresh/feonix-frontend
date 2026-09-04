@@ -1,54 +1,147 @@
 "use client";
 
-import { useState, useRef } from 'react';
-import { Play, Send, Activity, Sparkles, CheckCircle2, Terminal } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import Image from 'next/image';
+import { Play, Pause, Send, Activity, Sparkles, CheckCircle2, Terminal, Mic, Shield, RefreshCw, Copy, ThumbsUp, ThumbsDown, Move, MoreVertical, Maximize2, ArrowLeft, ArrowRight, Video } from 'lucide-react';
+import dynamic from 'next/dynamic';
 
-const SIM_SAMPLES = [
+const Hero3DCanvas = dynamic(() => import('../3d/Hero3DCanvas'), {
+  ssr: false,
+  loading: () => (
+    <div className="sim-solar-loader">
+      <div className="fallback-orb-pulse" />
+    </div>
+  ),
+});
+
+const DEMO_SAMPLES = [
   {
-    id: 1,
-    label: "Process vs Thread?",
+    id: 'manager-disagreement',
+    label: "Disagreement with manager",
+    question: "Walk me through a time you disagreed with your manager.",
+    answer: {
+      headline: "Frame it as a disagreement about evidence, not about authority.",
+      bullets: [
+        "Situation: We planned a complete architecture rewrite that I evaluated as premature for our scale.",
+        "Action: I put together a two-week technical spike measuring actual DB bottleneck metrics.",
+        "Result: The benchmark data showed it was an unindexed query layer, so we fixed that instead and saved 3 months."
+      ],
+      time: "12:11",
+      chips: ["Walk me through", "a time you", "disagreed with your", "manager."]
+    }
+  },
+  {
+    id: 'process-thread',
+    label: "Process vs Thread in OS Architecture",
     question: "Can you explain the difference between a process and a thread?",
     answer: {
-      kind: "System Architecture",
-      content: "<strong>Process:</strong> An independent executing program instance with its own private virtual memory space (stack, heap). Heavyweight, higher overhead for context switching.<br/><br/><strong>Thread:</strong> A path of execution within a process. Multiple threads share process resources. Lightweight, fast data sharing, but concurrency synchronization is required.",
-      confidence: "98%",
-      source: "OS Concepts & Kernel Architecture"
+      headline: "Processes have isolated memory spaces; threads share memory within the same process.",
+      bullets: [
+        "Situation: OS-level isolation vs lightweight execution concurrency tradeoffs.",
+        "Action: Contrast heavy IPC overhead (~1–10 µs context switch) with shared heap thread execution.",
+        "Result: Emphasize synchronization primitives (mutex, semaphore) required to prevent race conditions."
+      ],
+      time: "10:45",
+      chips: ["Can you explain", "the difference", "between a process", "and a thread?"]
     }
   },
   {
-    id: 2,
-    label: "JS Event Loop?",
-    question: "How does the event loop work in JavaScript?",
+    id: 'js-event-loop',
+    label: "JavaScript Event Loop & Microtasks",
+    question: "How does the event loop work in JavaScript under the hood?",
     answer: {
-      kind: "JavaScript Runtime",
-      content: "<strong>Event Loop:</strong> A continuous monitoring loop that coordinates asynchronous callback execution.<br/><br/><strong>Execution Flow:</strong><br/>1. Runs synchronous call stack frames.<br/>2. Resolves all Microtasks (Promises, queueMicrotask) completely.<br/>3. Polls and processes Macrotasks (timeouts, intervals, I/O events) from Callback Queue.",
-      confidence: "96%",
-      source: "V8 Core Architecture"
+      headline: "Single-threaded non-blocking runtime via Call Stack, Microtask, and Macrotask queues.",
+      bullets: [
+        "Situation: Explaining V8 asynchronous event loop execution precedence.",
+        "Action: Detail Call Stack execution -> Microtask queue (Promises) full drain -> Macrotasks (setTimeout).",
+        "Result: Explain why Promise.resolve().then() executes before setTimeout(fn, 0)."
+      ],
+      time: "09:30",
+      chips: ["How does the", "event loop work", "in JavaScript", "under the hood?"]
     }
   },
   {
-    id: 3,
-    label: "Virtual DOM Diffing?",
-    question: "What is the Virtual DOM and why is it fast?",
+    id: 'system-design-rate-limiter',
+    label: "System Design: API Rate Limiter",
+    question: "How would you design a distributed API Rate Limiter?",
     answer: {
-      kind: "React Framework",
-      content: "<strong>Virtual DOM:</strong> A lightweight JavaScript object tree mapping the real DOM nodes.<br/><br/><strong>Diffing & Batching:</strong> React computes the difference between old and new state (diffing algorithm) and batches real DOM updates (reconciliation) in a single reflow/repaint to bypass expensive browser layout engines.",
-      confidence: "95%",
-      source: "React Fiber Architecture"
+      headline: "Use Redis Token Bucket or Sliding Window Log with atomic Lua scripts.",
+      bullets: [
+        "Situation: Protecting microservices from DDoS and client API quota exhaustion.",
+        "Action: Implement Sliding Window Counter in Redis cluster using INCR and EXPIRE commands.",
+        "Result: Achieved < 2ms latency overhead with multi-region synchronization."
+      ],
+      time: "14:22",
+      chips: ["How would you", "design a distributed", "API Rate Limiter", "for high traffic?"]
     }
   }
 ];
 
 export default function InteractiveSimulator3D() {
-  const [simState, setSimState] = useState('idle'); // 'idle', 'transcribing', 'thinking', 'answering'
-  const [simActiveId, setSimActiveId] = useState(null);
-  const [simQuestion, setSimQuestion] = useState('');
-  const [simAnswer, setSimAnswer] = useState(null);
-  const [simInput, setSimInput] = useState('');
+  const [sampleIndex, setSampleIndex] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(true); // Video-like auto-stream mode
+  const [simState, setSimState] = useState('answering'); // 'transcribing', 'thinking', 'answering'
+  const [currentQuestion, setCurrentQuestion] = useState(DEMO_SAMPLES[0].question);
+  const [currentAnswer, setCurrentAnswer] = useState(DEMO_SAMPLES[0].answer);
+  const [customInput, setCustomInput] = useState('');
+  const [copied, setCopied] = useState(false);
+  const [feedback, setFeedback] = useState(null);
 
   // 3D Tilt Physics
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
   const containerRef = useRef(null);
+  const sectionRef = useRef(null);
+
+  // Auto-scroll / Video Loop Stream Engine
+  useEffect(() => {
+    if (!isPlaying) return;
+
+    const sample = DEMO_SAMPLES[sampleIndex];
+    setSimState('transcribing');
+    setCurrentQuestion(sample.question);
+    setCurrentAnswer(sample.answer);
+
+    // Step 1: Transcribing voice stream (1.2s)
+    const timer1 = setTimeout(() => {
+      setSimState('thinking');
+
+      // Step 2: RAG Context Thinking (0.8s)
+      const timer2 = setTimeout(() => {
+        setSimState('answering');
+
+        // Step 3: Hold answer card visible (5.5s), then advance to next question
+        const timer3 = setTimeout(() => {
+          setSampleIndex((prev) => (prev + 1) % DEMO_SAMPLES.length);
+        }, 5500);
+
+        return () => clearTimeout(timer3);
+      }, 800);
+
+      return () => clearTimeout(timer2);
+    }, 1200);
+
+    return () => clearTimeout(timer1);
+  }, [sampleIndex, isPlaying]);
+
+  // Scroll detection trigger (auto-resumes or plays when in viewport)
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            setIsPlaying(true);
+          }
+        });
+      },
+      { threshold: 0.25 }
+    );
+
+    if (sectionRef.current) {
+      observer.observe(sectionRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, []);
 
   const handleMouseMove = (e) => {
     if (!containerRef.current) return;
@@ -57,8 +150,8 @@ export default function InteractiveSimulator3D() {
     const y = e.clientY - rect.top;
     const xc = rect.width / 2;
     const yc = rect.height / 2;
-    const rotateY = ((x - xc) / xc) * 8; // subtle 8 deg tilt
-    const rotateX = -((y - yc) / yc) * 8;
+    const rotateY = ((x - xc) / xc) * 4;
+    const rotateX = -((y - yc) / yc) * 4;
     setTilt({ x: rotateX, y: rotateY });
   };
 
@@ -66,198 +159,292 @@ export default function InteractiveSimulator3D() {
     setTilt({ x: 0, y: 0 });
   };
 
-  const runSimulation = (id, questionText, answerObj) => {
-    if (simState === 'transcribing' || simState === 'thinking') return;
-
-    setSimActiveId(id);
+  const handleSelectSample = (index) => {
+    setIsPlaying(false);
+    setSampleIndex(index);
+    const sample = DEMO_SAMPLES[index];
     setSimState('transcribing');
-    setSimQuestion('');
-    setSimAnswer(null);
+    setCurrentQuestion(sample.question);
+    setCurrentAnswer(sample.answer);
+    setFeedback(null);
 
-    let currentIdx = 0;
-    const typeInterval = setInterval(() => {
-      if (currentIdx < questionText.length) {
-        setSimQuestion((prev) => prev + questionText.charAt(currentIdx));
-        currentIdx++;
-      } else {
-        clearInterval(typeInterval);
-        setSimState('thinking');
+    setTimeout(() => {
+      setSimState('thinking');
+      setTimeout(() => {
+        setSimState('answering');
+      }, 700);
+    }, 900);
+  };
 
-        setTimeout(() => {
-          setSimState('answering');
-          setSimAnswer(answerObj);
-        }, 900);
-      }
-    }, 25);
+  const handleNext = () => {
+    handleSelectSample((sampleIndex + 1) % DEMO_SAMPLES.length);
+  };
+
+  const handlePrev = () => {
+    handleSelectSample((sampleIndex - 1 + DEMO_SAMPLES.length) % DEMO_SAMPLES.length);
   };
 
   const handleCustomSubmit = (e) => {
     e.preventDefault();
-    if (!simInput.trim()) return;
+    if (!customInput.trim()) return;
 
-    const customQ = simInput;
+    setIsPlaying(false);
+    const qText = customInput;
     const customAns = {
-      kind: "Real-Time AI Assistant",
-      content: `<strong>Custom Response:</strong> "${customQ}" analyzed successfully.<br/><br/>The AI Copilot evaluates this topic by indexing your CV and active documents to generate precise context-aware answers in real-time.`,
-      confidence: "94%",
-      source: "Local Sandbox Agent"
+      headline: "Feonix AI contextualized answer synthesized in real-time.",
+      bullets: [
+        "Situation: Ingested CV, project documentation, and role requirements for context.",
+        "Action: Vector RAG matching retrieved precise STAR format key points.",
+        `Result: Populated teleprompter HUD card for "${qText.slice(0, 40)}${qText.length > 40 ? '...' : ''}" under 1.2s.`
+      ],
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      chips: qText.split(' ').slice(0, 5)
     };
 
-    setSimInput('');
-    runSimulation('custom', customQ, customAns);
+    setCustomInput('');
+    setSimState('transcribing');
+    setCurrentQuestion(qText);
+    setCurrentAnswer(customAns);
+    setFeedback(null);
+
+    setTimeout(() => {
+      setSimState('thinking');
+      setTimeout(() => {
+        setSimState('answering');
+      }, 700);
+    }, 900);
+  };
+
+  const handleCopy = () => {
+    if (!currentAnswer) return;
+    const textToCopy = `Question: ${currentQuestion}\nAnswer: ${currentAnswer.headline}\n${currentAnswer.bullets.join('\n')}`;
+    navigator.clipboard.writeText(textToCopy);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
-    <section className="sim-3d-section" id="copilot">
+    <section className="sim-3d-section" id="copilot" ref={sectionRef}>
       <div className="sim-3d-container">
+        
         {/* Section Header */}
         <div className="section-header-centered">
           <div className="section-pill">
-            <Terminal size={14} className="pill-icon text-cyan" />
-            <span>LIVE INTERACTIVE SIMULATOR</span>
+            <Video size={14} className="pill-icon text-cyan" />
+            <span>LIVE DEMO STREAM · SCROLL & WATCH</span>
           </div>
           <h2 className="section-title">
-            Test the <span className="gradient-text-cyan">HUD Teleprompter</span> Live
+            Watch the <span className="gradient-text-cyan">HUD Teleprompter</span> Generate Live Answers
           </h2>
           <p className="section-subtitle">
-            Experience the sub-second voice chunk decoding and instant teleprompter HUD card generation. Click a question below or test with your own prompt.
+            As you scroll, watch Feonix AI decode voice stream chunks and populate STAR teleprompter cards in sub-seconds.
           </p>
         </div>
 
-        {/* 3D Interactive Simulator Glass Box */}
-        <div
-          ref={containerRef}
-          className="sim-3d-glass-box"
-          onMouseMove={handleMouseMove}
-          onMouseLeave={handleMouseLeave}
-          style={{
-            transform: `perspective(1200px) rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)`,
-            transition: tilt.x === 0 ? 'transform 0.5s cubic-bezier(0.16, 1, 0.3, 1)' : 'none',
-          }}
-        >
-          {/* Left Column: Interactive Controls */}
-          <div className="sim-left-panel">
-            <div className="sim-panel-header">
-              <span className="sim-badge">INTERACTIVE CONTROLS</span>
-              <h3>Select a Live Cue</h3>
-              <p>Simulate an interviewer asking a question in real-time:</p>
-            </div>
-
-            <div className="sim-sample-buttons">
-              {SIM_SAMPLES.map((sample) => (
-                <button
-                  key={sample.id}
-                  className={`sim-sample-btn ${simActiveId === sample.id ? 'is-active' : ''}`}
-                  onClick={() => runSimulation(sample.id, sample.question, sample.answer)}
-                  disabled={simState === 'transcribing' || simState === 'thinking'}
-                  type="button"
-                >
-                  <span className="btn-label">{sample.label}</span>
-                  <Play size={14} className="btn-play-icon" />
-                </button>
-              ))}
-            </div>
-
-            {/* Custom Input */}
-            <form className="sim-custom-form" onSubmit={handleCustomSubmit}>
-              <input
-                type="text"
-                className="sim-custom-input"
-                placeholder="Or type any custom interview question…"
-                value={simInput}
-                onChange={(e) => setSimInput(e.target.value)}
-                disabled={simState === 'transcribing' || simState === 'thinking'}
+        {/* 2-Column Side-by-Side Grid: Left = HUD Teleprompter Showcase, Right = 3D Neural Orbital Core */}
+        <div className="sim-dual-side-grid">
+          
+          {/* LEFT SIDE: HUD Teleprompter Showcase Box */}
+          <div
+            ref={containerRef}
+            className="hud-showcase-window standalone-hud-container"
+            onMouseMove={handleMouseMove}
+            onMouseLeave={handleMouseLeave}
+            style={{
+              transform: `perspective(1200px) rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)`,
+              transition: tilt.x === 0 ? 'transform 0.5s cubic-bezier(0.16, 1, 0.3, 1)' : 'none',
+            }}
+          >
+            {/* Live Video Meeting Background Image */}
+            <div className="hud-video-bg-layer">
+              <Image
+                src="/copilot_live_preview.jpg"
+                alt="Feonix AI Live Copilot Meeting Preview"
+                fill
+                sizes="(max-width: 1200px) 100vw, 600px"
+                priority
+                unoptimized={true}
+                className="hud-video-bg-img"
+                onError={(e) => { e.currentTarget.src = '/images/copilot_live_preview.jpg'; }}
               />
-              <button
-                type="submit"
-                className="sim-custom-submit-btn"
-                disabled={simState === 'transcribing' || simState === 'thinking'}
-                aria-label="Submit Question"
-              >
-                <Send size={15} />
-              </button>
-            </form>
-
-            {/* Simulated Voice Waveform Indicator */}
-            <div className={`sim-wave-status-bar ${simState === 'transcribing' ? 'is-streaming' : ''}`}>
-              <div className="sim-equalizer-bars">
-                <span className="eq-bar eq-1" />
-                <span className="eq-bar eq-2" />
-                <span className="eq-bar eq-3" />
-                <span className="eq-bar eq-4" />
-                <span className="eq-bar eq-5" />
-              </div>
-              <span className="sim-status-label">
-                {simState === 'transcribing' && 'Transcribing Voice Chunk Stream…'}
-                {simState === 'thinking' && 'AI Model Generating Contextual Answer…'}
-                {simState === 'answering' && 'HUD Answer Synced & Displayed!'}
-                {simState === 'idle' && 'Audio Stream Standby — Click a question above'}
-              </span>
-            </div>
-          </div>
-
-          {/* Right Column: Holographic Teleprompter HUD Simulation */}
-          <div className="sim-right-hud-panel">
-            {/* Tally Bar */}
-            <div className="hud-status-bar">
-              <div className="hud-tally-indicator">
-                <span className={`hud-tally-dot ${simState === 'transcribing' ? 'transcribing' : simState === 'answering' ? 'ready' : ''}`} />
-                <span className="hud-tally-text">
-                  {simState === 'idle' && 'STATUS: STANDBY'}
-                  {simState === 'transcribing' && 'STATUS: LISTENING & TRANSCRIBING'}
-                  {simState === 'thinking' && 'STATUS: RAG SYNTHESIS'}
-                  {simState === 'answering' && 'STATUS: HUD TELEPROMPTER READY'}
-                </span>
-              </div>
-              <span className="hud-latency-pill">PING: 14MS</span>
+              <div className="hud-video-bg-overlay" />
             </div>
 
-            {/* Live Question Cue Box */}
-            <div className={`hud-cue-box ${simQuestion ? 'has-content' : 'is-empty'}`}>
-              <div className="hud-box-tag">LIVE DETECTED CUE</div>
-              <p className="hud-cue-text">
-                {simQuestion ? `"${simQuestion}"` : 'Listening for interviewer voice cues…'}
-              </p>
-            </div>
-
-            {/* Real-time Answer Card */}
-            <div className="hud-answer-card">
-              {simState === 'thinking' && (
-                <div className="hud-thinking-state">
-                  <div className="hud-spinner" />
-                  <span className="thinking-text">Synthesizing Answer Card via RAG Context…</span>
-                </div>
-              )}
-
-              {simState === 'answering' && simAnswer && (
-                <div className="hud-answer-content animate-fade-in">
-                  <div className="hud-answer-badge">
-                    <Sparkles size={13} />
-                    <span>{simAnswer.kind.toUpperCase()}</span>
-                  </div>
-                  <div
-                    className="hud-answer-body"
-                    dangerouslySetInnerHTML={{ __html: simAnswer.content }}
-                  />
-                  <div className="hud-answer-meta-row">
-                    <span className="meta-confidence">
-                      <CheckCircle2 size={13} className="text-emerald" />
-                      Confidence: <strong>{simAnswer.confidence}</strong>
-                    </span>
-                    <span className="meta-source">Source: {simAnswer.source}</span>
+            {/* Floating HUD Teleprompter Overlay Widget */}
+            <div className="hud-floating-overlay-widget standalone-widget">
+              
+              {/* Row 1: Top Toolbar */}
+              <div className="hud-widget-toolbar">
+                <div className="hud-tb-left">
+                  <span className="hud-mic-record-indicator">
+                    <span className="record-red-dot" />
+                    <Mic size={14} className="mic-icon" />
+                  </span>
+                  
+                  <div className="hud-tb-pills">
+                    <button className="hud-action-pill active" type="button">
+                      <span>Answer</span>
+                      <kbd>⌘↵</kbd>
+                    </button>
+                    <button className="hud-action-pill" type="button">
+                      <span>Screenshot</span>
+                      <kbd>⇧⌘↵</kbd>
+                    </button>
+                    <button className="hud-action-pill" type="button">
+                      <span>Chat</span>
+                      <kbd>⌘⇧C</kbd>
+                    </button>
                   </div>
                 </div>
-              )}
 
-              {(simState === 'idle' || simState === 'transcribing') && (
-                <div className="hud-placeholder-state">
-                  <Terminal size={32} className="placeholder-icon" />
-                  <p>The teleprompter answer card will instantly populate here in low-latency formatted teleprompter scale.</p>
+                <div className="hud-tb-right">
+                  <span className="hud-tb-icon-btn" title="Drag / Move"><Move size={14} /></span>
+                  <span className="hud-tb-icon-btn" title="Options"><MoreVertical size={14} /></span>
+                  <button className="hud-end-session-btn" type="button">End</button>
                 </div>
-              )}
+              </div>
+
+              {/* Row 2: Live Transcript & Voice Audio Equalizer Bar */}
+              <div className="hud-widget-transcript-strip">
+                <div className="hud-eq-animated">
+                  <span className="eq-bar bar-1" />
+                  <span className="eq-bar bar-2" />
+                  <span className="eq-bar bar-3" />
+                  <span className="eq-bar bar-4" />
+                </div>
+
+                <div className="hud-chip-stream">
+                  {simState === 'transcribing' ? (
+                    <span className="transcribing-label">Listening to interviewer audio stream...</span>
+                  ) : (
+                    currentAnswer?.chips?.map((chip, idx) => (
+                      <span key={idx} className="hud-word-chip animate-fade-in">{chip}</span>
+                    ))
+                  )}
+                </div>
+
+                <div className="hud-strip-controls">
+                  <button className="hud-strip-clear-btn" type="button">
+                    Clear <kbd>⌘⇧⌫</kbd>
+                  </button>
+                  <span className="hud-expand-icon"><Maximize2 size={13} /></span>
+                </div>
+              </div>
+
+              {/* Row 3: Teleprompter Answer Card Box */}
+              <div className="hud-widget-teleprompter-card">
+                
+                {/* Teleprompter Card Toolbar Navigation */}
+                <div className="hud-card-nav-bar">
+                  <div className="nav-arrows">
+                    <button className="nav-arrow-btn" type="button" onClick={handlePrev} title="Previous Question"><ArrowLeft size={13} /></button>
+                    <button className="nav-arrow-btn" type="button" onClick={handleNext} title="Next Question"><ArrowRight size={13} /></button>
+                    <span className="nav-card-counter">{sampleIndex + 1} / {DEMO_SAMPLES.length}</span>
+                  </div>
+                  <div className="nav-actions">
+                    <button className="hud-card-clear-btn" type="button">
+                      Clear <kbd>⌘C</kbd>
+                    </button>
+                    <button className="hud-card-expand-btn" type="button">
+                      <Maximize2 size={13} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* State: Thinking / Synthesizing */}
+                {simState === 'thinking' && (
+                  <div className="hud-thinking-box">
+                    <RefreshCw size={22} className="animate-spin text-cyan" />
+                    <span>Synthesizing RAG Context & STAR Answer...</span>
+                  </div>
+                )}
+
+                {/* State: Transcribing */}
+                {simState === 'transcribing' && (
+                  <div className="hud-transcribing-box">
+                    <div className="pulse-dots">
+                      <span className="p-dot d1" />
+                      <span className="p-dot d2" />
+                      <span className="p-dot d3" />
+                    </div>
+                    <span>Decoding speech audio chunks in sub-second pipeline...</span>
+                  </div>
+                )}
+
+                {/* State: Answering / Teleprompter Display */}
+                {simState === 'answering' && currentAnswer && (
+                  <div className="hud-qa-content animate-fade-in">
+                    {/* Question Row */}
+                    <div className="hud-q-row">
+                      <div className="q-text">
+                        <span className="q-icon">💬</span>
+                        <span className="q-label">Question:</span>
+                        <span className="q-body">{currentQuestion}</span>
+                      </div>
+                      <button className="q-copy-btn" onClick={handleCopy} title="Copy Answer">
+                        <Copy size={13} />
+                        {copied && <span className="copied-tooltip">Copied!</span>}
+                      </button>
+                    </div>
+
+                    {/* Answer Headline */}
+                    <div className="hud-a-headline-row">
+                      <span className="star-icon">⭐</span>
+                      <span className="a-label">Answer:</span>
+                      <span className="a-headline">{currentAnswer.headline}</span>
+                    </div>
+
+                    {/* STAR Bullets */}
+                    <div className="hud-a-bullets-list">
+                      {currentAnswer.bullets?.map((b, i) => (
+                        <div key={i} className="bullet-item">
+                          <span className="bullet-dot">•</span>
+                          <span>{b}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Card Footer: Timestamp & Feedback */}
+                    <div className="hud-card-footer">
+                      <span className="footer-timestamp">Answer · {currentAnswer.time}</span>
+                      <div className="footer-thumbs">
+                        <button
+                          type="button"
+                          className={`thumb-btn ${feedback === 'like' ? 'active' : ''}`}
+                          onClick={() => setFeedback('like')}
+                        >
+                          <ThumbsUp size={13} />
+                        </button>
+                        <button
+                          type="button"
+                          className={`thumb-btn ${feedback === 'dislike' ? 'active' : ''}`}
+                          onClick={() => setFeedback('dislike')}
+                        >
+                          <ThumbsDown size={13} />
+                        </button>
+                      </div>
+                    </div>
+
+                  </div>
+                )}
+
+              </div>
+
             </div>
+
           </div>
+
+          {/* RIGHT SIDE: 3D Neural Orbital Core Canvas Stage */}
+          <div className="sim-solar-3d-stage sim-solar-side">
+            <div className="sim-solar-label">
+              <span className="solar-live-dot" />
+              <span>3D Neural Orbital Core — Live</span>
+            </div>
+            <Hero3DCanvas />
+          </div>
+
         </div>
+
       </div>
     </section>
   );

@@ -1,4 +1,6 @@
 import './globals.css';
+import './assistant.css';
+import PrivacyModeInit from '../components/privacy/PrivacyModeInit';
 
 export const metadata = {
   title: 'Feonix AI — Next-Generation 3D Real-Time Copilot & Technical Interview Assistant',
@@ -9,7 +11,10 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body suppressHydrationWarning>{children}</body>
+      <body suppressHydrationWarning>
+        <PrivacyModeInit />
+        {children}
+      </body>
     </html>
   );
 }

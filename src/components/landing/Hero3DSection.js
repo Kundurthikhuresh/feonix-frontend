@@ -1,20 +1,9 @@
 "use client";
 
-import dynamic from 'next/dynamic';
 import { Sparkles, ArrowRight, ShieldCheck, Zap, Activity, Cpu } from 'lucide-react';
+import HeroAssistant3DStage from './HeroAssistant3DStage';
 
-// Lazy-load Three.js Canvas with SSR false for optimal performance
-const Hero3DCanvas = dynamic(() => import('../3d/Hero3DCanvas'), {
-  ssr: false,
-  loading: () => (
-    <div className="hero-3d-fallback-loader">
-      <div className="fallback-orb-pulse" />
-      <span className="fallback-text">Initializing 3D AI Core…</span>
-    </div>
-  ),
-});
-
-export default function Hero3DSection({ onGetStarted, onExplore }) {
+export default function Hero3DSection({ onGetStarted, onExplore, onWatchDemo }) {
   return (
     <section className="hero-3d-section" id="hero">
       {/* Dynamic Background Light Rays & Glows */}
@@ -35,13 +24,13 @@ export default function Hero3DSection({ onGetStarted, onExplore }) {
 
           {/* Main Hero Headline */}
           <h1 className="hero-main-title">
-            Build Smarter with <br />
+            Land Your Dream Job with <br />
             <span className="hero-gradient-text">Feonix AI</span>
           </h1>
 
           {/* Subtitle */}
           <p className="hero-main-subtitle">
-            An innovative dual-layer AI Copilot system engineered for real-time technical interviews and high-stakes meetings. Powered by low-latency voice chunk streaming and live context alignment.
+            Analyze. Improve. Apply. Get Hired. An intelligent career companion designed to build stronger resumes, match top jobs, and deliver real-time interview teleprompter cues.
           </p>
 
           {/* CTA Buttons */}
@@ -55,15 +44,6 @@ export default function Hero3DSection({ onGetStarted, onExplore }) {
               <ArrowRight size={17} className="btn-arrow" />
               <div className="btn-shine-sweep" />
             </button>
-
-            <a
-              href="#copilot"
-              className="hero-btn-secondary"
-              onClick={onExplore}
-            >
-              <span>Explore Feonix AI</span>
-              <Cpu size={16} />
-            </a>
           </div>
 
           {/* Value Badges */}
@@ -83,12 +63,9 @@ export default function Hero3DSection({ onGetStarted, onExplore }) {
           </div>
         </div>
 
-        {/* Right Column: Interactive 3D AI Core Canvas + Holographic HUD overlay */}
+        {/* Right Column: Interactive 3D AI Robot Assistant Stage */}
         <div className="hero-right-column">
-          <div className="hero-3d-stage">
-            {/* Interactive 3D WebGL Canvas */}
-            <Hero3DCanvas />
-          </div>
+          <HeroAssistant3DStage onOpenAssistant={onExplore} />
         </div>
       </div>
     </section>

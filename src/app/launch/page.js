@@ -15,6 +15,11 @@ function LaunchContent() {
   const [showFallback, setShowFallback] = useState(false);
   const [msg, setMsg] = useState({ text: '', type: '' });
   const [isMacOS, setIsMacOS] = useState(true);
+  // A rapid repeat click on "Open desktop app" while one attempt is already
+  // in flight would mint a second one-time handoff token and re-fire the
+  // deep link — the token is single-use, so whichever redemption loses the
+  // race would fail with "link already used" for no reason the user caused.
+  const [launching, setLaunching] = useState(false);
   
   let gaveUp = false;
 
@@ -62,13 +67,16 @@ function LaunchContent() {
   };
 
   const launchDesktop = async () => {
+    if (launching) return;
+    setLaunching(true);
     setMsg({ text: '', type: '' });
-    
+
     try {
       const res = await fetch(`/api/sessions/${sessionId}/handoff`, { method: 'POST' });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         setMsg({ text: data.message || 'Could not prepare the handoff.', type: 'err' });
+        setLaunching(false);
         return;
       }
       const { deep_link: deepLink } = await res.json();
@@ -78,6 +86,7 @@ function LaunchContent() {
       watchForLaunch();
     } catch (err) {
       setMsg({ text: 'Error initiating handoff.', type: 'err' });
+      setLaunching(false);
     }
   };
 
@@ -88,8 +97,14 @@ function LaunchContent() {
     setPulsing(true);
     setShowFallback(false);
 
+    const cleanup = () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('blur', handleBlur);
+    };
+
     const launched = () => {
       gaveUp = true;
+      cleanup();
       setPulsing(false);
       setTitle('Session running in FeonixAI');
       setLede('Returning you to the dashboard…');
@@ -101,31 +116,46 @@ function LaunchContent() {
       }, 900);
     };
 
-    // Watch blur event to see if app opened
-    const handleVisibility = () => {
-      if (document.hidden) {
-        document.removeEventListener('visibilitychange', handleVisibility);
-        launched();
-      }
+    // A blur/hide right after triggering the deep link is ambiguous: it's
+    // exactly what the desktop app taking over focus looks like, but it's
+    // ALSO exactly what Windows/Chrome's own "Open FeonixAI?" permission
+    // prompt looks like — that dialog steals focus the instant it appears,
+    // whether or not the user goes on to actually allow it. Treating that
+    // as success used to fire the redirect back to the dashboard 900ms
+    // later even when the user hit Cancel and nothing ever opened, which is
+    // exactly what looks like "the window closed by itself" from here.
+    // Confirming the tab is STILL hidden a beat later filters that out.
+    const confirmLaunch = () => {
+      if (gaveUp) return;
+      setTimeout(() => {
+        if (gaveUp) return;
+        if (document.hidden) {
+          launched();
+        } else {
+          // Focus came right back — the dialog was dismissed/cancelled, or
+          // nothing actually opened. Let the timeout fallback below handle
+          // it instead of quietly stranding the user on a moved-on tab.
+          cleanup();
+        }
+      }, 700);
     };
-    const handleBlur = () => {
-      window.removeEventListener('blur', handleBlur);
-      launched();
-    };
+
+    const handleVisibility = () => { if (document.hidden) confirmLaunch(); };
+    const handleBlur = () => confirmLaunch();
 
     document.addEventListener('visibilitychange', handleVisibility);
     window.addEventListener('blur', handleBlur);
 
-    // Timeout fallback if it didn't trigger focus loss
+    // Timeout fallback if it never actually launched — the desktop app
+    // isn't installed/registered (or the prompt was cancelled), so start
+    // the interview in the browser instead of stranding the user on a dead
+    // "did not open" screen.
     setTimeout(() => {
       if (gaveUp) return;
-      document.removeEventListener('visibilitychange', handleVisibility);
-      window.removeEventListener('blur', handleBlur);
-      setPulsing(false);
-      setTitle('FeonixAI did not open');
-      setLede('Nothing on this machine handled the link, which usually means the desktop app is not installed.');
-      setShowFallback(true);
-    }, 2500);
+      cleanup();
+      gaveUp = true;
+      handleStayInBrowser();
+    }, 3500);
   };
 
   const showNoDesktopApp = () => {
@@ -167,7 +197,9 @@ function LaunchContent() {
         <p className="lede" id="lede">{lede}</p>
         <div className="session-name" id="sessionName">{sessionName}</div>
 
-        <button className="launch-btn" onClick={handleRetry} type="button">Open desktop app</button>
+        <button className="launch-btn" onClick={handleRetry} disabled={launching} type="button">
+          {launching ? 'Opening…' : 'Open desktop app'}
+        </button>
 
         {showFallback && (
           <div className="launch-fallback" id="fallback">

@@ -97,7 +97,7 @@ function TiltCard3D({ feature }) {
       <div
         className="feature-3d-card-inner"
         style={{
-          background: `radial-gradient(circle at ${mousePos.x}% ${mousePos.y}%, rgba(255, 255, 255, 0.08) 0%, rgba(13, 18, 28, 0.7) 60%)`,
+          background: `radial-gradient(circle at ${mousePos.x}% ${mousePos.y}%, rgba(255, 255, 255, 0.08) 0%, var(--space-bg-card) 60%)`,
           borderColor: tilt.isHovered ? `${feature.accent}70` : 'rgba(255, 255, 255, 0.1)',
           boxShadow: tilt.isHovered
             ? `0 16px 36px -12px rgba(0, 0, 0, 0.8), 0 0 28px -4px ${feature.accent}30`

@@ -31,6 +31,17 @@ import FAQ3DSection from '../components/landing/FAQ3DSection';
 import CTA3DSection from '../components/landing/CTA3DSection';
 import Footer3D from '../components/landing/Footer3D';
 import FloatingAskAI from '../components/landing/FloatingAskAI';
+import DemoVideo90sModal from '../components/landing/DemoVideo90sModal';
+import Integrations3DSection from '../components/landing/Integrations3DSection';
+import Security3DSection from '../components/landing/Security3DSection';
+import Testimonials3DSection from '../components/landing/Testimonials3DSection';
+import Performance3DSection from '../components/landing/Performance3DSection';
+import VideoShowcase3DSection from '../components/landing/VideoShowcase3DSection';
+import dynamic from 'next/dynamic';
+
+const AIAssistantModal = dynamic(() => import('../components/assistant/AIAssistantModal'), {
+  ssr: false,
+});
 
 const SIM_SAMPLES = [
   {
@@ -74,9 +85,11 @@ export default function Page() {
   // Navigation & Page State
   const [user, setUser] = useState(null);
   const [currentView, setCurrentView] = useState('landing'); // 'landing', 'dash', 'app', 'review'
-  const [authChecked, setAuthChecked] = useState(false);
+  const [authChecked, setAuthChecked] = useState(true);
   const [activeFaq, setActiveFaq] = useState(null);
-  
+  const [showAssistantModal, setShowAssistantModal] = useState(false);
+  const [showDemoVideoModal, setShowDemoVideoModal] = useState(false);
+
   // Interactive Simulator State
   const [simState, setSimState] = useState('idle'); // 'idle', 'transcribing', 'thinking', 'answering'
   const [simActiveId, setSimActiveId] = useState(null);
@@ -106,7 +119,7 @@ export default function Page() {
     setSimTiltX(0);
     setSimTiltY(0);
   };
-  
+
   const userRef = useRef(null);
 
   useEffect(() => {
@@ -116,15 +129,15 @@ export default function Page() {
   const changeView = (nextView, replace = false) => {
     setCurrentView(nextView);
     if (typeof window !== 'undefined') {
-      const state = window.history.state;
+      const url = nextView === 'landing' ? '/' : `/?view=${nextView}`;
       if (replace) {
-        window.history.replaceState({ view: nextView }, '');
-      } else if (!state || state.view !== nextView) {
-        window.history.pushState({ view: nextView }, '');
+        window.history.replaceState({ view: nextView }, '', url);
+      } else {
+        window.history.pushState({ view: nextView }, '', url);
       }
     }
   };
-  
+
   // Auth Modal State
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authMode, setAuthMode] = useState('login'); // 'login', 'register', 'forgot'
@@ -225,7 +238,7 @@ export default function Page() {
     if (!activeSession) return;
     const formData = new FormData();
     formData.append('audio', blob, 'chunk.webm');
-    
+
     try {
       const res = await fetch(`/api/sessions/${activeSession.id}/audio`, {
         method: 'POST',
@@ -255,7 +268,7 @@ export default function Page() {
   // ----------------------------------------------------
   const runSimulation = (id, questionText, answerObj) => {
     if (simState === 'transcribing' || simState === 'thinking') return;
-    
+
     setSimActiveId(id);
     setSimState('transcribing');
     setSimQuestion('');
@@ -269,7 +282,7 @@ export default function Page() {
       } else {
         clearInterval(typeInterval);
         setSimState('thinking');
-        
+
         setTimeout(() => {
           setSimState('answering');
           setSimAnswer(answerObj);
@@ -281,7 +294,7 @@ export default function Page() {
   const handleSimCustomSubmit = (e) => {
     e.preventDefault();
     if (!simInput.trim()) return;
-    
+
     const customQ = simInput;
     const customAns = {
       kind: "AI Assistant",
@@ -289,7 +302,7 @@ export default function Page() {
       confidence: "94%",
       source: "Local Sandbox Agent"
     };
-    
+
     setSimInput('');
     runSimulation('custom', customQ, customAns);
   };
@@ -298,9 +311,15 @@ export default function Page() {
   // Mount / Initial Boot Logic
   // ----------------------------------------------------
   useEffect(() => {
+    // Dark is this site's actual design — every surface (hero, HUD, auth)
+    // is built and hand-tuned against it. Light mode exists as an opt-in for
+    // the dashboard, not a default: following the OS's light preference here
+    // used to silently switch first-time visitors into it, which breaks the
+    // landing page (its hero text is hardcoded white for a dark backdrop,
+    // so light mode leaves it unreadable). Only an explicit prior toggle
+    // should ever start the site in light mode.
     const storedTheme = localStorage.getItem('feonix-theme');
-    const systemTheme = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
-    const activeTheme = storedTheme || systemTheme;
+    const activeTheme = storedTheme === 'light' ? 'light' : 'dark';
     setThemeMode(activeTheme);
     document.documentElement.dataset.theme = activeTheme;
 
@@ -356,6 +375,19 @@ export default function Page() {
         setUser(data.user);
         setAuthChecked(true);
 
+        // Account/session/document data is needed by every authenticated
+        // view this function can land on below — including "Back to
+        // Dashboard" round-tripping through the ?session= branch, which
+        // used to return before any of this ever ran, leaving credits
+        // stuck at their placeholder '—' until an actual page reload hit
+        // the other branch. Loading it once here, before branching, means
+        // every landing spot has real data from the start.
+        setActivePane('sessions');
+        loadCatalogue();
+        loadAccount();
+        loadSessions();
+        loadDocuments();
+
         // If user lands on /launch?session=X (e.g. from an old link), load that session
         // directly into the browser copilot instead of showing the desktop launcher page.
         if (typeof window !== 'undefined') {
@@ -373,27 +405,8 @@ export default function Page() {
           }
         }
 
-        // Check if we should switch to dashboard view (if URL param view=dash or history state view=dash)
-        let shouldGoToDash = false;
-        if (typeof window !== 'undefined') {
-          const urlParams = new URLSearchParams(window.location.search);
-          if (urlParams.get('view') === 'dash') {
-            shouldGoToDash = true;
-          } else if (window.history.state && window.history.state.view === 'dash') {
-            shouldGoToDash = true;
-          }
-        }
-
-        if (shouldGoToDash) {
-          changeView('dash', true);
-        } else {
-          changeView('landing', true);
-        }
-        setActivePane('sessions');
-        loadCatalogue();
-        loadAccount();
-        loadSessions();
-        loadDocuments();
+        // Always default to landing page on website reload / initial load
+        changeView('landing', true);
         return;
       }
     } catch {
@@ -407,7 +420,7 @@ export default function Page() {
     setUser(loggedInUser);
     changeView('dash', replaceHistory);
     setActivePane('sessions');
-    
+
     // Load lists
     loadCatalogue();
     loadAccount();
@@ -532,9 +545,13 @@ export default function Page() {
       if (res.ok || res.status === 204) {
         loadSessions();
         loadAccount();
+        return;
       }
+      const data = await res.json().catch(() => ({}));
+      window.alert(data.message || 'Could not delete this session. Please try again.');
     } catch (err) {
       console.error('Error deleting session:', err);
+      window.alert('Connection error — could not delete this session.');
     }
   };
 
@@ -560,13 +577,36 @@ export default function Page() {
   // ----------------------------------------------------
   // Auth Controls
   // ----------------------------------------------------
+  // 'server_unavailable' only ever means the proxy briefly couldn't reach
+  // the backend (e.g. it's mid-restart) — not that the account/credentials
+  // are actually invalid. That's over almost always within a couple of
+  // seconds, so a few silent retries here means a real user never sees this
+  // as an error at all — the "Working…" state just runs a little longer.
+  //
+  // Bounded to land well under 5s total either way: each attempt gives up
+  // after 1.3s instead of hanging on a stuck connection, so the worst case
+  // (three dead attempts) is 3×1.3s + 2×0.25s ≈ 4.4s — the user always gets a
+  // result, success or a clear error, inside a few seconds, never a spinner
+  // that just sits there.
+  const postJSONWithRetry = async (path, body, attempts = 3, delayMs = 250) => {
+    for (let attempt = 1; attempt <= attempts; attempt++) {
+      const result = await postJSON(path, body, { timeoutMs: 1300 });
+      const isTransient = !result.ok && (
+        result.status === 0 ||
+        (result.status === 503 && result.data?.error === 'server_unavailable')
+      );
+      if (!isTransient || attempt === attempts) return result;
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  };
+
   const handleAuthSubmit = async (e) => {
     e.preventDefault();
     setAuthLoading(true);
     setAuthMsg({ text: 'Working…', type: '' });
 
     if (authMode === 'forgot') {
-      const { ok, data } = await postJSON('/api/auth/forgot-password', { email: authEmail });
+      const { ok, data } = await postJSONWithRetry('/api/auth/forgot-password', { email: authEmail });
       setAuthLoading(false);
       setAuthMsg({
         text: ok ? data.message : (data.message || data.error || 'Something went wrong.'),
@@ -580,7 +620,7 @@ export default function Page() {
       body.signup_code = authSignupCode;
     }
 
-    const { ok, data } = await postJSON('/api/auth/' + authMode, body);
+    const { ok, data } = await postJSONWithRetry('/api/auth/' + authMode, body);
     setAuthLoading(false);
 
     if (!ok) {
@@ -702,7 +742,7 @@ export default function Page() {
 
     setTallyState('answering');
     setTallyLabel('Answering…');
-    
+
     const { ok, data } = await postJSON(`/api/sessions/${activeSession.id}/questions`, { question: manualQuestion });
     setTallyState('listening');
     setTallyLabel('Listening');
@@ -712,7 +752,7 @@ export default function Page() {
       setLiveAnswer(data.answer);
       setLiveCueLine(data.question);
       setLiveQType(data.kind || 'Direct Question');
-      
+
       const tRes = await fetch(`/api/sessions/${activeSession.id}/transcript`);
       if (tRes.ok) {
         const tData = await tRes.json();
@@ -727,6 +767,7 @@ export default function Page() {
       await fetch(`/api/sessions/${activeSession.id}/end`, { method: 'POST' });
     }
     loadSessions();
+    loadAccount(); // ending a session settles its billing — credits just changed
     changeView('dash');
     setActiveSession(null);
   };
@@ -777,7 +818,7 @@ export default function Page() {
     setSelectedAdminUserId(userId);
     setSelectedAdminUserEmail(email);
     setAaMsg('');
-    
+
     try {
       const res = await fetch(`/api/admin/users/${userId}/account`);
       if (res.ok) {
@@ -879,13 +920,6 @@ export default function Page() {
   // Rendering Views
   // ----------------------------------------------------
 
-  // 0. Boot Gate — avoid flashing the logged-out landing page while the
-  // session check from a fresh mount (e.g. navigating back from another
-  // route) is still in flight.
-  if (currentView === 'landing' && !authChecked) {
-    return <div style={{ minHeight: '100vh', background: '#0b0f14' }} />;
-  }
-
   // 1. Futuristic 3D Marketing Landing Page View
   if (currentView === 'landing') {
     return (
@@ -931,8 +965,10 @@ export default function Page() {
               }
             }}
             onExplore={() => {
-              const el = document.getElementById('copilot');
-              if (el) el.scrollIntoView({ behavior: 'smooth' });
+              setShowAssistantModal(true);
+            }}
+            onWatchDemo={() => {
+              setShowDemoVideoModal(true);
             }}
           />
 
@@ -967,6 +1003,21 @@ export default function Page() {
             }}
           />
 
+          {/* Interactive 3D Integrations & Ecosystem Matrix */}
+          <Integrations3DSection />
+
+          {/* Enterprise Security Quantum Vault 3D Section */}
+          <Security3DSection />
+
+          {/* Live Video Showcase & Demo Section */}
+          <VideoShowcase3DSection />
+
+          {/* Candidate Testimonials 3D Carousel */}
+          <Testimonials3DSection />
+
+          {/* Real-time Performance & Latency Benchmark 3D Section */}
+          <Performance3DSection />
+
           {/* Knowledge Base & FAQ Accordion */}
           <FAQ3DSection />
 
@@ -986,13 +1037,24 @@ export default function Page() {
           {/* Futuristic Glassmorphic Footer */}
           <Footer3D />
 
-          {/* Floating Radar Ask AI Helper */}
-          <FloatingAskAI
-            onClick={() => {
+
+
+          {/* 3D AI Voice Assistant Modal */}
+          <AIAssistantModal
+            isOpen={showAssistantModal}
+            onClose={() => setShowAssistantModal(false)}
+          />
+
+          {/* 90-Second Feature Demo Video Modal */}
+          <DemoVideo90sModal
+            isOpen={showDemoVideoModal}
+            onClose={() => setShowDemoVideoModal(false)}
+            onGetStarted={() => {
+              setShowDemoVideoModal(false);
               if (user) {
                 enterApp(user);
               } else {
-                setAuthMode('login');
+                setAuthMode('register');
                 setAuthMsg({ text: '', type: '' });
                 setShowAuthModal(true);
               }
@@ -1035,6 +1097,7 @@ export default function Page() {
           handleLogout={handleLogout}
           trialsLeft={trialsLeft}
           creditsLeft={creditsLeft}
+          onGoLanding={() => changeView('landing')}
         />
 
         {activePane === 'sessions' && (
