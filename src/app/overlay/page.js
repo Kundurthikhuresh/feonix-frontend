@@ -10,7 +10,7 @@ import AnswerPanel from '../../components/overlay/AnswerPanel';
 import ChatPanel from '../../components/overlay/ChatPanel';
 import AssistantSettings from '../../components/overlay/AssistantSettings';
 import AssistantPill from '../../components/overlay/AssistantPill';
-import { readFileAsDataUrl, captureScreenSnapshot } from '../../services/screenshotService';
+import { readFileAsDataUrl, downscaleDataUrl, captureScreenSnapshot } from '../../services/screenshotService';
 import { htmlToPlainText } from '../../lib/answerFormatter';
 import './overlay.css';
 
@@ -31,7 +31,7 @@ const DEFAULT_SETTINGS = {
   voiceEnabled: true,
 };
 
-const SIZE_PX = { compact: 720, normal: 900, large: 1080 };
+const SIZE_PX = { compact: 840, normal: 1000, large: 1200 };
 
 function OverlayContent() {
   const searchParams = useSearchParams();
@@ -44,14 +44,32 @@ function OverlayContent() {
   // useInterview because it's UI state for "what to ask next", not part of
   // the interview's own lifecycle — but useInterview needs to see the
   // current values too, for auto-answer, so they're passed in below.
-  const [screenshotData, setScreenshotData] = useState(null);
+  // An array rather than a single value — "upload a number of screenshots"
+  // (multi-select in the file picker, or attaching one after another via
+  // paste/capture) needs to accumulate, not replace, what's already staged
+  // for the next question.
+  const [screenshots, setScreenshots] = useState([]);
   const [screenshotMenuOpen, setScreenshotMenuOpen] = useState(false);
   const [promptHubOpen, setPromptHubOpen] = useState(false);
   const [answerStyle, setAnswerStyle] = useState('star'); // 'star' | 'code' | 'teleprompter' | 'quiz'
   const [customPromptText, setCustomPromptText] = useState('');
   const fileInputRef = useRef(null);
 
-  const interview = useInterview({ querySessionId, plan, queryAuto, screenshotData, answerStyle });
+  // Mirrors backend/src/answer.js's MAX_IMAGES — trimming here gives an
+  // immediate toast instead of silently losing the extras only once the
+  // request reaches the server.
+  const MAX_SCREENSHOTS = 8;
+  const addScreenshots = (dataUrls) => {
+    setScreenshots((prev) => {
+      const next = [...prev, ...dataUrls];
+      if (next.length > MAX_SCREENSHOTS) {
+        triggerToast(`⚠️ Only the first ${MAX_SCREENSHOTS} screenshots are kept per question`);
+      }
+      return next.slice(0, MAX_SCREENSHOTS);
+    });
+  };
+
+  const interview = useInterview({ querySessionId, plan, queryAuto, screenshots, answerStyle });
   const {
     session, autoAnswer, toggleAutoAnswer,
     showWarningModal, setShowWarningModal,
@@ -158,7 +176,7 @@ function OverlayContent() {
     shortcutHandlersRef.current = {
       onAnswer: () => {
         if (cueLine) {
-          askQuestion(cueLine, { image: screenshotData, style: answerStyle });
+          askQuestion(cueLine, { images: screenshots, style: answerStyle });
         } else {
           setPromptHubOpen(true);
           triggerToast('💡 Type a question in Chat to generate an answer');
@@ -188,6 +206,28 @@ function OverlayContent() {
 
       const tag = document.activeElement && document.activeElement.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+
+      // Page-focused fallback for Hide/Restore, alongside the Electron-only
+      // global versions below: a plain browser tab can never register a
+      // true OS-wide hotkey (no browser allows a tab to claim one), but it
+      // can absolutely still listen while it has focus — and this listener
+      // stays live even when visibility is 'hidden' (nothing rendered isn't
+      // the same as unmounted), so this is a real way back once you're
+      // actually looking at this tab again, not just an Electron feature.
+      // In Electron this is a no-op in practice: a registered global
+      // shortcut is intercepted by the OS before a normal keydown for it
+      // ever reaches this window, so it never double-fires alongside the
+      // main-process handler.
+      if (e.shiftKey && (e.key === 'H' || e.key === 'h')) {
+        e.preventDefault();
+        setVisibility((prev) => (prev === 'hidden' ? 'open' : 'hidden'));
+        return;
+      }
+      if (e.shiftKey && e.key === ' ') {
+        e.preventDefault();
+        setVisibility((prev) => (prev === 'open' ? 'minimized' : 'open'));
+        return;
+      }
 
       const handlers = shortcutHandlersRef.current;
       if (e.shiftKey && e.key === 'Enter') {
@@ -293,6 +333,21 @@ function OverlayContent() {
         dragRef.current.hasMoved = true;
       }
 
+      // In the real desktop app, this HUD IS the OS window — a tightly
+      // content-sized, frameless BrowserWindow has essentially no extra
+      // viewport for CSS repositioning to move content *within*, so the
+      // drag gesture below (still the same mousedown/move/up tracking) used
+      // to just shift content a few px inside a window barely bigger than
+      // the content, looking like it wasn't dragging at all. Moving the
+      // actual window by the per-frame pixel delta is what "drag it
+      // anywhere on the screen" requires. The browser-tab fallback (no
+      // window.feonix) keeps the original CSS-position behavior, since
+      // there there's no separate OS window to move.
+      if (window.feonix && typeof window.feonix.moveBy === 'function') {
+        if (e.movementX || e.movementY) window.feonix.moveBy(e.movementX, e.movementY);
+        return;
+      }
+
       const newX = dragRef.current.originX + dx;
       const newY = dragRef.current.originY + dy;
 
@@ -357,23 +412,23 @@ function OverlayContent() {
     if (!dragRef.current.hasMoved) setVisibility('open');
   };
 
-  // Global Ctrl+V Screenshot Paste Listener
+  // Global Ctrl+V Screenshot Paste Listener — a clipboard can carry more
+  // than one image (e.g. copying several files at once from Explorer), so
+  // every image item gets attached, not just the first.
   useEffect(() => {
     const handlePaste = (e) => {
       const items = (e.clipboardData || window.clipboardData)?.items;
       if (!items) return;
-      for (let i = 0; i < items.length; i++) {
-        if (items[i].type.indexOf('image') !== -1) {
-          const blob = items[i].getAsFile();
-          readFileAsDataUrl(blob).then((dataUrl) => {
-            setScreenshotData(dataUrl);
-            setPromptHubOpen(true);
-            triggerToast('📸 Screenshot pasted from clipboard');
-          });
-          e.preventDefault();
-          break;
-        }
-      }
+      const imageItems = Array.from(items).filter((item) => item.type.indexOf('image') !== -1);
+      if (imageItems.length === 0) return;
+      e.preventDefault();
+      Promise.all(
+        imageItems.map((item) => readFileAsDataUrl(item.getAsFile()).then(downscaleDataUrl))
+      ).then((dataUrls) => {
+        addScreenshots(dataUrls);
+        setPromptHubOpen(true);
+        triggerToast(dataUrls.length > 1 ? `📸 ${dataUrls.length} screenshots pasted from clipboard` : '📸 Screenshot pasted from clipboard');
+      });
     };
     window.addEventListener('paste', handlePaste);
     return () => window.removeEventListener('paste', handlePaste);
@@ -408,14 +463,16 @@ function OverlayContent() {
   };
 
   const handleFileSelect = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
     try {
-      const dataUrl = await readFileAsDataUrl(file);
-      setScreenshotData(dataUrl);
+      const dataUrls = await Promise.all(
+        files.map((file) => readFileAsDataUrl(file).then(downscaleDataUrl))
+      );
+      addScreenshots(dataUrls);
       setPromptHubOpen(true);
       setScreenshotMenuOpen(false);
-      triggerToast('📸 Screenshot loaded — ready to solve');
+      triggerToast(dataUrls.length > 1 ? `📸 ${dataUrls.length} screenshots loaded — ready to solve` : '📸 Screenshot loaded — ready to solve');
     } catch (err) {
       console.error('File read failed:', err);
     }
@@ -426,7 +483,7 @@ function OverlayContent() {
     setScreenshotMenuOpen(false);
     try {
       const dataUrl = await captureScreenSnapshot();
-      setScreenshotData(dataUrl);
+      addScreenshots([dataUrl]);
       setPromptHubOpen(true);
       triggerToast('🖥️ Screen captured — ready to solve');
     } catch (err) {
@@ -442,7 +499,7 @@ function OverlayContent() {
 
   const handleAnswerClick = () => {
     if (cueLine) {
-      askQuestion(cueLine, { image: screenshotData, style: answerStyle });
+      askQuestion(cueLine, { images: screenshots, style: answerStyle });
     } else {
       setPromptHubOpen(true);
       triggerToast('💡 Type a question in Chat to generate an answer');
@@ -450,15 +507,15 @@ function OverlayContent() {
   };
 
   const handleChipClick = (chip) => {
-    askQuestion(chip.text, { image: screenshotData, style: answerStyle });
+    askQuestion(chip.text, { images: screenshots, style: answerStyle });
   };
 
   const handleCustomPromptSubmit = (e) => {
     e.preventDefault();
-    if (!customPromptText.trim() && !screenshotData) return;
+    if (!customPromptText.trim() && screenshots.length === 0) return;
     const prompt = customPromptText.trim() || 'Analyze the question and provide the solution.';
     setTranscriptChips((prev) => [...prev, { text: prompt, isQuestion: true }]);
-    askQuestion(prompt, { image: screenshotData, style: answerStyle });
+    askQuestion(prompt, { images: screenshots, style: answerStyle });
     setCustomPromptText('');
   };
 
@@ -466,13 +523,13 @@ function OverlayContent() {
     setAnswerStyle(style);
     const fullPrompt = customPromptText.trim() ? `${customPromptText.trim()} (${presetText})` : presetText;
     setTranscriptChips((prev) => [...prev, { text: fullPrompt, isQuestion: true }]);
-    askQuestion(fullPrompt, { image: screenshotData, style });
+    askQuestion(fullPrompt, { images: screenshots, style });
   };
 
   const handleSolveScreenshotNow = () => {
     setScreenshotMenuOpen(false);
     setPromptHubOpen(false);
-    askQuestion(cueLine || 'Analyze this screenshot and provide a solution', { image: screenshotData, style: answerStyle });
+    askQuestion(cueLine || 'Analyze this screenshot and provide a solution', { images: screenshots, style: answerStyle });
   };
 
   const handleCopyResponse = () => {
@@ -487,6 +544,7 @@ function OverlayContent() {
     <div className="overlay-page-shell" style={{ opacity: settings.opacity / 100, pointerEvents: 'none' }}>
       <input
         type="file"
+        multiple
         ref={fileInputRef}
         onChange={handleFileSelect}
         accept="image/png, image/jpeg, image/jpg, image/webp"
@@ -532,13 +590,13 @@ function OverlayContent() {
             onToggleListening={handleToggleListening}
             thinking={thinking}
             onAnswerClick={handleAnswerClick}
-            screenshotData={screenshotData}
+            screenshots={screenshots}
             screenshotMenuOpen={screenshotMenuOpen}
             onToggleScreenshotMenu={() => setScreenshotMenuOpen((prev) => !prev)}
             onUploadClick={() => { fileInputRef.current?.click(); setScreenshotMenuOpen(false); }}
             onCaptureScreen={handleCaptureScreen}
             onSolveScreenshotNow={handleSolveScreenshotNow}
-            onRemoveScreenshot={() => { setScreenshotData(null); setScreenshotMenuOpen(false); }}
+            onRemoveScreenshot={() => { setScreenshots([]); setScreenshotMenuOpen(false); }}
             promptHubOpen={promptHubOpen}
             onToggleChat={() => setPromptHubOpen((prev) => !prev)}
             isExpanded={isExpanded}
@@ -577,7 +635,8 @@ function OverlayContent() {
             onClose={() => setPromptHubOpen(false)}
             customPromptText={customPromptText}
             onChangePromptText={setCustomPromptText}
-            screenshotData={screenshotData}
+            screenshots={screenshots}
+            onRemoveScreenshotAt={(index) => setScreenshots((prev) => prev.filter((_, i) => i !== index))}
             onSubmit={handleCustomPromptSubmit}
             onQuickPrompt={handleQuickPromptClick}
           />
@@ -593,9 +652,15 @@ function OverlayContent() {
         </div>
       )}
 
-      {showToast && <div className="pk-toast">{toastMsg}</div>}
+      {/* "Hide" is supposed to make the assistant completely disappear until
+          the shortcut/pill brings it back — these two used to render
+          regardless of visibility, so a toast or the 1-minute warning modal
+          would pop back up on screen on their own while "hidden", which
+          defeats the point of hiding it. Gate both the same way the pill/
+          shell above already are. */}
+      {visibility !== 'hidden' && showToast && <div className="pk-toast">{toastMsg}</div>}
 
-      {showWarningModal && (
+      {visibility !== 'hidden' && showWarningModal && (
         <div className="modal-backdrop">
           <div className="modal-card">
             <h3>Time Almost Up</h3>

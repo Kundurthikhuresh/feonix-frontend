@@ -37,7 +37,7 @@ export function useAnswerStreaming() {
   }, []);
 
   const generateAnswer = useCallback(async (question, opts = {}) => {
-    const { image = null, style = 'star', transcript = '', sessionId = null, language = 'en' } = opts;
+    const { images = [], style = 'star', transcript = '', sessionId = null, language = 'en' } = opts;
 
     setShowAnswerCard(true);
     if (answerAbortRef.current) answerAbortRef.current.abort();
@@ -52,15 +52,19 @@ export function useAnswerStreaming() {
     let textAccumulator = '';
     let typedCharIndex = 0;
 
-    // High-frequency typewriter loop for smooth letter-by-letter reveal,
-    // always a step or two behind whatever has actually arrived so a fast
-    // network burst doesn't dump the whole answer on screen in one frame.
+    // Reveals whatever has arrived since the last tick — the 14ms interval
+    // is purely a render-rate cap (one state update per tick instead of one
+    // per SSE token, which would re-render far more often than the screen
+    // can even paint), not an artificial reading-speed throttle. This used
+    // to cap the reveal at 4 chars/14ms (~285 chars/s) "so a fast network
+    // burst doesn't dump the whole answer on screen at once" — but that's a
+    // deliberate slowdown competing directly with wanting the answer fast,
+    // and for a few-hundred-character answer it alone added a couple of
+    // seconds after the network had already delivered everything.
     if (typewriterIntervalRef.current) clearInterval(typewriterIntervalRef.current);
     typewriterIntervalRef.current = setInterval(() => {
       if (typedCharIndex >= textAccumulator.length) return;
-      const backlog = textAccumulator.length - typedCharIndex;
-      const step = backlog > 80 ? 4 : (backlog > 20 ? 2 : 1);
-      typedCharIndex = Math.min(textAccumulator.length, typedCharIndex + step);
+      typedCharIndex = textAccumulator.length;
       const preview = formatStreamingAnswer(textAccumulator.slice(0, typedCharIndex));
       if (preview !== null) {
         setAnswerHtml(preview);
@@ -71,7 +75,7 @@ export function useAnswerStreaming() {
     try {
       await streamAnswer({
         question,
-        image,
+        images,
         answerStyle: style,
         transcript,
         sessionId,

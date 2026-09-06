@@ -1,0 +1,360 @@
+
+> feonixai-web@1.0.0 dev
+> next dev -p 3000
+
+   ▲ Next.js 15.5.24
+   - Local:        http://localhost:3000
+   - Network:      http://192.168.0.153:3000
+   - Environments: .env.local
+
+ ✓ Starting...
+ ✓ Ready in 2.9s
+ ○ Compiling /api/[...path] ...
+ ✓ Compiled /api/[...path] in 1784ms (281 modules)
+PROXY ERROR: TypeError: fetch failed
+    at async proxy (src\app\api\[...path]\route.js:65:20)
+  63 |         // request that happens to land during the blip.
+  64 |         await new Promise((resolve) => setTimeout(resolve, 400));
+> 65 |         upstream = await fetch(`${PRIMARY_BACKEND}${pathStr}`, { ...init, signal: AbortSignal.timeout(upstreamTimeoutMs) });
+     |                    ^
+  66 |       }
+  67 |     }
+  68 | {
+  [cause]: Error: connect ECONNREFUSED 127.0.0.1:4000
+      at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:4000) {
+    errno: -4078,
+    code: 'ECONNREFUSED',
+    syscall: 'connect',
+    address: '127.0.0.1',
+    port: 4000
+  }
+}
+ POST /api/auth/register 503 in 3559ms
+ POST /api/auth/register 201 in 1195ms
+ POST /api/auth/login 200 in 1066ms
+ GET /api/health 200 in 36ms
+ ○ Compiling / ...
+ ✓ Compiled / in 7.8s (1048 modules)
+ POST /api/sessions 200 in 5739ms
+ GET /?view=dash 200 in 636ms
+ POST /api/sessions 201 in 1447ms
+ ✓ Compiled in 463ms (1021 modules)
+ GET /?view=dash 200 in 1207ms
+ GET /api/health 200 in 40ms
+ GET / 200 in 698ms
+ GET /api/auth/me 200 in 259ms
+ GET /api/answer/catalogue 200 in 148ms
+ GET /api/sessions 200 in 235ms
+ GET /api/sessions/account 200 in 558ms
+ GET /api/documents 200 in 1705ms
+ GET /api/answer/catalogue 200 in 150ms
+ GET /api/sessions 200 in 203ms
+ GET /api/documents 200 in 215ms
+ GET /api/sessions/account 200 in 450ms
+ POST /api/sessions 201 in 1107ms
+ GET /api/sessions 200 in 208ms
+ GET /api/sessions/account 200 in 440ms
+ POST /api/sessions/214/start 200 in 604ms
+ ○ Compiling /launch ...
+ ✓ Compiled /launch in 592ms (1028 modules)
+ GET /launch?session=214 200 in 755ms
+ GET /api/auth/me 200 in 197ms
+ GET /api/auth/me 200 in 182ms
+ GET /api/sessions/214 200 in 350ms
+ GET /api/sessions/214 200 in 2129ms
+ POST /api/sessions/214/handoff 200 in 1810ms
+ GET /?view=dash 200 in 1098ms
+ GET /api/auth/me 200 in 170ms
+ GET /api/answer/catalogue 200 in 124ms
+ GET /api/documents 200 in 189ms
+ GET /api/sessions/account 200 in 491ms
+ GET /api/sessions 200 in 566ms
+ GET /launch?session=214 200 in 40ms
+ GET /api/auth/me 200 in 352ms
+ GET /api/auth/me 200 in 164ms
+ GET /api/sessions/214 200 in 284ms
+ GET /api/sessions/214 200 in 513ms
+ POST /api/sessions/214/handoff 200 in 250ms
+ GET /?view=dash 200 in 686ms
+ GET /api/auth/me 200 in 204ms
+ GET /api/answer/catalogue 200 in 171ms
+ GET /api/documents 200 in 202ms
+ GET /api/sessions/account 200 in 495ms
+ GET /api/sessions 200 in 531ms
+ GET /launch?session=214 200 in 41ms
+ GET /api/auth/me 200 in 175ms
+ GET /api/auth/me 200 in 175ms
+ GET /api/sessions/214 200 in 311ms
+ GET /api/sessions/214 200 in 689ms
+ POST /api/sessions/214/handoff 200 in 1654ms
+ GET /api/auth/me 200 in 201ms
+ POST /api/sessions 409 in 290ms
+ POST /api/sessions 402 in 1290ms
+ GET /api/sessions 200 in 1195ms
+ GET /api/auth/me 200 in 179ms
+ GET /launch?session=213 200 in 79ms
+ GET /api/auth/me 200 in 184ms
+ GET /api/sessions/213 200 in 698ms
+ POST /api/sessions/213/handoff 200 in 456ms
+ ✓ Compiled in 443ms (1021 modules)
+ ✓ Compiled /api/[...path] in 268ms (589 modules)
+ GET /api/auth/me 200 in 871ms
+ GET /launch?session=213 200 in 238ms
+ GET /api/auth/me 200 in 181ms
+ GET /api/sessions/213 200 in 316ms
+ POST /api/sessions/213/handoff 200 in 325ms
+ POST /api/sessions/214/handoff 200 in 504ms
+ GET /launch?session=214 200 in 75ms
+ GET /api/auth/me 200 in 204ms
+ GET /api/sessions/214 200 in 397ms
+ GET /?view=dash 200 in 1206ms
+ GET /api/auth/me 200 in 207ms
+ GET /api/answer/catalogue 200 in 140ms
+ GET /api/documents 200 in 218ms
+ GET /api/sessions 200 in 228ms
+ GET /api/sessions/account 200 in 492ms
+ DELETE /api/sessions/214 204 in 219ms
+ GET /api/sessions 200 in 151ms
+ GET /api/sessions/account 200 in 436ms
+ POST /api/sessions 201 in 1255ms
+ GET /api/sessions 200 in 496ms
+ GET /api/sessions/account 200 in 1329ms
+ POST /api/sessions/217/start 200 in 570ms
+ GET /launch?session=217 200 in 41ms
+ GET /api/auth/me 200 in 478ms
+ GET /api/auth/me 200 in 247ms
+ GET /api/sessions/217 200 in 351ms
+ GET /api/sessions/217 200 in 279ms
+ GET /api/download/win 200 in 647ms
+ ○ Compiling /session-type ...
+ ✓ Compiled /session-type in 1015ms (1052 modules)
+ GET /session-type 200 in 1354ms
+ GET /api/auth/me 200 in 458ms
+ GET /api/sessions 200 in 245ms
+ POST /api/sessions/217/start 200 in 2663ms
+ ○ Compiling /overlay ...
+ ✓ Compiled /overlay in 859ms (1092 modules)
+ GET /overlay?plan=full&session=217&auto=1&start=open 200 in 1178ms
+ GET /api/sessions/217 200 in 307ms
+PROXY ERROR: Error [TimeoutError]: The operation was aborted due to timeout
+    at async proxy (src\app\api\[...path]\route.js:65:20)
+  63 |         // request that happens to land during the blip.
+  64 |         await new Promise((resolve) => setTimeout(resolve, 400));
+> 65 |         upstream = await fetch(`${PRIMARY_BACKEND}${pathStr}`, { ...init, signal: AbortSignal.timeout(upstreamTimeoutMs) });
+     |                    ^
+  66 |       }
+  67 |     }
+  68 | {
+  code: 23,
+  INDEX_SIZE_ERR: 1,
+  DOMSTRING_SIZE_ERR: 2,
+  HIERARCHY_REQUEST_ERR: 3,
+  WRONG_DOCUMENT_ERR: 4,
+  INVALID_CHARACTER_ERR: 5,
+  NO_DATA_ALLOWED_ERR: 6,
+  NO_MODIFICATION_ALLOWED_ERR: 7,
+  NOT_FOUND_ERR: 8,
+  NOT_SUPPORTED_ERR: 9,
+  INUSE_ATTRIBUTE_ERR: 10,
+  INVALID_STATE_ERR: 11,
+  SYNTAX_ERR: 12,
+  INVALID_MODIFICATION_ERR: 13,
+  NAMESPACE_ERR: 14,
+  INVALID_ACCESS_ERR: 15,
+  VALIDATION_ERR: 16,
+  TYPE_MISMATCH_ERR: 17,
+  SECURITY_ERR: 18,
+  NETWORK_ERR: 19,
+  ABORT_ERR: 20,
+  URL_MISMATCH_ERR: 21,
+  QUOTA_EXCEEDED_ERR: 22,
+  TIMEOUT_ERR: 23,
+  INVALID_NODE_TYPE_ERR: 24,
+  DATA_CLONE_ERR: 25
+}
+ POST /api/sessions/217/end 503 in 24730ms
+ POST /api/answer 200 in 51489ms
+ ✓ Compiled in 528ms (1071 modules)
+ ✓ Compiled in 423ms (1071 modules)
+ ✓ Compiled in 335ms (1085 modules)
+ GET /launch?session=217 200 in 195ms
+ ✓ Compiled in 290ms (1071 modules)
+ ✓ Compiled /api/[...path] in 321ms (616 modules)
+ GET /api/auth/me 200 in 996ms
+ GET /overlay?session=210&plan=free&auto=0&start=open 200 in 205ms
+ GET /api/sessions/210 200 in 796ms
+ POST /api/sessions/210/start 409 in 357ms
+ GET /api/auth/me 200 in 192ms
+ GET /overlay?session=210&plan=free&auto=0&start=open 200 in 93ms
+ GET /api/sessions/210 200 in 903ms
+ POST /api/sessions/210/start 409 in 287ms
+ GET /launch?session=217 200 in 87ms
+ GET /api/auth/me 200 in 191ms
+ GET /api/sessions/217 200 in 268ms
+ GET /?view=dash 200 in 1161ms
+ GET /api/auth/me 200 in 179ms
+ GET /api/answer/catalogue 200 in 137ms
+ GET /api/sessions/account 200 in 492ms
+ GET /api/documents 200 in 494ms
+ GET /api/sessions 200 in 561ms
+ DELETE /api/sessions/217 204 in 465ms
+ GET /api/sessions 200 in 226ms
+ GET /api/sessions/account 200 in 529ms
+ POST /api/auth/logout 204 in 100ms
+ POST /api/auth/register 201 in 570ms
+ GET /api/answer/catalogue 200 in 225ms
+ GET /api/documents 200 in 296ms
+ GET /api/sessions 200 in 300ms
+ GET /api/sessions/account 200 in 588ms
+ POST /api/sessions 201 in 672ms
+ GET /api/sessions 200 in 211ms
+ GET /api/sessions/account 200 in 510ms
+ POST /api/sessions/218/start 200 in 405ms
+ GET /launch?session=218 200 in 39ms
+ GET /api/auth/me 200 in 181ms
+ GET /api/auth/me 200 in 188ms
+ GET /api/sessions/218 200 in 296ms
+ GET /api/sessions/218 200 in 268ms
+ GET /api/download/win 200 in 762ms
+ GET /session-type 200 in 171ms
+ GET /api/auth/me 200 in 205ms
+ GET /api/sessions 200 in 207ms
+ POST /api/sessions 409 in 293ms
+ GET /?view=dash 200 in 731ms
+ GET /api/health 200 in 28ms
+ GET /api/sessions/account 200 in 527ms
+ GET /api/sessions 200 in 742ms
+ GET /api/sessions 200 in 1123ms
+ POST /api/sessions/213/start 200 in 1889ms
+ POST /api/sessions/213/start 200 in 373ms
+ POST /api/sessions/218/handoff 200 in 407ms
+ POST /api/sessions/redeem 200 in 364ms
+ GET /api/sessions/218 200 in 361ms
+ POST /api/sessions/218/start 402 in 272ms
+ POST /api/sessions/218/start 402 in 418ms
+ POST /api/sessions/218/start 402 in 279ms
+ GET /?view=dash 200 in 1052ms
+ GET /api/auth/me 200 in 287ms
+ GET /api/answer/catalogue 200 in 169ms
+ GET /api/documents 200 in 446ms
+ GET /api/sessions 200 in 557ms
+ GET /api/sessions/account 200 in 850ms
+ DELETE /api/sessions/218 204 in 187ms
+ GET /api/sessions 200 in 153ms
+ GET /api/sessions/account 200 in 387ms
+ POST /api/sessions 201 in 646ms
+ GET /api/sessions 200 in 231ms
+ GET /api/sessions/account 200 in 459ms
+ POST /api/sessions/220/start 200 in 1369ms
+ GET /launch?session=220 200 in 33ms
+ GET /api/auth/me 200 in 178ms
+ GET /api/auth/me 200 in 166ms
+ GET /api/sessions/220 200 in 325ms
+ GET /api/sessions/220 200 in 262ms
+ GET /api/download/win 200 in 632ms
+ GET /session-type 200 in 97ms
+ GET /api/auth/me 200 in 177ms
+ GET /api/sessions 200 in 212ms
+ POST /api/sessions/220/start 200 in 4046ms
+ GET /overlay?plan=full&session=220&auto=1&start=open 200 in 109ms
+ GET /api/sessions/220 200 in 286ms
+ POST /api/answer 200 in 5897ms
+ POST /api/answer 200 in 4210ms
+ POST /api/sessions/220/end 200 in 745ms
+ ✓ Compiled in 459ms (1071 modules)
+ ✓ Compiled in 492ms (1071 modules)
+ ✓ Compiled in 317ms (1071 modules)
+ ✓ Compiled in 276ms (1071 modules)
+ ✓ Compiled in 354ms (1071 modules)
+ GET /?view=dash 200 in 966ms
+ ✓ Compiled /api/[...path] in 395ms (616 modules)
+ GET /api/auth/me 200 in 1223ms
+ GET /overlay?session=213&plan=free&auto=0&start=open 200 in 212ms
+ GET /api/sessions/213 200 in 692ms
+PROXY ERROR: TypeError: fetch failed
+    at async proxy (src\app\api\[...path]\route.js:65:20)
+  63 |         // request that happens to land during the blip.
+  64 |         await new Promise((resolve) => setTimeout(resolve, 400));
+> 65 |         upstream = await fetch(`${PRIMARY_BACKEND}${pathStr}`, { ...init, signal: AbortSignal.timeout(upstreamTimeoutMs) });
+     |                    ^
+  66 |       }
+  67 |     }
+  68 | {
+  [cause]: Error: connect ECONNREFUSED 127.0.0.1:4000
+      at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:4000) {
+    errno: -4078,
+    code: 'ECONNREFUSED',
+    syscall: 'connect',
+    address: '127.0.0.1',
+    port: 4000
+  }
+}
+ POST /api/sessions/213/start 503 in 759ms
+ GET /launch?session=220 200 in 77ms
+ GET /api/auth/me 200 in 475ms
+ GET /api/sessions/220 200 in 713ms
+ GET /?view=dash 200 in 1294ms
+ GET /api/auth/me 200 in 202ms
+ GET /api/answer/catalogue 200 in 198ms
+ GET /api/documents 200 in 759ms
+ GET /api/sessions/account 200 in 760ms
+ GET /api/sessions 200 in 817ms
+ DELETE /api/sessions/220 204 in 231ms
+ GET /api/sessions 200 in 176ms
+ GET /api/sessions/account 200 in 425ms
+ POST /api/sessions 201 in 704ms
+ GET /api/sessions 200 in 203ms
+ GET /api/sessions/account 200 in 395ms
+ POST /api/sessions/221/start 200 in 378ms
+ GET /launch?session=221 200 in 49ms
+ GET /api/auth/me 200 in 167ms
+ GET /api/auth/me 200 in 172ms
+ GET /api/sessions/221 200 in 285ms
+ GET /api/sessions/221 200 in 255ms
+ GET /api/download/win 200 in 711ms
+ GET /session-type 200 in 148ms
+ GET /api/auth/me 200 in 201ms
+ GET /api/sessions 200 in 210ms
+ POST /api/sessions/221/start 200 in 380ms
+ GET /overlay?plan=full&session=221&auto=1&start=open 200 in 96ms
+ GET /api/sessions/221 200 in 297ms
+ POST /api/answer 200 in 3264ms
+ POST /api/sessions/221/end 200 in 4003ms
+ ✓ Compiled in 614ms (1071 modules)
+ GET /?view=dash 200 in 1400ms
+ ✓ Compiled /api/[...path] in 357ms (616 modules)
+ GET /api/auth/me 200 in 706ms
+ GET /api/answer/catalogue 200 in 128ms
+ GET /api/documents 200 in 195ms
+ GET /api/sessions 200 in 556ms
+ GET /api/sessions/account 200 in 766ms
+ DELETE /api/sessions/221 204 in 194ms
+ GET /api/sessions 200 in 158ms
+ GET /api/sessions/account 200 in 444ms
+ POST /api/sessions 201 in 713ms
+ GET /api/sessions 200 in 211ms
+ GET /api/sessions/account 200 in 419ms
+ POST /api/sessions/222/start 200 in 404ms
+ GET /launch?session=222 200 in 99ms
+ GET /api/auth/me 200 in 193ms
+ GET /api/auth/me 200 in 246ms
+ GET /api/sessions/222 200 in 336ms
+ GET /api/sessions/222 200 in 802ms
+ GET /api/download/win 200 in 799ms
+ GET /session-type 200 in 217ms
+ GET /api/auth/me 200 in 186ms
+ GET /api/sessions 200 in 226ms
+ POST /api/sessions/222/start 200 in 917ms
+ GET /overlay?plan=full&session=222&auto=1&start=open 200 in 126ms
+ GET /api/sessions/222 200 in 291ms
+ POST /api/answer 200 in 3594ms
+ ✓ Compiled in 570ms (1071 modules)
+ ✓ Compiled /api/[...path] in 147ms (616 modules)
+ POST /api/sessions/222/end 200 in 3990ms
+ ✓ Compiled in 309ms (1078 modules)
+ ✓ Compiled in 351ms (1078 modules)
+ ✓ Compiled in 303ms (1071 modules)
+ ✓ Compiled in 237ms (1071 modules)
+ ✓ Compiled in 240ms (1071 modules)
+ ✓ Compiled in 919ms (1071 modules)
+ ✓ Compiled in 370ms (1071 modules)

@@ -1,31 +1,32 @@
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
-import { Play, Pause, Video, Sparkles, CheckCircle2, Zap } from 'lucide-react';
+import { Play, Video, Sparkles, CheckCircle2, Zap, ShieldAlert, Cpu, Terminal, ArrowRight } from 'lucide-react';
 
 const VIDEO_DEMOS = [
   {
     id: 'teleprompter',
     title: 'Real-Time AI Teleprompter & Live Audio Copilot',
-    badge: 'LIVE DEMO',
+    badge: 'LIVE AUDIO DEMO',
     duration: '01:45',
-    desc: 'Watch FeonixAI capture interviewer questions via system audio and stream instant, structured STAR bullet points to your stealth HUD in under 150ms.',
-    features: ['< 150ms Ultra-low Latency', 'STAR & Code Solution Modes', 'Stealth Teleprompter HUD'],
+    desc: 'Watch FeonixAI capture interviewer questions via system audio and stream instant, structured STAR bullet points to your stealth HUD in under 118ms.',
+    features: ['< 118ms Ultra-low Audio Latency', 'STAR & System Design Solution Modes', 'Invisible Stealth Teleprompter HUD'],
     color: '#00f5ff',
+    glowClass: 'pulseGlowCyan',
     codeSnippet: [
-      '// 1. Audio Stream Captured via System Loopback',
-      'const stream = await feonix.captureSystemAudio();',
-      '// 2. Question Extracted & Classified',
+      '// 1. System Loopback Audio Capture Enabled',
+      'const audioStream = await feonix.captureSystemAudio();',
+      '// 2. Transcribing & Classifying Interviewer Question',
       'const question = "Can you explain process vs thread?";',
-      '// 3. Teleprompter Bullets Streamed to Stealth HUD',
-      'feonix.streamAnswer(question, { mode: "teleprompter" });'
+      '// 3. Streaming STAR Bullets to Stealth Teleprompter HUD',
+      'feonix.streamAnswer(question, { mode: "stealth-hud", latencyTarget: "118ms" });'
     ],
     hudQuestion: 'Can you explain the difference between a process and a thread?',
     hudBullets: [
       'Process: Independent memory space with private stack & heap',
       'Thread: Lightweight execution path within a parent process',
-      'Process context switching is heavyweight; thread is lightweight',
-      'Threads share memory; processes require IPC (Inter-Process Comm)'
+      'Context Switching: Process switching is heavy; thread switching is fast',
+      'Concurrency Control: Threads share memory; processes require IPC'
     ]
   },
   {
@@ -34,9 +35,11 @@ const VIDEO_DEMOS = [
     badge: 'VISION AI DEMO',
     duration: '02:10',
     desc: 'Snap any coding problem or system architecture diagram with Ctrl+V or screen capture. FeonixAI extracts code logic and generates complete, runnable solutions.',
-    features: ['Ctrl + V Instant Screen Snap', 'Multi-Language Code Solver', 'Zero-Lag Vision Processing'],
+    features: ['Ctrl + V Instant Screen Snap', 'Multi-Language Algorithm Solver', 'Zero-Lag OCR Vision Engine'],
     color: '#8b5cf6',
+    glowClass: 'pulseGlowPurple',
     codeSnippet: [
+      '// Vision AI Snap Processing Activated',
       'function twoSum(nums, target) {',
       '  const map = new Map();',
       '  for (let i = 0; i < nums.length; i++) {',
@@ -60,28 +63,29 @@ const VIDEO_DEMOS = [
     badge: 'AI COACHING DEMO',
     duration: '01:30',
     desc: 'Review full session transcripts, speaking pace metrics, filler word detection, and personalized AI feedback after every interview call.',
-    features: ['Full Session Audio Transcripts', 'Filler Word & Tone Analytics', 'Custom Mock Interview Coach'],
+    features: ['Full Session Audio Transcripts', 'Filler Word & Pace Analytics', 'Personalized AI Mock Interview Coach'],
     color: '#10b981',
+    glowClass: 'pulseGlowGreen',
     codeSnippet: [
-      '// Post-Interview Performance Analysis Report',
+      '// Post-Interview Audio Analysis Report',
       'const metrics = await feonix.analyzeSession(sessionId);',
       'console.log(metrics);',
-      '// Output: { wpm: 135, fillerWords: 2, clarity: "98%" }'
+      '// Output: { wpm: 135, fillerWords: 2, clarity: "98.4%" }'
     ],
-    hudQuestion: 'Session Summary & Verbal Clarity Analysis',
+    hudQuestion: 'Session Performance Summary & Voice Analytics',
     hudBullets: [
       'Speaking Pace: 135 words/min (Optimal interview rhythm)',
-      'Filler Words: 2 "um" detected across 15 min session (98% clarity)',
+      'Filler Words: 2 "um" detected across 15 min session (98.4% clarity)',
       'Technical Depth: Strong coverage of system scalability & data structures',
-      'Overall Confidence Rating: 9.6 / 10'
+      'Overall Interview Confidence Score: 9.8 / 10'
     ]
   },
 ];
 
-export default function VideoShowcase3DSection() {
+export default function VideoShowcase3DSection({ onWatchDemo }) {
   const [activeVideo, setActiveVideo] = useState(VIDEO_DEMOS[0]);
   const [isPlaying, setIsPlaying] = useState(true);
-  const [simTime, setSimTime] = useState(12);
+  const [simTime, setSimTime] = useState(14);
   const [activeBulletIndex, setActiveBulletIndex] = useState(0);
   const canvasRef = useRef(null);
 
@@ -91,11 +95,11 @@ export default function VideoShowcase3DSection() {
     const interval = setInterval(() => {
       setSimTime((prev) => (prev >= 105 ? 0 : prev + 1));
       setActiveBulletIndex((prev) => (prev + 1) % activeVideo.hudBullets.length);
-    }, 1500);
+    }, 1400);
     return () => clearInterval(interval);
   }, [isPlaying, activeVideo]);
 
-  // Animated Audio Waveform & Canvas Video Background
+  // High-Tech Cyber Canvas Background Renderer
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -107,34 +111,70 @@ export default function VideoShowcase3DSection() {
       frame++;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // Background gradient
-      const grad = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
-      grad.addColorStop(0, '#0b0f19');
-      grad.addColorStop(1, '#05070d');
+      // Deep obsidian space gradient background
+      const grad = ctx.createRadialGradient(
+        canvas.width / 2, canvas.height / 2, 50,
+        canvas.width / 2, canvas.height / 2, canvas.width * 0.7
+      );
+      grad.addColorStop(0, '#0c1222');
+      grad.addColorStop(0.7, '#070a12');
+      grad.addColorStop(1, '#03050a');
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // Grid Lines Simulation
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
+      // Futuristic Matrix Grid Lines
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
       ctx.lineWidth = 1;
-      for (let x = 0; x < canvas.width; x += 40) {
+      const gridSize = 32;
+      for (let x = 0; x < canvas.width; x += gridSize) {
         ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
       }
-      for (let y = 0; y < canvas.height; y += 40) {
+      for (let y = 0; y < canvas.height; y += gridSize) {
         ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
       }
 
-      // Audio Waveform Animation
+      // Animated Frequency Spectrum Waveform & Radar Target
       if (isPlaying) {
+        // Glowing Radar Scan Ring
+        const cx = canvas.width * 0.82;
+        const cy = canvas.height * 0.22;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 35 + Math.sin(frame * 0.05) * 6, 0, Math.PI * 2);
+        ctx.strokeStyle = `${activeVideo.color}30`;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(cx, cy, 18, 0, Math.PI * 2);
+        ctx.strokeStyle = activeVideo.color;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        // Audio Frequency Equalizer Spectrum Bars (Bottom Right)
+        const barWidth = 4;
+        const barGap = 3;
+        const startX = canvas.width - 120;
+        const startY = canvas.height - 30;
+
+        for (let i = 0; i < 16; i++) {
+          const h = 8 + Math.abs(Math.sin(frame * 0.1 + i * 0.4)) * 26;
+          ctx.fillStyle = activeVideo.color;
+          ctx.shadowBlur = 8;
+          ctx.shadowColor = activeVideo.color;
+          ctx.fillRect(startX + i * (barWidth + barGap), startY - h, barWidth, h);
+        }
+        ctx.shadowBlur = 0;
+
+        // Smooth Oscilloscope Waveform Line across Canvas
         ctx.beginPath();
         ctx.strokeStyle = activeVideo.color;
         ctx.lineWidth = 2.5;
-        ctx.shadowBlur = 12;
+        ctx.shadowBlur = 14;
         ctx.shadowColor = activeVideo.color;
 
-        const cy = canvas.height * 0.78;
-        for (let x = 0; x < canvas.width; x += 4) {
-          const y = cy + Math.sin(x * 0.02 + frame * 0.08) * 18 * Math.cos(x * 0.01 + frame * 0.04);
+        const waveY = canvas.height * 0.84;
+        for (let x = 0; x < canvas.width * 0.7; x += 3) {
+          const y = waveY + Math.sin(x * 0.025 + frame * 0.07) * 14 * Math.cos(x * 0.01 + frame * 0.03);
           if (x === 0) ctx.moveTo(x, y);
           else ctx.lineTo(x, y);
         }
@@ -156,166 +196,493 @@ export default function VideoShowcase3DSection() {
   };
 
   return (
-    <section className="video-showcase-3d-section" style={{ position: 'relative', padding: '90px 24px', background: 'radial-gradient(ellipse at center, rgba(15,23,42,0.7) 0%, rgba(8,11,18,0.98) 100%)' }}>
-      <div className="video-showcase-container" style={{ maxWidth: '1200px', margin: '0 auto' }}>
+    <section
+      id="video-demos"
+      className="video-showcase-3d-section"
+      style={{
+        position: 'relative',
+        padding: '100px 24px',
+        background: 'radial-gradient(ellipse at center, rgba(13,20,38,0.95) 0%, rgba(6,9,16,1) 100%)',
+        overflow: 'hidden'
+      }}
+    >
+      {/* Background Ambient Glow Orbs */}
+      <div
+        style={{
+          position: 'absolute',
+          top: '20%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          width: '650px',
+          height: '400px',
+          background: `radial-gradient(circle, ${activeVideo.color}18 0%, rgba(0,0,0,0) 70%)`,
+          filter: 'blur(80px)',
+          pointerEvents: 'none',
+          transition: 'background 0.5s ease'
+        }}
+      />
+
+      <div className="video-showcase-container" style={{ maxWidth: '1240px', margin: '0 auto', position: 'relative', zIndex: 2 }}>
         
         {/* Section Header */}
         <div className="video-section-header" style={{ textAlign: 'center', marginBottom: '50px' }}>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '6px 16px', borderRadius: '9999px', background: 'rgba(0, 245, 255, 0.1)', border: '1px solid rgba(0, 245, 255, 0.3)', color: '#00f5ff', fontSize: '12px', fontWeight: '800', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '16px' }}>
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '6px 18px',
+              borderRadius: '9999px',
+              background: 'rgba(0, 245, 255, 0.08)',
+              border: '1px solid rgba(0, 245, 255, 0.25)',
+              color: '#00f5ff',
+              fontSize: '12px',
+              fontWeight: '800',
+              letterSpacing: '0.12em',
+              textTransform: 'uppercase',
+              marginBottom: '16px',
+              boxShadow: '0 0 20px rgba(0, 245, 255, 0.15)'
+            }}
+          >
             <Video size={14} />
-            <span>PROJECT VIDEO DEMONSTRATIONS</span>
+            <span>⚡ ULTRA-FAST AI TELEPROMPTER DEMOS</span>
           </div>
-          <h2 style={{ fontSize: '38px', fontWeight: '900', color: '#f8fafc', margin: '0 0 16px', letterSpacing: '-0.02em' }}>
-            Live <span style={{ background: 'linear-gradient(135deg, #00f5ff, #8b5cf6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>FeonixAI</span> Project Demonstration
+
+          <h2
+            style={{
+              fontSize: '42px',
+              fontWeight: '900',
+              color: '#f8fafc',
+              margin: '0 0 16px',
+              letterSpacing: '-0.02em',
+              lineHeight: '1.2'
+            }}
+          >
+            Live <span style={{ background: 'linear-gradient(135deg, #00f5ff 0%, #8b5cf6 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>FeonixAI</span> Project Demonstration
           </h2>
-          <p style={{ fontSize: '16.5px', color: '#94a3b8', maxWidth: '650px', margin: '0 auto', lineHeight: '1.6' }}>
+
+          <p style={{ fontSize: '17px', color: '#94a3b8', maxWidth: '680px', margin: '0 auto', lineHeight: '1.6' }}>
             Watch real-time live demonstrations of our undetectable AI teleprompter, vision code solver, and automated interview coach.
           </p>
+
+          {/* Quick Trigger Button for Full 4K Walkthrough */}
+          <div style={{ marginTop: '20px' }}>
+            <button
+              onClick={onWatchDemo}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '10px',
+                padding: '12px 24px',
+                borderRadius: '9999px',
+                background: 'linear-gradient(135deg, rgba(0,245,255,0.15) 0%, rgba(139,92,246,0.15) 100%)',
+                border: '1.5px solid rgba(0, 245, 255, 0.4)',
+                color: '#ffffff',
+                fontSize: '13.5px',
+                fontWeight: '700',
+                cursor: 'pointer',
+                transition: 'all 0.25s ease',
+                boxShadow: '0 0 25px rgba(0, 245, 255, 0.25)'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)';
+                e.currentTarget.style.boxShadow = '0 0 35px rgba(0, 245, 255, 0.45)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'none';
+                e.currentTarget.style.boxShadow = '0 0 25px rgba(0, 245, 255, 0.25)';
+              }}
+            >
+              <Play size={15} fill="#00f5ff" style={{ color: '#00f5ff' }} />
+              <span>Watch Full 90-Sec 4K Walkthrough Video</span>
+              <ArrowRight size={15} style={{ color: '#00f5ff' }} />
+            </button>
+          </div>
         </div>
 
-        {/* Featured Live Video Player Stage */}
-        <div style={{ position: 'relative', background: 'rgba(15, 23, 42, 0.9)', border: `1.5px solid ${activeVideo.color}50`, borderRadius: '24px', padding: '24px', backdropFilter: 'blur(24px)', boxShadow: `0 24px 60px rgba(0, 0, 0, 0.8), 0 0 40px ${activeVideo.color}20`, marginBottom: '40px' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1.25fr 0.75fr', gap: '32px', alignItems: 'center' }}>
+        {/* Featured 4K Video Player Stage */}
+        <div
+          className="video-showcase-glass-stage"
+          style={{
+            padding: '28px',
+            border: `1.5px solid ${activeVideo.color}60`,
+            boxShadow: `0 30px 80px rgba(0, 0, 0, 0.85), 0 0 50px ${activeVideo.color}25`,
+            marginBottom: '44px'
+          }}
+        >
+          <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 0.7fr', gap: '36px', alignItems: 'center' }}>
             
-            {/* Animated Project Video Screen Box */}
-            <div style={{ position: 'relative', borderRadius: '16px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.15)', background: '#070a12', aspectRatio: '16/9', display: 'flex', flexDirection: 'column', boxShadow: '0 16px 40px rgba(0,0,0,0.8)' }}>
-              
-              {/* HTML5 Canvas Background Renderer */}
+            {/* Animated Project Video Stage Frame */}
+            <div
+              style={{
+                position: 'relative',
+                borderRadius: '18px',
+                overflow: 'hidden',
+                border: '1px solid rgba(255,255,255,0.14)',
+                background: '#070a12',
+                aspectRatio: '16/9',
+                display: 'flex',
+                flexDirection: 'column',
+                boxShadow: '0 20px 50px rgba(0,0,0,0.9)'
+              }}
+            >
+              {/* HTML5 Canvas Background Visualizer */}
               <canvas
                 ref={canvasRef}
-                width={720}
-                height={405}
+                width={800}
+                height={450}
                 style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
               />
 
-              {/* Live Project Video Stage Overlay */}
-              <div style={{ position: 'relative', zIndex: 10, padding: '16px', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                
-                {/* Video Stage Top Bar */}
+              {/* Stealth Teleprompter HUD Interface Layer */}
+              <div
+                style={{
+                  position: 'relative',
+                  zIndex: 10,
+                  padding: '18px',
+                  height: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  boxSizing: 'border-box'
+                }}
+              >
+                {/* Stage Top Bar Status Header */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(239,68,68,0.25)', border: '1px solid rgba(239,68,68,0.5)', padding: '4px 10px', borderRadius: '999px' }}>
-                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#ef4444', boxShadow: '0 0 10px #ef4444' }}></span>
-                    <span style={{ fontSize: '11px', fontWeight: '800', color: '#ffffff', letterSpacing: '0.05em' }}>
-                      {isPlaying ? 'PLAYING LIVE DEMO' : 'VIDEO PAUSED'}
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      background: 'rgba(15, 23, 42, 0.85)',
+                      backdropFilter: 'blur(10px)',
+                      border: '1px solid rgba(239, 68, 68, 0.4)',
+                      padding: '5px 12px',
+                      borderRadius: '999px'
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: '8px',
+                        height: '8px',
+                        borderRadius: '50%',
+                        background: '#ef4444',
+                        boxShadow: '0 0 12px #ef4444',
+                        animation: isPlaying ? 'liveStatusBlink 1.2s ease infinite' : 'none'
+                      }}
+                    />
+                    <span style={{ fontSize: '11px', fontWeight: '800', color: '#ffffff', letterSpacing: '0.06em' }}>
+                      {isPlaying ? '● LIVE DEMO STREAMING' : 'PAUSED'}
                     </span>
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#00f5ff', background: 'rgba(0,245,255,0.12)', padding: '4px 10px', borderRadius: '999px', border: '1px solid rgba(0,245,255,0.35)' }}>
-                    <Zap size={12} />
-                    <span>HUD SPEED: 120ms</span>
+                  {/* Equalizer Visualizer & Latency Indicator */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    {isPlaying && (
+                      <div style={{ display: 'flex', alignItems: 'flex-end', gap: '3px', height: '18px', color: activeVideo.color }}>
+                        <div className="equalizer-bar-animated" />
+                        <div className="equalizer-bar-animated" />
+                        <div className="equalizer-bar-animated" />
+                        <div className="equalizer-bar-animated" />
+                        <div className="equalizer-bar-animated" />
+                      </div>
+                    )}
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        fontSize: '11px',
+                        fontWeight: '700',
+                        color: activeVideo.color,
+                        background: 'rgba(10, 14, 26, 0.85)',
+                        backdropFilter: 'blur(10px)',
+                        padding: '5px 12px',
+                        borderRadius: '999px',
+                        border: `1px solid ${activeVideo.color}40`
+                      }}
+                    >
+                      <Zap size={13} />
+                      <span>HUD LATENCY: 118ms</span>
+                    </div>
                   </div>
                 </div>
 
-                {/* Animated IDE Code Editor Display */}
-                <div style={{ background: 'rgba(10, 14, 26, 0.85)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '10px', padding: '10px 14px', fontFamily: 'var(--mono)', fontSize: '12px', color: '#94a3b8', lineHeight: '1.5' }}>
+                {/* Simulated High-Tech Code Snippet Box */}
+                <div
+                  style={{
+                    background: 'rgba(10, 14, 26, 0.88)',
+                    border: '1px solid rgba(255,255,255,0.12)',
+                    borderRadius: '10px',
+                    padding: '10px 14px',
+                    fontFamily: 'monospace',
+                    fontSize: '11.5px',
+                    color: '#94a3b8',
+                    lineHeight: '1.5',
+                    backdropFilter: 'blur(12px)',
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.5)'
+                  }}
+                >
                   {activeVideo.codeSnippet.slice(0, 3).map((line, i) => (
-                    <div key={i} style={{ color: line.startsWith('//') ? '#64748b' : '#38bdf8' }}>{line}</div>
+                    <div key={i} style={{ color: line.startsWith('//') ? '#64748b' : activeVideo.color }}>
+                      {line}
+                    </div>
                   ))}
                 </div>
 
-                {/* Stealth Teleprompter Stream Overlay */}
-                <div style={{ background: 'rgba(13, 17, 26, 0.95)', border: `1px solid ${activeVideo.color}70`, borderRadius: '12px', padding: '14px', boxShadow: `0 10px 30px rgba(0,0,0,0.8)` }}>
-                  <div style={{ fontSize: '11px', fontWeight: '800', color: activeVideo.color, letterSpacing: '0.08em', marginBottom: '8px' }}>
-                    ⚡ FEONIX AI STEALTH COPILOT
+                {/* Stealth Teleprompter Real-Time Bullet Overlay Window */}
+                <div
+                  style={{
+                    background: 'rgba(13, 17, 26, 0.94)',
+                    border: `1.5px solid ${activeVideo.color}70`,
+                    borderRadius: '14px',
+                    padding: '16px',
+                    backdropFilter: 'blur(16px)',
+                    boxShadow: `0 12px 35px rgba(0,0,0,0.85), 0 0 25px ${activeVideo.color}20`
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: '800', color: activeVideo.color, letterSpacing: '0.08em', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Sparkles size={13} />
+                      <span>FEONIX AI STEALTH TELEPROMPTER</span>
+                    </div>
+                    <span style={{ fontSize: '10px', fontFamily: 'monospace', color: '#64748b', background: 'rgba(255,255,255,0.06)', padding: '2px 6px', borderRadius: '4px' }}>
+                      RAG CONFIDENCE 99.2%
+                    </span>
                   </div>
-                  <div style={{ fontSize: '12.5px', fontWeight: '700', color: '#ffffff', marginBottom: '10px', padding: '4px 8px', background: 'rgba(255,255,255,0.06)', borderRadius: '6px' }}>
+
+                  <div
+                    style={{
+                      fontSize: '13px',
+                      fontWeight: '700',
+                      color: '#ffffff',
+                      marginBottom: '10px',
+                      padding: '6px 10px',
+                      background: 'rgba(255,255,255,0.06)',
+                      borderRadius: '8px',
+                      borderLeft: `3px solid ${activeVideo.color}`
+                    }}
+                  >
                     Q: "{activeVideo.hudQuestion}"
                   </div>
+
                   <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    {activeVideo.hudBullets.map((bullet, i) => (
-                      <li key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: i === activeBulletIndex ? activeVideo.color : '#cbd5e1', fontWeight: i === activeBulletIndex ? '700' : '500', transition: 'color 0.2s ease' }}>
-                        <span style={{ color: activeVideo.color }}>•</span>
-                        <span>{bullet}</span>
-                      </li>
-                    ))}
+                    {activeVideo.hudBullets.map((bullet, i) => {
+                      const isCurrent = i === activeBulletIndex;
+                      return (
+                        <li
+                          key={i}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            gap: '8px',
+                            fontSize: '12.5px',
+                            color: isCurrent ? '#ffffff' : '#94a3b8',
+                            fontWeight: isCurrent ? '700' : '500',
+                            padding: '4px 8px',
+                            borderRadius: '6px',
+                            background: isCurrent ? `${activeVideo.color}20` : 'transparent',
+                            border: isCurrent ? `1px solid ${activeVideo.color}40` : '1px solid transparent',
+                            transition: 'all 0.25s ease'
+                          }}
+                        >
+                          <span style={{ color: activeVideo.color, fontWeight: '800', flexShrink: 0 }}>▶</span>
+                          <span style={{ lineHeight: '1.4' }}>{bullet}</span>
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
 
-                {/* Bottom Video Controls Bar */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'rgba(10,14,26,0.85)', padding: '8px 14px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)' }}>
-                  <button
-                    onClick={() => setIsPlaying(!isPlaying)}
-                    style={{ border: 0, background: activeVideo.color, color: '#0a0e1a', borderRadius: '50%', width: '30px', height: '30px', display: 'grid', placeItems: 'center', cursor: 'pointer' }}
-                  >
-                    {isPlaying ? <Pause size={16} /> : <Play size={16} style={{ marginLeft: '2px' }} />}
-                  </button>
-                  <span style={{ fontSize: '12px', fontFamily: 'var(--mono)', color: '#ffffff', fontWeight: '700' }}>
-                    {formatSeconds(simTime)} / {activeVideo.duration}
-                  </span>
-                  <div style={{ flex: 1, height: '4px', background: 'rgba(255,255,255,0.15)', borderRadius: '999px', overflow: 'hidden' }}>
-                    <div style={{ width: `${(simTime / 105) * 100}%`, height: '100%', background: activeVideo.color, transition: 'width 0.3s ease' }}></div>
-                  </div>
-                  <span style={{ fontSize: '11px', fontWeight: '800', color: activeVideo.color, background: `${activeVideo.color}20`, padding: '2px 8px', borderRadius: '4px' }}>
-                    1080p 60fps HD
-                  </span>
-                </div>
+
 
               </div>
             </div>
 
-            {/* Video Details & Highlights */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '4px 12px', borderRadius: '9999px', background: `${activeVideo.color}20`, border: `1px solid ${activeVideo.color}50`, color: activeVideo.color, fontSize: '11px', fontWeight: '800', width: 'fit-content' }}>
-                <Sparkles size={12} />
+            {/* Featured Video Details & Highlight Checklist */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '22px' }}>
+              <div
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '6px 14px',
+                  borderRadius: '9999px',
+                  background: `${activeVideo.color}18`,
+                  border: `1.5px solid ${activeVideo.color}50`,
+                  color: activeVideo.color,
+                  fontSize: '11.5px',
+                  fontWeight: '800',
+                  letterSpacing: '0.05em',
+                  width: 'fit-content',
+                  boxShadow: `0 0 15px ${activeVideo.color}20`
+                }}
+              >
+                <Sparkles size={14} />
                 <span>{activeVideo.badge}</span>
               </div>
 
-              <h3 style={{ fontSize: '24px', fontWeight: '800', color: '#f8fafc', margin: 0, lineHeight: '1.3' }}>
+              <h3 style={{ fontSize: '28px', fontWeight: '800', color: '#f8fafc', margin: 0, lineHeight: '1.25', letterSpacing: '-0.01em' }}>
                 {activeVideo.title}
               </h3>
 
-              <p style={{ fontSize: '14.5px', color: '#94a3b8', margin: 0, lineHeight: '1.6' }}>
+              <p style={{ fontSize: '15px', color: '#94a3b8', margin: 0, lineHeight: '1.65' }}>
                 {activeVideo.desc}
               </p>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '6px' }}>
+              {/* Key Highlights Checklist */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '4px' }}>
                 {activeVideo.features.map((feat, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13.5px', fontWeight: '600', color: '#cbd5e1' }}>
-                    <CheckCircle2 size={16} style={{ color: activeVideo.color }} />
+                  <div
+                    key={i}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '12px',
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      color: '#cbd5e1',
+                      padding: '8px 12px',
+                      borderRadius: '10px',
+                      background: 'rgba(255, 255, 255, 0.03)',
+                      border: '1px solid rgba(255, 255, 255, 0.06)'
+                    }}
+                  >
+                    <CheckCircle2 size={18} style={{ color: activeVideo.color, flexShrink: 0 }} />
                     <span>{feat}</span>
                   </div>
                 ))}
               </div>
+
+              {/* Direct Demo Trigger Action Button */}
+              <div style={{ marginTop: '8px' }}>
+                <button
+                  onClick={onWatchDemo}
+                  style={{
+                    width: '100%',
+                    padding: '14px 20px',
+                    borderRadius: '14px',
+                    background: `linear-gradient(135deg, ${activeVideo.color} 0%, #8b5cf6 100%)`,
+                    color: '#ffffff',
+                    fontSize: '14px',
+                    fontWeight: '800',
+                    border: 'none',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '10px',
+                    boxShadow: `0 0 30px ${activeVideo.color}40`,
+                    transition: 'all 0.25s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow = `0 0 40px ${activeVideo.color}70`;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'none';
+                    e.currentTarget.style.boxShadow = `0 0 30px ${activeVideo.color}40`;
+                  }}
+                >
+                  <Play size={16} fill="#ffffff" />
+                  <span>Launch 90-Sec 4K Walkthrough Video</span>
+                </button>
+              </div>
             </div>
 
           </div>
         </div>
 
-        {/* Video Selector Grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
+        {/* Video Demo Selector Cards Grid */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '24px' }}>
           {VIDEO_DEMOS.map((video) => {
             const isActive = activeVideo.id === video.id;
             return (
               <div
                 key={video.id}
+                className="video-card-item"
                 onClick={() => {
                   setActiveVideo(video);
                   setIsPlaying(true);
                 }}
                 style={{
-                  padding: '20px',
-                  borderRadius: '16px',
-                  background: isActive ? 'rgba(30, 41, 59, 0.9)' : 'rgba(15, 23, 42, 0.6)',
+                  padding: '24px',
+                  borderRadius: '20px',
+                  background: isActive
+                    ? 'rgba(15, 23, 42, 0.95)'
+                    : 'rgba(10, 14, 26, 0.65)',
                   border: `1.5px solid ${isActive ? video.color : 'rgba(255, 255, 255, 0.08)'}`,
                   cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                  boxShadow: isActive ? `0 10px 30px ${video.color}20` : 'none',
+                  backdropFilter: 'blur(20px)',
+                  boxShadow: isActive
+                    ? `0 16px 40px rgba(0,0,0,0.8), 0 0 30px ${video.color}25`
+                    : '0 8px 24px rgba(0,0,0,0.4)',
+                  position: 'relative',
+                  overflow: 'hidden'
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-                  <span style={{ fontSize: '11px', fontWeight: '800', color: video.color, background: `${video.color}15`, padding: '3px 8px', borderRadius: '6px' }}>
+                {/* Active Indicator Top Accent Bar */}
+                {isActive && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      height: '3px',
+                      background: `linear-gradient(90deg, ${video.color}, #ffffff)`
+                    }}
+                  />
+                )}
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: '800',
+                      color: video.color,
+                      background: `${video.color}18`,
+                      padding: '4px 10px',
+                      borderRadius: '8px',
+                      border: `1px solid ${video.color}35`
+                    }}
+                  >
                     {video.badge}
                   </span>
-                  <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '600' }}>
-                    {video.duration}
-                  </span>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    {isActive && (
+                      <span style={{ fontSize: '10px', fontWeight: '800', color: video.color }}>
+                        PLAYING
+                      </span>
+                    )}
+                    <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '700', fontFamily: 'monospace' }}>
+                      {video.duration}
+                    </span>
+                  </div>
                 </div>
-                <h4 style={{ fontSize: '16px', fontWeight: '700', color: '#f1f5f9', margin: '0 0 8px' }}>
+
+                <h4 style={{ fontSize: '18px', fontWeight: '800', color: '#f1f5f9', margin: '0 0 10px', lineHeight: '1.3' }}>
                   {video.title}
                 </h4>
-                <p style={{ fontSize: '13px', color: '#94a3b8', margin: 0, lineHeight: '1.5' }}>
-                  {video.desc.slice(0, 85)}...
+
+                <p style={{ fontSize: '13.5px', color: '#94a3b8', margin: 0, lineHeight: '1.55' }}>
+                  {video.desc}
                 </p>
+
+                {/* Animated Equalizer Visualizer preview inside active card */}
+                {isActive && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '16px', paddingTop: '14px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-end', gap: '2px', height: '14px', color: video.color }}>
+                      <div className="equalizer-bar-animated" />
+                      <div className="equalizer-bar-animated" />
+                      <div className="equalizer-bar-animated" />
+                    </div>
+                    <span style={{ fontSize: '11.5px', color: video.color, fontWeight: '700' }}>
+                      Active Live Stage Demo
+                    </span>
+                  </div>
+                )}
               </div>
             );
           })}

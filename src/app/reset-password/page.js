@@ -104,7 +104,7 @@ function ResetPasswordContent() {
                   )}
                 </button>
               </div>
-              <div className="note">At least 10 characters.</div>
+              <div className="note">At least 6 characters.</div>
             </div>
 
             <div className="field">

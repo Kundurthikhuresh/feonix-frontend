@@ -9,7 +9,7 @@ export default function TopBar({
   onDragStart, dragging,
   listening, elapsedText, onToggleListening,
   thinking, onAnswerClick,
-  screenshotData, screenshotMenuOpen, onToggleScreenshotMenu, onUploadClick, onCaptureScreen, onSolveScreenshotNow, onRemoveScreenshot,
+  screenshots, screenshotMenuOpen, onToggleScreenshotMenu, onUploadClick, onCaptureScreen, onSolveScreenshotNow, onRemoveScreenshot,
   promptHubOpen, onToggleChat,
   isExpanded, onToggleExpand,
   onMinimize, onClose,
@@ -40,7 +40,7 @@ export default function TopBar({
           </button>
 
           <ScreenshotButton
-            screenshotData={screenshotData}
+            screenshots={screenshots}
             menuOpen={screenshotMenuOpen}
             onToggleMenu={onToggleScreenshotMenu}
             onUploadClick={onUploadClick}

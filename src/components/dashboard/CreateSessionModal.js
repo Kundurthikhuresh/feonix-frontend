@@ -2,6 +2,8 @@ import React from 'react';
 
 export default function CreateSessionModal({
   catalogue,
+  trialsLeft,
+  creditsLeft,
   billingChoice,
   setBillingChoice,
   sessionType,
@@ -30,10 +32,53 @@ export default function CreateSessionModal({
   handleCreateSession,
   setShowCreateSheet,
 }) {
+  const trialsExhausted = Number.isFinite(Number(trialsLeft)) && Number(trialsLeft) <= 0;
+
   return (
     <div className="sheet">
       <form className="sheet-card" onSubmit={handleCreateSession}>
         <h2>Create session</h2>
+
+        {trialsExhausted && (
+          <div style={{
+            background: 'rgba(239, 68, 68, 0.12)',
+            border: '1px solid rgba(239, 68, 68, 0.35)',
+            borderRadius: '10px',
+            padding: '12px 14px',
+            marginBottom: '18px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '12px',
+          }}>
+            <div>
+              <div style={{ color: '#F87171', fontWeight: '600', fontSize: '13px' }}>
+                All 5 Free Trial Credits Completed
+              </div>
+              <div style={{ color: '#D1D5DB', fontSize: '12px', marginTop: '2px' }}>
+                Purchase credits to continue creating and running interview sessions.
+              </div>
+            </div>
+            <a
+              href="/pricing"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                whiteSpace: 'nowrap',
+                background: 'linear-gradient(135deg, #06B6D4, #3B82F6)',
+                color: '#FFFFFF',
+                fontWeight: '600',
+                fontSize: '12px',
+                padding: '6px 12px',
+                borderRadius: '6px',
+                textDecoration: 'none',
+              }}
+            >
+              Buy Credits →
+            </a>
+          </div>
+        )}
 
         <div className="field">
           <label>How to run this session</label>
@@ -41,10 +86,16 @@ export default function CreateSessionModal({
             <button
               type="button"
               className={`bill-opt ${billingChoice === 'trial' ? 'is-current' : ''}`}
-              onClick={() => setBillingChoice('trial')}
+              onClick={() => { if (trialsExhausted) return; setBillingChoice('trial'); }}
+              disabled={trialsExhausted}
+              title={trialsExhausted ? 'All 5 free trial sessions have been used' : undefined}
             >
-              <span className="bill-title">Free Trial <span className="bill-tag">Rec</span></span>
-              <span className="bill-line">10 minutes limit</span>
+              <span className="bill-title">
+                Free Trial {!trialsExhausted && <span className="bill-tag">Rec</span>}
+              </span>
+              <span className="bill-line">
+                {trialsExhausted ? '0 free trials left' : '5 minutes limit'}
+              </span>
             </button>
             <button
               type="button"
@@ -52,7 +103,7 @@ export default function CreateSessionModal({
               onClick={() => setBillingChoice('paid')}
             >
               <span className="bill-title">Use Credits</span>
-              <span className="bill-line">No duration limit</span>
+              <span className="bill-line">{creditsLeft ? `${creditsLeft} credits remaining` : 'No duration limit'}</span>
             </button>
           </div>
         </div>
@@ -207,7 +258,31 @@ export default function CreateSessionModal({
             Cancel
           </button>
         </div>
-        {createMsg && <div className="msg">{createMsg}</div>}
+        {createMsg && (
+          <div className="msg" style={{ marginTop: '12px' }}>
+            <div>{createMsg}</div>
+            {(createMsg.includes('Payment is required') || createMsg.includes('credits') || createMsg.includes('free trial')) && (
+              <div style={{ marginTop: '8px' }}>
+                <a
+                  href="/pricing"
+                  className="btn btn-small"
+                  style={{
+                    display: 'inline-block',
+                    background: 'linear-gradient(135deg, #06B6D4, #3B82F6)',
+                    color: '#fff',
+                    textDecoration: 'none',
+                    padding: '6px 14px',
+                    borderRadius: '6px',
+                    fontSize: '12px',
+                    fontWeight: '600',
+                  }}
+                >
+                  Buy Credits Now →
+                </a>
+              </div>
+            )}
+          </div>
+        )}
       </form>
     </div>
   );

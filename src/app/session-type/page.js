@@ -221,11 +221,33 @@ function SessionTypeContent() {
         return;
       }
 
+      // Activate/start the session via backend so expires_at is set fresh from NOW
+      const billing = plan === 'free' ? 'trial' : 'paid';
+      const startRes = await fetch(`/api/sessions/${activeId}/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ billing, plan }),
+      });
+      const startData = await startRes.json().catch(() => ({}));
+      if (!startRes.ok) {
+        say(startData.message || 'Could not start session. Please check your credits.', true);
+        setButtonsDisabled(false);
+        return;
+      }
+
       if (window.feonix && typeof window.feonix.startSession === 'function') {
         await window.feonix.startSession({ plan, sessionId: activeId, auto: autoAnswer });
       } else {
-        // Fallback for browser testing
-        router.push(`/overlay?plan=${plan}&session=${activeId}&auto=${autoAnswer ? 1 : 0}`);
+        // In a standard browser (e.g. Chrome): launch the live copilot overlay (second image)
+        say('Launching live copilot overlay…', false, true);
+        // start=open is load-bearing, not decorative: overlay/page.js only
+        // trusts localStorage's remembered visibility when this param is
+        // absent (so a genuinely reopened/reloaded overlay can stay hidden
+        // across a reload if the user left it that way). Omitting it here
+        // meant a fresh "Start Interview" click inherited whatever hidden/
+        // minimized state a previous overlay session had left behind —
+        // usually rendering nothing at all, a blank page with no error.
+        window.location.href = `/overlay?session=${encodeURIComponent(activeId)}&plan=${encodeURIComponent(plan || 'full')}&auto=${autoAnswer ? '1' : '0'}&start=open`;
       }
     } catch (err) {
       console.error('Failed to start session:', err);
@@ -244,7 +266,7 @@ function SessionTypeContent() {
     if (window.feonix && typeof window.feonix.back === 'function') {
       window.feonix.back();
     } else {
-      router.push('/?view=dash');
+      window.location.href = '/?view=dash';
     }
   };
 
@@ -258,7 +280,7 @@ function SessionTypeContent() {
     if (window.feonix && typeof window.feonix.back === 'function') {
       window.feonix.back();
     } else {
-      router.push('/?view=dash');
+      window.location.href = '/?view=dash';
     }
   };
 
