@@ -9,7 +9,7 @@ import {
  * like a question — the caller decides what to do with that (auto-answer is
  * a policy choice that belongs to useInterview, not to speech capture itself).
  */
-export function useSpeechRecognition({ sessionId, source = 'tab', onQuestionDetected, onToast } = {}) {
+export function useSpeechRecognition({ sessionId, source = 'mic', onQuestionDetected, onToast } = {}) {
   const [listening, setListening] = useState(false);
   const [elapsedText, setElapsedText] = useState('00:00');
   const [transcriptChips, setTranscriptChips] = useState([]);
@@ -69,15 +69,33 @@ export function useSpeechRecognition({ sessionId, source = 'tab', onQuestionDete
         setElapsedText(`${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
       }, 1000);
 
-      const recorder = createChunkedRecorder(stream, { intervalMs: 3500, onChunk: uploadAudioChunk });
+      // Question detection can't happen before a chunk finishes recording —
+      // shortening this is the one lever that actually reduces that floor,
+      // trading some transcription accuracy for it: a shorter chunk is more
+      // likely to cut a question in half (the interviewer's sentence spans
+      // two chunks, so neither one alone reads as a complete question to
+      // looksLikeQuestion). 2.5s keeps most short interview questions intact
+      // in one chunk while cutting a full second off the old 3.5s floor.
+      const recorder = createChunkedRecorder(stream, { intervalMs: 2500, onChunk: uploadAudioChunk });
       recorderRef.current = recorder;
       recorder.start();
     } catch (err) {
+      // getUserMedia's DOMException.name says exactly what happened — the
+      // old catch-all ("Audio access not supported or cancelled") collapsed
+      // "you clicked Block", "no mic exists", and "another app is holding
+      // the mic open" into one message with no way to tell which applied,
+      // even though each needs a completely different fix.
       if (err.code === 'NO_AUDIO_SHARED') {
         toast('⚠️ No audio was shared — tick "Share tab audio" in the picker, or switch to Microphone.');
+      } else if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        toast('⚠️ Microphone blocked — click the 🔒/🎤 icon in the address bar and allow it, then try again.');
+      } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+        toast('⚠️ No microphone found — check one is connected and enabled in Windows sound settings.');
+      } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+        toast('⚠️ Microphone is in use by another app — close it and try again.');
       } else {
         console.error('Audio stream access failed:', err);
-        toast('⚠️ Audio access not supported or cancelled');
+        toast(`⚠️ Audio access failed: ${err.message || err.name || 'unknown error'}`);
       }
       setListening(false);
       clearInterval(elapsedTimerRef.current);

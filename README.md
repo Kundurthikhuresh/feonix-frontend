@@ -15,7 +15,7 @@ MONGODB_URI=mongodb+srv://...
 MONGODB_DB=feonixai
 OPENAI_API_KEY=...
 SESSION_SECRET=a-long-random-string
-FRONTEND_ORIGIN=http://localhost:3000
+FRONTEND_ORIGIN=http://localhost:3001
 ```
 
 3. In `frontend/`, copy `.env.example` to `.env.local`:
@@ -31,7 +31,7 @@ npm run install:all
 npm run dev
 ```
 
-That starts the API on **http://localhost:4000** and the Next.js UI on **http://localhost:3000**.
+That starts the API on **http://localhost:4000** and the Next.js UI on **http://localhost:3001**.
 
 You can also run them separately:
 

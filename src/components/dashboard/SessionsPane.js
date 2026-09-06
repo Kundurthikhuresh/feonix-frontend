@@ -1,6 +1,24 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { formatWhen } from '../../lib/utils';
+
+function parseTimestamp(val) {
+  if (!val) return NaN;
+  if (typeof val === 'number') return val;
+  const str = String(val).trim();
+  const iso = str.includes('T') && str.endsWith('Z') ? str : str.replace(' ', 'T') + 'Z';
+  return Date.parse(iso);
+}
+
+function getSessionRemainingInfo(s, currentNow) {
+  if (s.expires_at) {
+    const expMs = parseTimestamp(s.expires_at);
+    if (Number.isFinite(expMs)) {
+      return { isEnded: currentNow >= expMs };
+    }
+  }
+  return { isEnded: s.status === 'ended' };
+}
 
 export default function SessionsPane({
   sessions,
@@ -14,12 +32,69 @@ export default function SessionsPane({
   setShowCreateSheet,
   handleOpenReview,
   handleDeleteSession,
+  onStartSession,
 }) {
   const router = useRouter();
   const goToLaunch = (id) => router.push(`/launch?session=${id}`);
 
+  const [now, setNow] = useState(Date.now());
+  const [startingSessionId, setStartingSessionId] = useState(null);
+  const [startedSessionIds, setStartedSessionIds] = useState(() => new Set());
+
+  const handleStartOrResume = async (s) => {
+    const isEnded = getSessionRemainingInfo(s, now).isEnded;
+    if (isEnded) return;
+
+    const isFirstTime =
+      (s.status === 'ready' && !s.started_at && (!s.tokens_used || s.tokens_used === 0)) &&
+      !startedSessionIds.has(s.id);
+
+    if (isFirstTime) {
+      setStartingSessionId(s.id);
+      setStartedSessionIds((prev) => new Set(prev).add(s.id));
+      try {
+        if (onStartSession) {
+          await onStartSession(s);
+        } else {
+          await fetch(`/api/sessions/${s.id}/start`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ billing: s.billing_kind }),
+          });
+        }
+      } catch (err) {
+        console.error('Failed to start session:', err);
+      } finally {
+        setStartingSessionId(null);
+        goToLaunch(s.id);
+      }
+    } else {
+      goToLaunch(s.id);
+    }
+  };
+
+  useEffect(() => {
+    const iv = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(iv);
+  }, []);
+
+  // When a session passes the 5-minute mark, automatically sync with backend to settle it
+  useEffect(() => {
+    sessions.forEach((s) => {
+      if (s.status !== 'ended' && s.expires_at) {
+        const expMs = parseTimestamp(s.expires_at);
+        if (Number.isFinite(expMs) && now >= expMs) {
+          fetch(`/api/sessions/${s.id}/end`, { method: 'POST' }).catch(() => {});
+        }
+      }
+    });
+  }, [now, sessions]);
+
   const filteredSessions = sessions.filter((s) => {
-    if (sessionFilter !== 'all' && s.status !== sessionFilter) return false;
+    const { isEnded } = getSessionRemainingInfo(s, now);
+    if (sessionFilter === 'ended' && !isEnded) return false;
+    if (sessionFilter === 'active' && (isEnded || s.status === 'ready')) return false;
+    if (sessionFilter === 'ready' && (isEnded || s.status !== 'ready')) return false;
     if (sessionSearch.trim()) {
       const query = sessionSearch.toLowerCase();
       const matchCo = (s.company || '').toLowerCase().includes(query);
@@ -76,86 +151,89 @@ export default function SessionsPane({
       />
 
       <div className="session-grid">
-        {filteredSessions.map((s) => (
-          <div key={s.id} className="session-card">
-            <div className="when">{formatWhen(s.created_at)}</div>
-            <h3>{s.company || 'Unnamed Call'}</h3>
-            <p className="role">{s.role || '—'}</p>
+        {filteredSessions.map((s) => {
+          const { isEnded } = getSessionRemainingInfo(s, now);
+          const isFirstTime =
+            !isEnded &&
+            (s.status === 'ready' && !s.started_at && (!s.tokens_used || s.tokens_used === 0)) &&
+            !startedSessionIds.has(s.id);
 
-            {/* Chips: billing + mode + answer + line counts */}
-            <div className="chips">
-              {s.billing_kind === 'trial' && <span className="chip">FREE TRIAL</span>}
-              <span className="chip">{(s.mode || 'interview').toUpperCase()}</span>
-              <span className="chip">{s.answer_count ?? 0} ANSWERS</span>
-              <span className="chip">{s.line_count ?? 0} LINES</span>
-            </div>
+          return (
+            <div key={s.id} className="session-card">
+              <div className="when">{formatWhen(s.created_at)}</div>
+              <h3>{s.company || 'Unnamed Call'}</h3>
+              <p className="role">{s.role || '—'}</p>
 
-            {/* Footer: status left, buttons right */}
-            <div className="session-card-foot">
-              <div className="sc-status-group">
-                <div className="status" data-status={s.status}>
-                  <span className="status-dot" data-status={s.status}></span>
-                  {s.status === 'ready'
-                    ? 'Ready to start'
-                    : s.status === 'active'
-                      ? 'In progress'
-                      : s.status.charAt(0).toUpperCase() + s.status.slice(1)}
+              {/* Chips: billing + mode + answer + line counts */}
+              <div className="chips">
+                {s.billing_kind === 'trial' && <span className="chip">FREE TRIAL</span>}
+                <span className="chip">{(s.mode || 'interview').toUpperCase()}</span>
+                <span className="chip">{s.answer_count ?? 0} ANSWERS</span>
+                <span className="chip">{s.line_count ?? 0} LINES</span>
+              </div>
+
+              {/* Footer: status left, buttons right */}
+              <div className="session-card-foot">
+                <div className="sc-status-group">
+                  <div className="status" data-status={isEnded ? 'ended' : (isFirstTime ? 'ready' : 'active')}>
+                    <span className="status-dot" data-status={isEnded ? 'ended' : (isFirstTime ? 'ready' : 'active')}></span>
+                    {isEnded
+                      ? 'Ended'
+                      : isFirstTime
+                        ? 'Ready to start'
+                        : 'In progress'}
+                  </div>
+                  <span className="sc-usage">
+                    {s.tokens_used ? `${s.tokens_used} tokens` : 'No usage yet'}
+                  </span>
                 </div>
-                <span className="sc-usage">
-                  {s.tokens_used ? `${s.tokens_used} tokens` : 'No usage yet'}
-                </span>
-              </div>
 
-              <div className="sc-actions">
-                <button
-                  className="btn btn-small btn-quiet"
-                  style={{ color: 'var(--alert)' }}
-                  onClick={() => handleDeleteSession(s.id)}
-                  type="button"
-                >
-                  Delete
-                </button>
-
-                {s.status !== 'ended' && (
+                <div className="sc-actions">
                   <button
                     className="btn btn-small btn-quiet"
-                    onClick={() => handleOpenReview(s.id)}
+                    style={{ color: 'var(--alert)' }}
+                    onClick={() => handleDeleteSession(s.id)}
                     type="button"
                   >
-                    Transcript
+                    Delete
                   </button>
-                )}
 
-                {/* Primary action: View transcript / Resume / Start session */}
-                {s.status === 'ended' ? (
-                  <button
-                    className="btn btn-small btn-quiet"
-                    onClick={() => handleOpenReview(s.id)}
-                    type="button"
-                  >
-                    View transcript
-                  </button>
-                ) : s.status === 'active' ? (
-                  <button
-                    className="btn btn-small"
-                    onClick={() => goToLaunch(s.id)}
-                    type="button"
-                  >
-                    Resume
-                  </button>
-                ) : (
-                  <button
-                    className="btn btn-small"
-                    onClick={() => goToLaunch(s.id)}
-                    type="button"
-                  >
-                    Start session
-                  </button>
-                )}
+                  {isEnded ? (
+                    <button
+                      className="btn btn-small btn-quiet"
+                      onClick={() => handleOpenReview(s.id)}
+                      type="button"
+                    >
+                      View transcript
+                    </button>
+                  ) : (
+                    <>
+                      <button
+                        className="btn btn-small btn-quiet"
+                        onClick={() => handleOpenReview(s.id)}
+                        type="button"
+                      >
+                        Transcript
+                      </button>
+                      <button
+                        className="btn btn-small"
+                        onClick={() => handleStartOrResume(s)}
+                        disabled={startingSessionId === s.id}
+                        type="button"
+                      >
+                        {startingSessionId === s.id
+                          ? 'Starting…'
+                          : isFirstTime
+                            ? 'Start session'
+                            : 'Resume'}
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
         {filteredSessions.length === 0 && (
           <div className="dash-empty">No sessions found in this category.</div>
         )}

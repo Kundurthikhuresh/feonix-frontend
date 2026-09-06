@@ -35,8 +35,23 @@ import DemoVideo90sModal from '../components/landing/DemoVideo90sModal';
 import Integrations3DSection from '../components/landing/Integrations3DSection';
 import Security3DSection from '../components/landing/Security3DSection';
 import Testimonials3DSection from '../components/landing/Testimonials3DSection';
-import Performance3DSection from '../components/landing/Performance3DSection';
 import VideoShowcase3DSection from '../components/landing/VideoShowcase3DSection';
+
+// New 3D Extension Sections
+import CareerIntelligence3DSection from '../components/landing/CareerIntelligence3DSection';
+import ResumePipeline3DSection from '../components/landing/ResumePipeline3DSection';
+import InterviewCopilot3DSection from '../components/landing/InterviewCopilot3DSection';
+import AIProcessing3DSection from '../components/landing/AIProcessing3DSection';
+import KnowledgeGraph3DSection from '../components/landing/KnowledgeGraph3DSection';
+import InterviewModes3DSection from '../components/landing/InterviewModes3DSection';
+import AIHUD3DSection from '../components/landing/AIHUD3DSection';
+import CareerReadiness3DSection from '../components/landing/CareerReadiness3DSection';
+import BeforeAfter3DSection from '../components/landing/BeforeAfter3DSection';
+import FeonixEcosystem3DSection from '../components/landing/FeonixEcosystem3DSection';
+import AskFeonix3DSection from '../components/landing/AskFeonix3DSection';
+import CareerJourney3DSection from '../components/landing/CareerJourney3DSection';
+import ProductShowcase3DSection from '../components/landing/ProductShowcase3DSection';
+
 import dynamic from 'next/dynamic';
 
 const AIAssistantModal = dynamic(() => import('../components/assistant/AIAssistantModal'), {
@@ -84,7 +99,13 @@ export default function Page() {
 
   // Navigation & Page State
   const [user, setUser] = useState(null);
-  const [currentView, setCurrentView] = useState('landing'); // 'landing', 'dash', 'app', 'review'
+  const [currentView, setCurrentView] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const v = new URLSearchParams(window.location.search).get('view');
+      if (v === 'dash' || v === 'app' || v === 'review') return v;
+    }
+    return 'landing';
+  }); // 'landing', 'dash', 'app', 'review'
   const [authChecked, setAuthChecked] = useState(true);
   const [activeFaq, setActiveFaq] = useState(null);
   const [showAssistantModal, setShowAssistantModal] = useState(false);
@@ -121,10 +142,23 @@ export default function Page() {
   };
 
   const userRef = useRef(null);
+  const currentViewRef = useRef(currentView);
 
   useEffect(() => {
     userRef.current = user;
-  }, [user]);
+    currentViewRef.current = currentView;
+  }, [user, currentView]);
+
+  // React Strict Mode double-invokes the mount effect in dev (mount, clean
+  // up, mount again), which fires checkUserSession() twice concurrently.
+  // Both do the same fetch → enterSession → changeView('app') chain, and
+  // without a guard whichever one happens to resolve LAST wins — including
+  // the throwaway first run, which could land back on the logged-out
+  // landing page after the second (real) run had already shown the
+  // dashboard/copilot. Every state-changing step below checks this against
+  // the id it started with, and bails out silently if a newer run has
+  // since started.
+  const bootRunIdRef = useRef(0);
 
   const changeView = (nextView, replace = false) => {
     setCurrentView(nextView);
@@ -168,6 +202,18 @@ export default function Page() {
   // New Session Creation Form State
   const [showCreateSheet, setShowCreateSheet] = useState(false);
   const [billingChoice, setBillingChoice] = useState('trial'); // 'trial', 'paid'
+
+  // Opening the sheet always defaulted to 'trial' regardless of whether any
+  // were left — someone who'd already used all 5 would see "Free Trial"
+  // pre-selected, hit "Create session", and only then learn (from a plain
+  // inline error at the bottom of the form) that they needed to pick "Use
+  // Credits" instead. Steer the default to whatever's actually usable
+  // instead of letting the submit fail first.
+  useEffect(() => {
+    if (showCreateSheet && Number.isFinite(Number(trialsLeft)) && Number(trialsLeft) <= 0) {
+      setBillingChoice('paid');
+    }
+  }, [showCreateSheet, trialsLeft]);
   const [sessionType, setSessionType] = useState('interview'); // 'interview', 'call'
   const [newCompany, setNewCompany] = useState('');
   const [newRole, setNewRole] = useState('');
@@ -323,14 +369,50 @@ export default function Page() {
     setThemeMode(activeTheme);
     document.documentElement.dataset.theme = activeTheme;
 
-    if (typeof window !== 'undefined' && !window.history.state) {
-      window.history.replaceState({ view: 'landing' }, '');
+    const navEntries = typeof window !== 'undefined' && typeof performance !== 'undefined'
+      ? performance.getEntriesByType?.('navigation')
+      : null;
+    const isReload = (navEntries && navEntries[0] && navEntries[0].type === 'reload')
+      || (typeof window !== 'undefined' && window.performance?.navigation?.type === 1);
+
+    const initialView = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('view') : null;
+
+    if (initialView === 'dash') {
+      setCurrentView('dash');
+      if (typeof window !== 'undefined') {
+        if (!window.history.state || window.history.state.view !== 'dash') {
+          window.history.replaceState({ view: 'landing' }, '', '/');
+          window.history.pushState({ view: 'dash' }, '', '/?view=dash');
+        }
+      }
+    } else if (isReload) {
+      if (typeof window !== 'undefined') {
+        window.history.replaceState({ view: 'landing' }, '', '/');
+      }
+      setCurrentView('landing');
+    } else if (initialView) {
+      window.history.replaceState({ view: initialView }, '');
+      setCurrentView(initialView);
+    } else if (typeof window !== 'undefined') {
+      if (!window.history.state || !window.history.state.view) {
+        window.history.replaceState({ view: 'landing' }, '', '/');
+      }
     }
 
     const handlePopState = (e) => {
+      const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+      const queryView = urlParams ? urlParams.get('view') : null;
+
       if (e.state && e.state.view) {
         setCurrentView(e.state.view);
+      } else if (queryView === 'dash') {
+        setCurrentView('dash');
+      } else if (queryView === 'app') {
+        setCurrentView('app');
+      } else if (queryView === 'review') {
+        setCurrentView('review');
       } else {
+        // Navigating back to root '/' or clicking browser back arrow from dashboard redirects to landing page
         setCurrentView('landing');
       }
     };
@@ -339,7 +421,9 @@ export default function Page() {
       window.addEventListener('popstate', handlePopState);
     }
 
-    checkUserSession();
+    const runId = ++bootRunIdRef.current;
+    const bootAbort = new AbortController();
+    checkUserSession(runId, bootAbort.signal);
 
     let count = 11 * 3600 + 19 * 60 + 36;
     const bannerTimer = setInterval(() => {
@@ -359,6 +443,16 @@ export default function Page() {
     }, 1000);
 
     return () => {
+      // Strict Mode's dev double-invoke (mount, cleanup, mount again) was
+      // letting the first mount's ENTIRE boot fetch burst — auth check,
+      // catalogue, account, sessions list, documents, the session lookup,
+      // and the /start POST — run all the way to completion pointlessly,
+      // since a runId check only discards its RESULTS afterward. Doubling
+      // that many concurrent requests on the dev backend in the same
+      // instant was enough to make the second (real) run's own /start call
+      // occasionally hang. Aborting the first run's fetches outright, not
+      // just ignoring what they return, is what actually fixes that.
+      bootAbort.abort();
       clearInterval(bannerTimer);
       stopRecording();
       if (typeof window !== 'undefined') {
@@ -367,11 +461,53 @@ export default function Page() {
     };
   }, []);
 
-  const checkUserSession = async () => {
+  // In Electron: if the desktop app is currently showing the dashboard when a
+  // handoff link arrives, immediately route to the Start Interview screen (/session-type)
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.feonix && typeof window.feonix.onHandoff === 'function') {
+      window.feonix.onHandoff((handoff) => {
+        if (handoff) {
+          const sParam = handoff.session ? `&session=${encodeURIComponent(handoff.session)}` : '';
+          const tParam = handoff.token ? `token=${encodeURIComponent(handoff.token)}` : '';
+          const q = tParam ? `?${tParam}${sParam}` : (sParam ? `?${sParam.slice(1)}` : '');
+          window.location.href = `/session-type${q}`;
+        }
+      });
+    }
+  }, []);
+
+  const checkUserSession = async (runId, signal) => {
+    // True once a newer mount effect (Strict Mode's dev double-invoke, or a
+    // genuine remount) has superseded this call — every point below that
+    // changes user-visible state checks this first, so a slow/throwaway run
+    // can't clobber a faster/real one that already finished. The abort
+    // signal (cancelled from the effect's cleanup) is what stops a stale
+    // run from actually sending its requests in the first place — the
+    // runId check alone only discarded results afterward, which still let
+    // a full duplicate burst of fetches (auth check, catalogue, account,
+    // sessions, documents, session lookup, /start) hit the dev backend
+    // alongside the real run's own, and that doubled load was enough to
+    // occasionally make the real run's /start call hang.
+    const stale = () => runId !== bootRunIdRef.current;
     try {
-      const res = await fetch('/api/auth/me');
+      // The very first request of a page load is also the one most likely
+      // to land during a backend restart (dev auto-reload, or the frontend
+      // simply coming up before the backend has finished booting) — the
+      // proxy already retries once internally, but a miss here used to
+      // render the logged-out landing page for an actual logged-in user
+      // rather than the dashboard, until a manual reload happened to land
+      // outside that window. A couple of quick retries absorb it instead.
+      let res = await fetch('/api/auth/me', { signal });
+      for (let attempt = 1; attempt < 3 && !res.ok; attempt++) {
+        const body = await res.json().catch(() => ({}));
+        if (res.status !== 503 || body.error !== 'server_unavailable') break;
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        res = await fetch('/api/auth/me', { signal });
+      }
+      if (stale()) return;
       if (res.ok) {
         const data = await res.json();
+        if (stale()) return;
         setUser(data.user);
         setAuthChecked(true);
 
@@ -393,25 +529,54 @@ export default function Page() {
         if (typeof window !== 'undefined') {
           const urlParams = new URLSearchParams(window.location.search);
           const sessionId = urlParams.get('session');
+          const requestedView = urlParams.get('view');
+
+          if (requestedView === 'dash') {
+            if (stale()) return;
+            try {
+              if (window.history.length <= 1 || !window.history.state || window.history.state.view !== 'dash') {
+                window.history.replaceState({ view: 'landing' }, '', '/');
+                window.history.pushState({ view: 'dash' }, '', '/?view=dash');
+              }
+            } catch { }
+            setCurrentView('dash');
+            return;
+          }
+
           if (sessionId) {
             try {
-              const sRes = await fetch(`/api/sessions/${sessionId}`);
+              const sRes = await fetch(`/api/sessions/${sessionId}`, { signal });
+              if (stale()) return;
               if (sRes.ok) {
                 const sData = await sRes.json();
-                enterSession(sData.session);
+                if (stale()) return;
+                enterSession(sData.session, runId, signal);
                 return;
               }
             } catch { /* fall through to dash */ }
           }
+
+          const navEntries = typeof performance !== 'undefined' ? performance.getEntriesByType?.('navigation') : null;
+          const isReload = (navEntries && navEntries[0] && navEntries[0].type === 'reload')
+            || (window.performance?.navigation?.type === 1);
+
+          if (isReload) {
+            if (stale()) return;
+            changeView('landing', true);
+            return;
+          }
         }
 
-        // Always default to landing page on website reload / initial load
+        if (stale()) return;
+        // Default to landing page on website reload / fresh visit
         changeView('landing', true);
         return;
       }
     } catch {
-      // ignore — treat as logged out
+      // ignore — treat as logged out (also catches the abort from a
+      // superseded run, which is expected and not a real error)
     }
+    if (stale()) return;
     changeView('landing', true);
     setAuthChecked(true);
   };
@@ -579,18 +744,23 @@ export default function Page() {
   // ----------------------------------------------------
   // 'server_unavailable' only ever means the proxy briefly couldn't reach
   // the backend (e.g. it's mid-restart) — not that the account/credentials
-  // are actually invalid. That's over almost always within a couple of
-  // seconds, so a few silent retries here means a real user never sees this
-  // as an error at all — the "Working…" state just runs a little longer.
+  // are actually invalid. A few silent retries here means a real user never
+  // sees this as an error at all — the "Working…" state just runs a little
+  // longer.
   //
-  // Bounded to land well under 5s total either way: each attempt gives up
-  // after 1.3s instead of hanging on a stuck connection, so the worst case
-  // (three dead attempts) is 3×1.3s + 2×0.25s ≈ 4.4s — the user always gets a
-  // result, success or a clear error, inside a few seconds, never a spinner
-  // that just sits there.
-  const postJSONWithRetry = async (path, body, attempts = 3, delayMs = 250) => {
+  // The 1.3s-per-attempt budget this used to have was tuned for a generic
+  // "proxy blip," not for what this backend actually does on a cold start:
+  // its own MongoDB Atlas connection on this machine can legitimately take
+  // up to ~15s (see db.js's CONNECT_TIMEOUT_MS) before it answers anything,
+  // auth included. Logging in within seconds of a backend restart was
+  // burning through all 3 attempts (≈4.4s total) before Mongo had even
+  // finished connecting, and surfacing "Request timed out" for something
+  // that would have succeeded a few seconds later. 4 attempts at 4s each
+  // comfortably covers that window (worst case ≈17s) while still failing
+  // with a clear error if the backend is genuinely down, not just slow.
+  const postJSONWithRetry = async (path, body, attempts = 4, delayMs = 400) => {
     for (let attempt = 1; attempt <= attempts; attempt++) {
-      const result = await postJSON(path, body, { timeoutMs: 1300 });
+      const result = await postJSON(path, body, { timeoutMs: 4000 });
       const isTransient = !result.ok && (
         result.status === 0 ||
         (result.status === 503 && result.data?.error === 'server_unavailable')
@@ -661,7 +831,12 @@ export default function Page() {
       billing: billingChoice,
     };
 
-    const { ok, data } = await postJSON('/api/sessions', body);
+    // A plain postJSON() call here had only a 4s timeout and no retry, so
+    // the same transient slowness that postJSONWithRetry already absorbs
+    // for login (a request landing right after a backend/DB restart) showed
+    // up here as "Could not reach the server." instead of just creating the
+    // session a couple seconds later.
+    const { ok, data } = await postJSONWithRetry('/api/sessions', body);
     if (!ok) {
       setCreateMsg(data.message || 'Could not create session.');
       return;
@@ -669,14 +844,34 @@ export default function Page() {
 
     setShowCreateSheet(false);
     setCreateMsg('');
-    loadSessions();
-    loadAccount();
-
-    // Redirect to launch interstitial (handles desktop deep-link or browser fallback)
-    router.push(`/launch?session=${encodeURIComponent(data.session.id)}`);
+    if (data?.session) {
+      setSessions((prev) => [data.session, ...prev.filter((s) => s.id !== data.session.id)]);
+    }
+    await loadSessions();
+    await loadAccount();
   };
 
-  const enterSession = async (session) => {
+  const handleStartSession = async (session) => {
+    try {
+      const res = await fetch(`/api/sessions/${session.id}/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ billing: session.billing_kind }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.session) {
+          setSessions((prev) =>
+            prev.map((s) => (s.id === session.id ? { ...s, ...data.session } : s))
+          );
+        }
+      }
+    } catch (err) {
+      console.error('Failed to start session:', err);
+    }
+  };
+
+  const enterSession = async (session, runId, signal) => {
     let currentSession = session;
     if (session.status === 'ready') {
       try {
@@ -684,6 +879,7 @@ export default function Page() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ billing: session.billing_kind }),
+          signal,
         });
         if (res.ok) {
           const data = await res.json();
@@ -693,6 +889,11 @@ export default function Page() {
         console.error('Failed to start session:', err);
       }
     }
+
+    // Called from checkUserSession's boot chain — if a newer mount effect
+    // has since started (Strict Mode's dev double-invoke), this run is the
+    // throwaway one and must not clobber whatever the newer run already set.
+    if (runId !== undefined && runId !== bootRunIdRef.current) return;
 
     setActiveSession(currentSession);
     changeView('app');
@@ -975,20 +1176,82 @@ export default function Page() {
           {/* 3D Holographic Statistics Counter Cards */}
           <Stats3DSection />
 
-          {/* Real-time Interactive 3D Copilot Teleprompter Simulator */}
-          <InteractiveSimulator3D />
-
           {/* Futuristic 3D Interactive Features with Mouse Tilt Physics */}
           <Features3DSection />
 
-          {/* Interactive 3D Neural Network AI Core Showcase */}
-          <AIShowcase3DSection />
+          {/* NEW 1 — AI Career Intelligence */}
+          <CareerIntelligence3DSection />
+
+          {/* 3-Step Futuristic Workflow Timeline */}
+          <HowItWorks3DSection />
+
+          {/* NEW 2 — Resume to Interview Pipeline */}
+          <ResumePipeline3DSection />
 
           {/* Parallel AI Duo Mode (Copilot + Coach) */}
           <DualModeSection />
 
-          {/* 3-Step Futuristic Workflow Timeline */}
-          <HowItWorks3DSection />
+          {/* NEW 3 — Real-Time Interview Copilot */}
+          <InterviewCopilot3DSection
+            onSimulate={() => {
+              if (user) {
+                enterApp(user);
+              } else {
+                setAuthMode('register');
+                setAuthMsg({ text: '', type: '' });
+                setShowAuthModal(true);
+              }
+            }}
+          />
+
+          {/* Interactive 3D Neural Network AI Core Showcase */}
+          <AIShowcase3DSection />
+
+          {/* Real-time Interactive 3D Copilot Teleprompter Simulator */}
+          <InteractiveSimulator3D />
+
+          {/* NEW 4 — AI Processing Pipeline */}
+          <AIProcessing3DSection />
+
+          {/* Interactive 3D Integrations & Ecosystem Matrix */}
+          <Integrations3DSection />
+
+          {/* NEW 5 — Technical Knowledge Graph */}
+          <KnowledgeGraph3DSection />
+
+          {/* NEW 6 — Interview Modes */}
+          <InterviewModes3DSection />
+
+          {/* NEW 7 — AI HUD */}
+          <AIHUD3DSection />
+
+          {/* Enterprise Security Quantum Vault 3D Section */}
+          <Security3DSection />
+
+          {/* NEW 8 — Career Readiness */}
+          <CareerReadiness3DSection />
+
+          {/* Candidate Testimonials 3D Carousel */}
+          <Testimonials3DSection />
+
+          {/* NEW 9 — Before vs After Feonix */}
+          <BeforeAfter3DSection />
+
+          {/* Live Video Showcase & Demo Section */}
+          <VideoShowcase3DSection
+            onWatchDemo={() => {
+              setShowDemoVideoModal(true);
+            }}
+          />
+
+          {/* NEW 10 — Feonix AI Ecosystem */}
+          <FeonixEcosystem3DSection />
+
+          {/* NEW 11 — Ask Feonix Interactive Demo */}
+          <AskFeonix3DSection />
+
+          {/* NEW 12 — Career Journey */}
+          <CareerJourney3DSection />
 
           {/* Futuristic 3D Glassmorphism Pricing Tier Cards */}
           <Pricing3DSection
@@ -1003,23 +1266,24 @@ export default function Page() {
             }}
           />
 
-          {/* Interactive 3D Integrations & Ecosystem Matrix */}
-          <Integrations3DSection />
-
-          {/* Enterprise Security Quantum Vault 3D Section */}
-          <Security3DSection />
-
-          {/* Live Video Showcase & Demo Section */}
-          <VideoShowcase3DSection />
-
-          {/* Candidate Testimonials 3D Carousel */}
-          <Testimonials3DSection />
-
-          {/* Real-time Performance & Latency Benchmark 3D Section */}
-          <Performance3DSection />
-
           {/* Knowledge Base & FAQ Accordion */}
           <FAQ3DSection />
+
+          {/* NEW 13 — Final Product Showcase */}
+          <ProductShowcase3DSection
+            onGetStarted={() => {
+              if (user) {
+                enterApp(user);
+              } else {
+                setAuthMode('register');
+                setAuthMsg({ text: '', type: '' });
+                setShowAuthModal(true);
+              }
+            }}
+            onExplore={() => {
+              setShowAssistantModal(true);
+            }}
+          />
 
           {/* High-Impact 3D AI Energy Orb CTA Section */}
           <CTA3DSection
@@ -1113,6 +1377,7 @@ export default function Page() {
             setShowCreateSheet={setShowCreateSheet}
             handleOpenReview={handleOpenReview}
             handleDeleteSession={handleDeleteSession}
+            onStartSession={handleStartSession}
           />
         )}
 
@@ -1175,6 +1440,8 @@ export default function Page() {
         {showCreateSheet && (
           <CreateSessionModal
             catalogue={catalogue}
+            trialsLeft={trialsLeft}
+            creditsLeft={creditsLeft}
             billingChoice={billingChoice}
             setBillingChoice={setBillingChoice}
             sessionType={sessionType}

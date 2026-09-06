@@ -246,7 +246,7 @@ export default function AuthModal({
               {authMode === 'register' && (
                 <div className="auth-input-helper">
                   <CheckCircle2 size={12} className="text-cyan" />
-                  <span>Must be at least 8 characters with numbers & symbols</span>
+                  <span>Must be at least 6 characters of mixed letters</span>
                 </div>
               )}
             </div>

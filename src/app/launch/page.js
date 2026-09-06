@@ -9,19 +9,14 @@ function LaunchContent() {
   const sessionId = searchParams.get('session');
 
   const [sessionName, setSessionName] = useState('');
-  const [title, setTitle] = useState('Opening FeonixAI');
-  const [lede, setLede] = useState('Your desktop app should launch in a moment.');
-  const [pulsing, setPulsing] = useState(true);
-  const [showFallback, setShowFallback] = useState(false);
+  const [title, setTitle] = useState('Open in FeonixAI');
+  const [lede, setLede] = useState('Click "Open desktop app" or choose an option below:');
+  const [pulsing, setPulsing] = useState(false);
+  const [showFallback, setShowFallback] = useState(true);
   const [msg, setMsg] = useState({ text: '', type: '' });
   const [isMacOS, setIsMacOS] = useState(true);
-  // A rapid repeat click on "Open desktop app" while one attempt is already
-  // in flight would mint a second one-time handoff token and re-fire the
-  // deep link — the token is single-use, so whichever redemption loses the
-  // race would fail with "link already used" for no reason the user caused.
   const [launching, setLaunching] = useState(false);
-  
-  let gaveUp = false;
+
 
   useEffect(() => {
     if (!sessionId) {
@@ -29,12 +24,23 @@ function LaunchContent() {
       return;
     }
 
-    checkAuthAndLaunch();
+    checkAuthAndLoad();
   }, [sessionId]);
 
-  const checkAuthAndLaunch = async () => {
+  const checkAuthAndLoad = async () => {
     try {
-      const res = await fetch('/api/auth/me');
+      // A reload landing during a backend restart or a slow cold DB connect
+      // used to bounce a logged-in user straight to the landing page on the
+      // very first non-ok response — same failure mode already fixed for
+      // the dashboard boot in app/page.js. Mirror that retry here instead
+      // of treating a transient 503 as "not logged in".
+      let res = await fetch('/api/auth/me');
+      for (let attempt = 1; attempt < 3 && !res.ok; attempt++) {
+        const body = await res.json().catch(() => ({}));
+        if (res.status !== 503 || body.error !== 'server_unavailable') break;
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        res = await fetch('/api/auth/me');
+      }
       if (!res.ok) {
         router.replace('/');
         return;
@@ -42,14 +48,8 @@ function LaunchContent() {
 
       await loadSession();
 
-      const isMac = navigator.userAgent.includes('Mac');
+      const isMac = typeof navigator !== 'undefined' && navigator.userAgent.includes('Mac');
       setIsMacOS(isMac);
-
-      if (isMac) {
-        launchDesktop();
-      } else {
-        showNoDesktopApp();
-      }
     } catch {
       router.replace('/');
     }
@@ -66,11 +66,22 @@ function LaunchContent() {
     }
   };
 
-  const launchDesktop = async () => {
-    if (launching) return;
-    setLaunching(true);
+  const handleOpenDesktopApp = async () => {
+    if (!sessionId) {
+      router.replace('/');
+      return;
+    }
+    // This used to just navigate to /session-type in the same tab — identical
+    // to "run this session in the browser" below it, so clicking "Open
+    // desktop app" could never actually reach the desktop app; it always
+    // stayed in whatever browser tab you clicked it from. The real desktop
+    // app is a separate process reachable only through the feonixai://
+    // custom-protocol link the backend mints per click (one-time, 90s TTL —
+    // see backend/src/handoff.js) — firing that is what actually hands off
+    // to it, the same way the installer registers Windows to route that
+    // scheme to the app.
     setMsg({ text: '', type: '' });
-
+    setLaunching(true);
     try {
       const res = await fetch(`/api/sessions/${sessionId}/handoff`, { method: 'POST' });
       if (!res.ok) {
@@ -80,95 +91,28 @@ function LaunchContent() {
         return;
       }
       const { deep_link: deepLink } = await res.json();
-
-      // Trigger OS deep-link
-      window.location.href = deepLink;
-      watchForLaunch();
-    } catch (err) {
-      setMsg({ text: 'Error initiating handoff.', type: 'err' });
+      // window.location.href = deepLink used to navigate this whole tab to
+      // the custom feonixai:// URL. With the desktop app installed, Chrome
+      // has that scheme registered — and navigating the top-level page to a
+      // *registered* custom protocol can actually begin tearing down this
+      // page's own document before handing off to the OS, leaving a blank
+      // page behind (this only shows up once the protocol is registered;
+      // it's a no-op with no visible effect otherwise, which is why it
+      // looked fine during earlier testing without the app installed). A
+      // hidden iframe triggers the same OS handoff without ever navigating
+      // this page itself, so it survives regardless of registration state.
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      iframe.src = deepLink;
+      document.body.appendChild(iframe);
+      setTimeout(() => {
+        document.body.removeChild(iframe);
+        setLaunching(false);
+      }, 1500);
+    } catch {
+      setMsg({ text: 'Could not reach the server.', type: 'err' });
       setLaunching(false);
     }
-  };
-
-  const watchForLaunch = () => {
-    gaveUp = false;
-    setTitle('Opening FeonixAI');
-    setLede('Your desktop app should launch in a moment.');
-    setPulsing(true);
-    setShowFallback(false);
-
-    const cleanup = () => {
-      document.removeEventListener('visibilitychange', handleVisibility);
-      window.removeEventListener('blur', handleBlur);
-    };
-
-    const launched = () => {
-      gaveUp = true;
-      cleanup();
-      setPulsing(false);
-      setTitle('Session running in FeonixAI');
-      setLede('Returning you to the dashboard…');
-      setShowFallback(false);
-
-      setTimeout(() => {
-        window.close();
-        router.replace('/?view=dash');
-      }, 900);
-    };
-
-    // A blur/hide right after triggering the deep link is ambiguous: it's
-    // exactly what the desktop app taking over focus looks like, but it's
-    // ALSO exactly what Windows/Chrome's own "Open FeonixAI?" permission
-    // prompt looks like — that dialog steals focus the instant it appears,
-    // whether or not the user goes on to actually allow it. Treating that
-    // as success used to fire the redirect back to the dashboard 900ms
-    // later even when the user hit Cancel and nothing ever opened, which is
-    // exactly what looks like "the window closed by itself" from here.
-    // Confirming the tab is STILL hidden a beat later filters that out.
-    const confirmLaunch = () => {
-      if (gaveUp) return;
-      setTimeout(() => {
-        if (gaveUp) return;
-        if (document.hidden) {
-          launched();
-        } else {
-          // Focus came right back — the dialog was dismissed/cancelled, or
-          // nothing actually opened. Let the timeout fallback below handle
-          // it instead of quietly stranding the user on a moved-on tab.
-          cleanup();
-        }
-      }, 700);
-    };
-
-    const handleVisibility = () => { if (document.hidden) confirmLaunch(); };
-    const handleBlur = () => confirmLaunch();
-
-    document.addEventListener('visibilitychange', handleVisibility);
-    window.addEventListener('blur', handleBlur);
-
-    // Timeout fallback if it never actually launched — the desktop app
-    // isn't installed/registered (or the prompt was cancelled), so start
-    // the interview in the browser instead of stranding the user on a dead
-    // "did not open" screen.
-    setTimeout(() => {
-      if (gaveUp) return;
-      cleanup();
-      gaveUp = true;
-      handleStayInBrowser();
-    }, 3500);
-  };
-
-  const showNoDesktopApp = () => {
-    // On Windows: show the interstitial page immediately so they can launch or download
-    setPulsing(false);
-    setTitle('Open in FeonixAI');
-    setLede('Start your session in the desktop app, or download the installer below.');
-    setShowFallback(true);
-  };
-
-  const handleRetry = () => {
-    // Call deep-link handoff for both macOS and Windows
-    launchDesktop();
   };
 
   const handleDownloadMac = () => {
@@ -180,7 +124,11 @@ function LaunchContent() {
   };
 
   const handleStayInBrowser = () => {
-    router.replace(`/?session=${encodeURIComponent(sessionId || '')}`);
+    if (!sessionId) {
+      router.replace('/');
+      return;
+    }
+    window.location.href = `/session-type?session=${encodeURIComponent(sessionId)}`;
   };
 
   return (
@@ -197,7 +145,7 @@ function LaunchContent() {
         <p className="lede" id="lede">{lede}</p>
         <div className="session-name" id="sessionName">{sessionName}</div>
 
-        <button className="launch-btn" onClick={handleRetry} disabled={launching} type="button">
+        <button className="launch-btn" onClick={handleOpenDesktopApp} disabled={launching} type="button">
           {launching ? 'Opening…' : 'Open desktop app'}
         </button>
 
@@ -205,10 +153,10 @@ function LaunchContent() {
           <div className="launch-fallback" id="fallback">
             <h2>Don&apos;t have the desktop app yet?</h2>
             <p>Install it once, then this page opens it automatically every time.</p>
-            
+
             <button className="launch-btn" onClick={handleDownloadWin} type="button">Download for Windows</button>
             <button className="launch-btn" onClick={handleDownloadMac} type="button" style={{ marginBottom: '20px' }}>Download for macOS</button>
-            
+
             <div className="launch-platform-note">
               Or,{' '}
               <button className="launch-link" onClick={handleStayInBrowser} type="button">
@@ -227,7 +175,7 @@ function LaunchContent() {
 
         <div style={{ marginTop: '20px', borderTop: '1px solid rgba(255, 255, 255, 0.08)', paddingTop: '16px', display: 'flex', justifyContent: 'center' }}>
           <button
-            onClick={() => router.replace('/?view=dash')}
+            onClick={() => { window.location.href = '/?view=dash'; }}
             type="button"
             style={{
               display: 'inline-flex',
