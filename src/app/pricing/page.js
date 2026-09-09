@@ -37,7 +37,7 @@ const PLANS = [
       'Full Application Tracker',
       'Priority AI Processing Speed',
     ],
-    cta: 'Upgrade to Pro (Stripe)',
+    cta: 'Upgrade to Pro (Razorpay)',
     highlight: true,
   },
   {
@@ -56,21 +56,43 @@ const PLANS = [
       'Full Kanban Application Board',
       'Dedicated Priority Processing',
     ],
-    cta: 'Upgrade to Premium (Stripe)',
+    cta: 'Upgrade to Premium (Razorpay)',
     highlight: false,
   },
 ];
+
+// Razorpay's Checkout widget is a global script, not an npm package — it
+// has to be loaded once before `new window.Razorpay(...)` exists. Cached as
+// a module-level promise so navigating between plans (or back to this page)
+// doesn't re-inject the <script> tag every time.
+let razorpayScriptPromise = null;
+function loadRazorpayScript() {
+  if (typeof window !== 'undefined' && window.Razorpay) return Promise.resolve();
+  if (!razorpayScriptPromise) {
+    razorpayScriptPromise = new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.onload = resolve;
+      script.onerror = () => {
+        razorpayScriptPromise = null; // allow a retry on the next attempt
+        reject(new Error('Could not load Razorpay checkout.'));
+      };
+      document.body.appendChild(script);
+    });
+  }
+  return razorpayScriptPromise;
+}
 
 export default function PricingPage() {
   const [subInfo, setSubInfo] = useState(null);
   const [loadingPlan, setLoadingPlan] = useState(null);
   const [successMsg, setSuccessMsg] = useState('');
 
+  const refreshSubscription = () =>
+    fetch('/api/razorpay/subscription').then(r => r.json()).then(d => setSubInfo(d));
+
   useEffect(() => {
-    fetch('/api/stripe/subscription')
-      .then(r => r.json())
-      .then(d => setSubInfo(d))
-      .catch(() => {});
+    refreshSubscription().catch(() => {});
   }, []);
 
   async function handleSubscribe(planId) {
@@ -78,32 +100,62 @@ export default function PricingPage() {
     setLoadingPlan(planId);
     setSuccessMsg('');
     try {
-      const res = await fetch('/api/stripe/create-checkout-session', {
+      const orderRes = await fetch('/api/razorpay/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ plan: planId }),
       });
-      const data = await res.json();
-      if (res.ok && data.url) {
-        window.location.href = data.url;
-      } else {
-        // Fallback for test mode without live Stripe secret key: Activate plan directly
-        const actRes = await fetch('/api/stripe/activate-plan', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ plan: planId }),
-        });
-        const actData = await actRes.json();
-        if (actRes.ok) {
-          setSuccessMsg(`🎉 Payment completed! ${planId.toUpperCase()} plan activated with added credits.`);
-          fetch('/api/stripe/subscription').then(r => r.json()).then(d => setSubInfo(d));
-        } else {
-          alert(actData.message || 'Payment server not configured.');
-        }
+      const order = await orderRes.json();
+      if (!orderRes.ok) {
+        alert(order.message || 'Payment server not configured.');
+        setLoadingPlan(null);
+        return;
       }
-    } catch {
-      alert('Error initiating checkout.');
-    } finally {
+
+      await loadRazorpayScript();
+
+      const rzp = new window.Razorpay({
+        key: order.key_id,
+        amount: order.amount,
+        currency: order.currency,
+        order_id: order.order_id,
+        name: 'FeonixAI',
+        description: `${planId.toUpperCase()} Plan`,
+        theme: { color: '#00f5ff' },
+        handler: async (response) => {
+          try {
+            const verifyRes = await fetch('/api/razorpay/verify-payment', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+                plan: planId,
+              }),
+            });
+            const verifyData = await verifyRes.json();
+            if (verifyRes.ok && verifyData.success) {
+              setSuccessMsg(`🎉 Payment completed! ${planId.toUpperCase()} plan activated with added credits.`);
+              refreshSubscription().catch(() => {});
+            } else {
+              alert(verifyData.message || 'Payment verification failed.');
+            }
+          } finally {
+            setLoadingPlan(null);
+          }
+        },
+        modal: {
+          // Razorpay's own modal has no separate "cancel" event — closing it
+          // without paying just never calls `handler` at all, so this is
+          // the only hook that fires for that case.
+          ondismiss: () => setLoadingPlan(null),
+        },
+      });
+      rzp.on('payment.failed', () => setLoadingPlan(null));
+      rzp.open();
+    } catch (err) {
+      alert(err.message || 'Error initiating checkout.');
       setLoadingPlan(null);
     }
   }
@@ -117,8 +169,8 @@ export default function PricingPage() {
       <div style={s.container}>
         <div style={s.header}>
           <Link href="/?view=dash" style={s.backLink}>← Dashboard</Link>
-          <h1 style={s.title}>⚡ Stripe Payment & Subscriptions</h1>
-          <p style={s.subtitle}>5 Free Credits Included on Signup • Upgrade with Stripe for Full Power</p>
+          <h1 style={s.title}>⚡ Razorpay Payment & Subscriptions</h1>
+          <p style={s.subtitle}>5 Free Credits Included on Signup • Upgrade with Razorpay for Full Power</p>
         </div>
 
         {freeCreditsDone && (
@@ -127,7 +179,7 @@ export default function PricingPage() {
             <div>
               <strong style={{ color: '#fbbf24' }}>5 Free Credits Completed!</strong>
               <div style={{ fontSize: 13, color: '#fef3c7', marginTop: 2 }}>
-                You have used all 5 free trial credits. Please upgrade to Pro or Premium via Stripe below to add credits and unlock unlimited access.
+                You have used all 5 free trial credits. Please upgrade to Pro or Premium via Razorpay below to add credits and unlock unlimited access.
               </div>
             </div>
           </div>

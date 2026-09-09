@@ -2,9 +2,7 @@ import RecordingIndicator from './RecordingIndicator';
 import ScreenshotButton from './ScreenshotButton';
 import InterviewControls from './InterviewControls';
 
-// Row 1 of the HUD, plus the drag rail above it. The buttons here fill
-// nearly the entire width, which is exactly why the drag rail exists — see
-// its comment in overlay.css.
+// Row 1 of the HUD, plus the drag rail above it — matching Parakeet AI's signature header layout.
 export default function TopBar({
   onDragStart, dragging,
   listening, elapsedText, onToggleListening,
@@ -12,9 +10,14 @@ export default function TopBar({
   screenshots, screenshotMenuOpen, onToggleScreenshotMenu, onUploadClick, onCaptureScreen, onSolveScreenshotNow, onRemoveScreenshot,
   promptHubOpen, onToggleChat,
   isExpanded, onToggleExpand,
-  onMinimize, onClose,
+  onMinimize,
+  stealthMode,
+  onToggleStealth,
+  onToggleHide,
+  settingsOpen,
   onToggleSettings,
   onEndSession,
+  remainingText,
 }) {
   return (
     <>
@@ -30,12 +33,16 @@ export default function TopBar({
             className={`pk-action-btn pk-action-primary ${thinking ? 'pk-btn-loading' : ''}`}
             onClick={onAnswerClick}
             type="button"
-            title="Generate AI answer for the detected question"
+            title="Generate AI answer for the detected question (⌘↵)"
           >
             {thinking ? (
               <><span className="pk-btn-spinner" /> <span>Generating…</span></>
             ) : (
-              <><span>Answer</span><kbd>⌘↵</kbd></>
+              <>
+                <span className="pk-sparkle-icon">✨</span>
+                <span>Answer</span>
+                <kbd>⌘↵</kbd>
+              </>
             )}
           </button>
 
@@ -55,6 +62,7 @@ export default function TopBar({
             type="button"
             title="Type a custom question or prompt to generate AI answer"
           >
+            <span className="pk-btn-icon">💬</span>
             <span>Chat</span>
             <kbd>⌘⇧⌫</kbd>
           </button>
@@ -65,11 +73,16 @@ export default function TopBar({
           isExpanded={isExpanded}
           onToggleExpand={onToggleExpand}
           onMinimize={onMinimize}
-          onClose={onClose}
+          stealthMode={stealthMode}
+          onToggleStealth={onToggleStealth}
+          onToggleHide={onToggleHide}
+          settingsOpen={settingsOpen}
           onToggleSettings={onToggleSettings}
           onEndSession={onEndSession}
+          remainingText={remainingText}
         />
       </div>
     </>
   );
 }
+

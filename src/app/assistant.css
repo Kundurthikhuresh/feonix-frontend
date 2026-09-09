@@ -483,6 +483,12 @@
   align-items: flex-end;
 }
 
+.bubble-content-wrap.error .bubble-text {
+  color: #fca5a5;
+  border-left: 2px solid #ef4444;
+  padding-left: 8px;
+}
+
 .bubble-meta {
   display: flex;
   align-items: center;

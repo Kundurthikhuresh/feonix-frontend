@@ -94,7 +94,7 @@ export default function CreateSessionModal({
                 Free Trial {!trialsExhausted && <span className="bill-tag">Rec</span>}
               </span>
               <span className="bill-line">
-                {trialsExhausted ? '0 free trials left' : '5 minutes limit'}
+                {trialsExhausted ? '0 free trials left' : '15 minutes limit'}
               </span>
             </button>
             <button
@@ -103,7 +103,7 @@ export default function CreateSessionModal({
               onClick={() => setBillingChoice('paid')}
             >
               <span className="bill-title">Use Credits</span>
-              <span className="bill-line">{creditsLeft ? `${creditsLeft} credits remaining` : 'No duration limit'}</span>
+              <span className="bill-line">{creditsLeft ? `${creditsLeft} credits left · 15 min` : '15 min session'}</span>
             </button>
           </div>
         </div>

@@ -21,6 +21,9 @@ import './overlay.css';
 const DEFAULT_SETTINGS = {
   shortcutToggle: 'CommandOrControl+Shift+Space',
   shortcutHide: 'CommandOrControl+Shift+H',
+  shortcutScreenshot: 'CommandOrControl+Shift+S',
+  shortcutListenToggle: 'CommandOrControl+Shift+P',
+  shortcutAnswer: 'CommandOrControl+Shift+G',
   startMinimized: false,
   alwaysOnTop: true,
   launchAtStartup: false,
@@ -29,9 +32,12 @@ const DEFAULT_SETTINGS = {
   assistantSize: 'normal',
   rememberPosition: true,
   voiceEnabled: true,
+  stealthMode: true,
+  autoHideOnShare: false,
+  audioSource: 'mic',
 };
 
-const SIZE_PX = { compact: 840, normal: 1000, large: 1200 };
+const SIZE_PX = { compact: 880, normal: 980, large: 1200 };
 
 function OverlayContent() {
   const searchParams = useSearchParams();
@@ -69,16 +75,28 @@ function OverlayContent() {
     });
   };
 
-  const interview = useInterview({ querySessionId, plan, queryAuto, screenshots, answerStyle });
+  // Declared here (ahead of its more natural home further down, next to
+  // settingsOpen/isExpanded) only because useInterview below needs
+  // settings.audioSource at call time — moving just this one up avoids
+  // reordering the rest of the settings-related state.
+  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+
+  const interview = useInterview({
+    querySessionId, plan, queryAuto, screenshots, answerStyle, audioSource: settings.audioSource,
+  });
   const {
     session, autoAnswer, toggleAutoAnswer,
+    remainingText,
     showWarningModal, setShowWarningModal,
     toastMsg, showToast, triggerToast,
     speech, answering, askQuestion,
     handleEndSession,
   } = interview;
   const { listening, elapsedText, transcriptChips, setTranscriptChips, toggleListening } = speech;
-  const { thinking, answerHtml, cueLine, showAnswerCard, clearAnswer } = answering;
+  const {
+    thinking, answerHtml, cueLine, showAnswerCard, clearAnswer, hasError, rerun,
+    answersHistory, currentAnswerIndex, selectHistoryAnswer, prevAnswer, nextAnswer,
+  } = answering;
 
   // Visibility: 'open' (full HUD) | 'minimized' (small status pill) |
   // 'hidden' (nothing rendered at all). Every state is equally visible to
@@ -129,17 +147,17 @@ function OverlayContent() {
   // always-on-top) live entirely in the Electron main process; these four
   // affect this page's own rendering/behavior, so they're the single
   // source of truth here and just mirrored to the main process for
-  // persistence via window.feonix.setSetting.
-  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+  // persistence via window.feonix.setSetting. (settings/setSettings itself
+  // is declared above, ahead of useInterview.)
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
-  const cardSize = { width: 880, height: 520 };
+  const cardSize = { width: 980, height: 500 };
 
   useEffect(() => {
     if (window.feonix && typeof window.feonix.getSettings === 'function') {
       window.feonix.getSettings().then((s) => {
         setSettings((prev) => ({ ...prev, ...s }));
-      }).catch(() => {});
+      }).catch(() => { });
     }
   }, []);
 
@@ -148,7 +166,55 @@ function OverlayContent() {
     if (window.feonix && typeof window.feonix.setSetting === 'function') {
       window.feonix.setSetting(key, value)
         .then((updated) => setSettings((prev) => ({ ...prev, ...updated })))
-        .catch(() => {});
+        .catch(() => { });
+    }
+  };
+
+  const handleToggleStealth = () => {
+    const nextVal = settings.stealthMode === false;
+    updateSetting('stealthMode', nextVal);
+    setVisibility('open');
+    if (window.feonix && typeof window.feonix.show === 'function') {
+      window.feonix.show();
+    }
+    if (window.feonix && typeof window.feonix.bringToFront === 'function') {
+      window.feonix.bringToFront();
+    }
+  };
+
+  const handleToggleHide = () => {
+    setVisibility((prev) => {
+      if (prev === 'hidden') {
+        if (window.feonix && typeof window.feonix.show === 'function') {
+          window.feonix.show();
+        }
+        if (window.feonix && typeof window.feonix.bringToFront === 'function') {
+          window.feonix.bringToFront();
+        }
+        return 'open';
+      } else {
+        if (window.feonix && typeof window.feonix.hide === 'function') {
+          window.feonix.hide();
+        }
+        return 'hidden';
+      }
+    });
+  };
+
+  const handleEndClick = () => {
+    try {
+      handleEndSession();
+    } catch { }
+    if (typeof window !== 'undefined') {
+      if (window.feonix && typeof window.feonix.quit === 'function') {
+        window.feonix.quit();
+        return;
+      }
+      if (window.feonix && typeof window.feonix.closeOverlay === 'function') {
+        window.feonix.closeOverlay();
+        return;
+      }
+      window.location.href = '/?view=dash';
     }
   };
 
@@ -186,6 +252,9 @@ function OverlayContent() {
       onChat: () => setPromptHubOpen((prev) => !prev),
       onClearAnswer: () => clearAnswer(),
       onEndSession: () => handleEndSession(),
+      onScreenshotCapture: () => handleCaptureScreen(),
+      onToggleListening: () => handleToggleListening(),
+      onToggleHide: () => handleToggleHide(),
     };
   });
 
@@ -214,13 +283,10 @@ function OverlayContent() {
       // stays live even when visibility is 'hidden' (nothing rendered isn't
       // the same as unmounted), so this is a real way back once you're
       // actually looking at this tab again, not just an Electron feature.
-      // In Electron this is a no-op in practice: a registered global
-      // shortcut is intercepted by the OS before a normal keydown for it
-      // ever reaches this window, so it never double-fires alongside the
-      // main-process handler.
       if (e.shiftKey && (e.key === 'H' || e.key === 'h')) {
         e.preventDefault();
-        setVisibility((prev) => (prev === 'hidden' ? 'open' : 'hidden'));
+        const handler = shortcutHandlersRef.current.onToggleHide;
+        if (handler) handler();
         return;
       }
       if (e.shiftKey && e.key === ' ') {
@@ -247,8 +313,8 @@ function OverlayContent() {
         handlers.onEndSession();
       }
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, []);
 
   // Global shortcut + tray commands, pushed from the Electron main process
@@ -261,12 +327,47 @@ function OverlayContent() {
 
     if (window.feonix.onShortcutToggle) {
       unsubs.push(window.feonix.onShortcutToggle(() => {
-        setVisibility((prev) => (prev === 'open' ? 'minimized' : 'open'));
+        setVisibility((prev) => {
+          if (prev === 'hidden' || prev === 'minimized') {
+            if (window.feonix && typeof window.feonix.bringToFront === 'function') {
+              window.feonix.bringToFront();
+            }
+            return 'open';
+          }
+          return 'minimized';
+        });
       }));
     }
     if (window.feonix.onShortcutHide) {
-      unsubs.push(window.feonix.onShortcutHide(() => {
-        setVisibility((prev) => (prev === 'hidden' ? 'open' : 'hidden'));
+      unsubs.push(window.feonix.onShortcutHide((data) => {
+        if (data && typeof data.visible === 'boolean') {
+          setVisibility(data.visible ? 'open' : 'hidden');
+          if (data.visible) {
+            if (typeof window.feonix.show === 'function') window.feonix.show();
+            if (typeof window.feonix.bringToFront === 'function') window.feonix.bringToFront();
+          }
+        } else {
+          // If no boolean payload was sent, cleanly toggle visibility
+          const handler = shortcutHandlersRef.current.onToggleHide;
+          if (handler) handler();
+        }
+      }));
+    }
+    if (window.feonix.onShortcutScreenshot) {
+      unsubs.push(window.feonix.onShortcutScreenshot(() => {
+        setVisibility('open');
+        shortcutHandlersRef.current.onScreenshotCapture();
+      }));
+    }
+    if (window.feonix.onShortcutListenToggle) {
+      unsubs.push(window.feonix.onShortcutListenToggle(() => {
+        shortcutHandlersRef.current.onToggleListening();
+      }));
+    }
+    if (window.feonix.onShortcutAnswer) {
+      unsubs.push(window.feonix.onShortcutAnswer(() => {
+        setVisibility('open');
+        shortcutHandlersRef.current.onAnswer();
       }));
     }
     if (window.feonix.onTrayShow) {
@@ -282,6 +383,15 @@ function OverlayContent() {
       unsubs.push(window.feonix.onTrayOpenSettings(() => {
         setVisibility('open');
         setSettingsOpen(true);
+      }));
+    }
+    if (window.feonix.onScreenShareStateChange) {
+      unsubs.push(window.feonix.onScreenShareStateChange((data) => {
+        if (data && data.active) {
+          const names = (data.platforms || []).map((p) => p.name).join(', ') || 'Screen Sharing';
+          setVisibility('open');
+          triggerToast(`🛡️ ${names} detected — copilot hidden from opposite person and always visible to you`);
+        }
       }));
     }
 
@@ -438,21 +548,33 @@ function OverlayContent() {
   // visibility state is current — a full HUD needs room for content, the
   // pill needs almost none, and hidden needs nothing on screen at all.
   useEffect(() => {
-    if (!(window.feonix && typeof window.feonix.resize === 'function')) return;
+    if (!window.feonix) return;
     if (visibility === 'hidden') {
-      window.feonix.resize(100, 100); // main process clamps to a 100px floor
+      if (typeof window.feonix.hide === 'function') {
+        window.feonix.hide();
+      } else if (typeof window.feonix.resize === 'function') {
+        window.feonix.resize(100, 100);
+      }
     } else if (visibility === 'minimized') {
-      window.feonix.resize(220, 44);
+      if (typeof window.feonix.show === 'function') window.feonix.show();
+      if (typeof window.feonix.resize === 'function') window.feonix.resize(220, 44);
     } else if (visibility === 'open') {
-      if (cueLine) {
-        const height = (isExpanded ? 640 : cardSize.height) + 160;
-        const width = isExpanded ? 1100 : Math.max(cardSize.width, 880);
-        window.feonix.resize(width, height);
-      } else {
-        window.feonix.resize(880, 160);
+      if (typeof window.feonix.show === 'function') window.feonix.show();
+      if (typeof window.feonix.resize === 'function') {
+        const targetWidth = Math.max(SIZE_PX[settings.assistantSize] || 980, isExpanded ? 1120 : 980);
+        if (settingsOpen) {
+          window.feonix.resize(targetWidth, 540);
+        } else if (promptHubOpen) {
+          window.feonix.resize(targetWidth, 420);
+        } else if (cueLine || answerHtml || thinking || (answersHistory && answersHistory.length > 0)) {
+          const height = (isExpanded ? 640 : cardSize.height) + 140;
+          window.feonix.resize(targetWidth, height);
+        } else {
+          window.feonix.resize(targetWidth, 260);
+        }
       }
     }
-  }, [visibility, cueLine, isExpanded]);
+  }, [visibility, cueLine, answerHtml, thinking, answersHistory, isExpanded, settings.assistantSize, settingsOpen, promptHubOpen]);
 
   const handleToggleListening = () => {
     if (!settings.voiceEnabled) {
@@ -481,8 +603,20 @@ function OverlayContent() {
 
   const handleCaptureScreen = async () => {
     setScreenshotMenuOpen(false);
+    const visibilityBeforeCapture = visibility;
     try {
-      const dataUrl = await captureScreenSnapshot();
+      const dataUrl = await captureScreenSnapshot({
+        // This is a one-shot, local capture the user just triggered
+        // themselves to feed to the AI — not a live broadcast to anyone
+        // else. Hiding the HUD for the instant the frame is grabbed keeps
+        // its own buttons/chrome out of that image (the same way a native
+        // OS screenshot tool excludes its own toolbar), then it's restored
+        // right after. This never touches, and has no effect on, a
+        // separate live screen share to an interviewer over Zoom/Meet/
+        // Teams — that visibility question is answered elsewhere and is
+        // deliberately not something this touches.
+        onBeforeFrame: () => { setVisibility('hidden'); },
+      });
       addScreenshots([dataUrl]);
       setPromptHubOpen(true);
       triggerToast('🖥️ Screen captured — ready to solve');
@@ -494,12 +628,16 @@ function OverlayContent() {
         console.warn('Screen capture note:', err.message);
         triggerToast('⚠️ Screen capture cancelled');
       }
+    } finally {
+      setVisibility(visibilityBeforeCapture);
     }
   };
 
   const handleAnswerClick = () => {
     if (cueLine) {
       askQuestion(cueLine, { images: screenshots, style: answerStyle });
+    } else if (screenshots.length > 0) {
+      askQuestion('Analyze the attached screenshot and provide the complete solution.', { images: screenshots, style: answerStyle });
     } else {
       setPromptHubOpen(true);
       triggerToast('💡 Type a question in Chat to generate an answer');
@@ -514,6 +652,7 @@ function OverlayContent() {
     e.preventDefault();
     if (!customPromptText.trim() && screenshots.length === 0) return;
     const prompt = customPromptText.trim() || 'Analyze the question and provide the solution.';
+    setPromptHubOpen(false);
     setTranscriptChips((prev) => [...prev, { text: prompt, isQuestion: true }]);
     askQuestion(prompt, { images: screenshots, style: answerStyle });
     setCustomPromptText('');
@@ -522,6 +661,7 @@ function OverlayContent() {
   const handleQuickPromptClick = (presetText, style) => {
     setAnswerStyle(style);
     const fullPrompt = customPromptText.trim() ? `${customPromptText.trim()} (${presetText})` : presetText;
+    setPromptHubOpen(false);
     setTranscriptChips((prev) => [...prev, { text: fullPrompt, isQuestion: true }]);
     askQuestion(fullPrompt, { images: screenshots, style });
   };
@@ -538,7 +678,7 @@ function OverlayContent() {
     triggerToast(text ? '⧉ Response copied' : 'Nothing to copy yet');
   };
 
-  const pillStatus = thinking ? 'processing' : listening ? 'listening' : 'ready';
+  const pillStatus = hasError ? 'error' : thinking ? 'processing' : listening ? 'listening' : 'ready';
 
   return (
     <div className="overlay-page-shell" style={{ opacity: settings.opacity / 100, pointerEvents: 'none' }}>
@@ -602,9 +742,13 @@ function OverlayContent() {
             isExpanded={isExpanded}
             onToggleExpand={() => setIsExpanded((prev) => !prev)}
             onMinimize={() => setVisibility('minimized')}
-            onClose={() => setVisibility('hidden')}
+            stealthMode={settings.stealthMode}
+            onToggleStealth={handleToggleStealth}
+            onToggleHide={handleToggleHide}
+            settingsOpen={settingsOpen}
             onToggleSettings={() => setSettingsOpen((prev) => !prev)}
-            onEndSession={handleEndSession}
+            onEndSession={handleEndClick}
+            remainingText={remainingText}
           />
 
           <QuestionPanel
@@ -623,11 +767,15 @@ function OverlayContent() {
             thinking={thinking}
             isExpanded={isExpanded}
             elapsedText={elapsedText}
-            onClear={clearAnswer}
+            hasError={hasError}
             onCopyQuestion={() => navigator.clipboard?.writeText(cueLine)}
             onCopyResponse={handleCopyResponse}
             onThumbUp={() => triggerToast('👍 Saved')}
             onThumbDown={() => triggerToast('👎 Noted')}
+            onRegenerate={() => rerun({ action: 'answer', style: answerStyle })}
+            onShorten={() => rerun({ action: 'shorten', style: answerStyle })}
+            onExpand={() => rerun({ action: 'deepen', style: answerStyle })}
+            onRetry={() => rerun({ style: answerStyle })}
           />
 
           <ChatPanel
@@ -648,6 +796,12 @@ function OverlayContent() {
             autoAnswer={autoAnswer}
             onToggleAutoAnswer={toggleAutoAnswer}
             onClose={() => setSettingsOpen(false)}
+            answersHistory={answersHistory}
+            onSelectAnswer={(idx) => {
+              selectHistoryAnswer(idx);
+              setSettingsOpen(false);
+            }}
+            onOpenChat={() => setPromptHubOpen(true)}
           />
         </div>
       )}
@@ -672,6 +826,36 @@ function OverlayContent() {
           </div>
         </div>
       )}
+
+      {/* Browser-fallback restore hint: in Electron, the OS global shortcut restores the native window. In a browser tab, this subtle button lets you unhide if needed. */}
+      {visibility === 'hidden' && (typeof window !== 'undefined' && !window.feonix) && (
+        <div
+          onClick={handleToggleHide}
+          style={{
+            position: 'fixed',
+            top: '16px',
+            right: '16px',
+            pointerEvents: 'all',
+            background: 'rgba(20, 20, 24, 0.95)',
+            border: '1px solid rgba(48, 209, 88, 0.5)',
+            borderRadius: '8px',
+            padding: '6px 12px',
+            color: '#30d158',
+            fontSize: '12px',
+            fontWeight: 600,
+            cursor: 'pointer',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
+            zIndex: 99999,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+          }}
+          title="Click or press Ctrl+Shift+H to restore Copilot"
+        >
+          <span className="pk-stealth-dot pk-dot-green" />
+          <span>Copilot Hidden (Ctrl+Shift+H to Show)</span>
+        </div>
+      )}
     </div>
   );
 }
@@ -683,3 +867,4 @@ export default function OverlayPage() {
     </Suspense>
   );
 }
+

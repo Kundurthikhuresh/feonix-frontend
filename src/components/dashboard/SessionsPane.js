@@ -11,13 +11,22 @@ function parseTimestamp(val) {
 }
 
 function getSessionRemainingInfo(s, currentNow) {
+  if (s.status === 'ended') {
+    return { isEnded: true };
+  }
   if (s.expires_at) {
     const expMs = parseTimestamp(s.expires_at);
-    if (Number.isFinite(expMs)) {
-      return { isEnded: currentNow >= expMs };
+    if (Number.isFinite(expMs) && currentNow >= expMs) {
+      return { isEnded: true };
     }
   }
-  return { isEnded: s.status === 'ended' };
+  if (s.started_at) {
+    const startMs = parseTimestamp(s.started_at);
+    if (Number.isFinite(startMs) && currentNow >= startMs + 15 * 60 * 1000) {
+      return { isEnded: true };
+    }
+  }
+  return { isEnded: false };
 }
 
 export default function SessionsPane({
@@ -78,13 +87,13 @@ export default function SessionsPane({
     return () => clearInterval(iv);
   }, []);
 
-  // When a session passes the 5-minute mark, automatically sync with backend to settle it
+  // When a session passes the 15-minute mark, automatically sync with backend to settle it
   useEffect(() => {
     sessions.forEach((s) => {
-      if (s.status !== 'ended' && s.expires_at) {
-        const expMs = parseTimestamp(s.expires_at);
-        if (Number.isFinite(expMs) && now >= expMs) {
-          fetch(`/api/sessions/${s.id}/end`, { method: 'POST' }).catch(() => {});
+      if (s.status !== 'ended') {
+        const { isEnded } = getSessionRemainingInfo(s, now);
+        if (isEnded) {
+          fetch(`/api/sessions/${s.id}/end`, { method: 'POST' }).catch(() => { });
         }
       }
     });

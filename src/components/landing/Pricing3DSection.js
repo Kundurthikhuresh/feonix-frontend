@@ -42,7 +42,7 @@ export default function Pricing3DSection({ onSelectPlan }) {
               <ul className="plan-features-list">
                 <li>
                   <div className="plan-check-icon"><Check size={14} /></div>
-                  <span>10-minute trial session limit</span>
+                  <span>15-minute trial session limit</span>
                 </li>
                 <li>
                   <div className="plan-check-icon"><Check size={14} /></div>

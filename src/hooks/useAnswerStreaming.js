@@ -22,9 +22,16 @@ export function useAnswerStreaming() {
   const [qtype, setQtype] = useState('');
   const [cueLine, setCueLine] = useState('');
   const [showAnswerCard, setShowAnswerCard] = useState(true);
+  const [hasError, setHasError] = useState(false);
+  const [answersHistory, setAnswersHistory] = useState([]);
+  const [currentAnswerIndex, setCurrentAnswerIndex] = useState(0);
 
   const answerAbortRef = useRef(null);
   const typewriterIntervalRef = useRef(null);
+  // Remembers exactly what produced the answer on screen, so Regenerate/
+  // Shorten/Expand/Retry can re-run the same call with only `action` swapped
+  // out, instead of the caller having to re-thread question/images/style.
+  const lastCallRef = useRef(null);
 
   useEffect(() => () => {
     if (answerAbortRef.current) answerAbortRef.current.abort();
@@ -37,7 +44,8 @@ export function useAnswerStreaming() {
   }, []);
 
   const generateAnswer = useCallback(async (question, opts = {}) => {
-    const { images = [], style = 'star', transcript = '', sessionId = null, language = 'en' } = opts;
+    const { images = [], style = 'star', transcript = '', sessionId = null, language = 'en', action = 'answer' } = opts;
+    lastCallRef.current = { question, opts };
 
     setShowAnswerCard(true);
     if (answerAbortRef.current) answerAbortRef.current.abort();
@@ -45,6 +53,7 @@ export function useAnswerStreaming() {
     answerAbortRef.current = controller;
 
     setThinking(true);
+    setHasError(false);
     setAnswerHtml('');
     setCueLine(question);
     setQtype(QTYPE_LABELS[style] || '⭐ STAR Method Response');
@@ -80,6 +89,7 @@ export function useAnswerStreaming() {
         transcript,
         sessionId,
         language,
+        action,
         signal: controller.signal,
         onToken: (_chunk, full) => { textAccumulator = full; },
         onError: (message) => {
@@ -103,9 +113,25 @@ export function useAnswerStreaming() {
         typewriterIntervalRef.current = null;
       }
 
-      setAnswerHtml(formatParakeetAnswer(textAccumulator));
+      const finalHtml = formatParakeetAnswer(textAccumulator);
+      setAnswerHtml(finalHtml);
       setThinking(false);
       setQtype('Final Solution');
+
+      // Keep record in answers history for instant retrieval
+      const newEntry = {
+        id: Date.now(),
+        question,
+        answerHtml: finalHtml,
+        style,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      };
+      setAnswersHistory((prev) => {
+        const filtered = prev.filter((item) => item.question !== question);
+        return [newEntry, ...filtered].slice(0, 30);
+      });
+      setCurrentAnswerIndex(0);
+
       return { ok: true };
     } catch (err) {
       if (typewriterIntervalRef.current) {
@@ -117,6 +143,7 @@ export function useAnswerStreaming() {
       }
       console.error('Answer fetch failed:', err);
       setThinking(false);
+      setHasError(true);
       setQtype('Error');
       const isRequestError = Boolean(err.status);
       const message = isRequestError ? (err.message || 'Could not fetch answer.') : 'Could not reach the answer service. Check your connection and try again.';
@@ -128,6 +155,62 @@ export function useAnswerStreaming() {
     }
   }, []);
 
+  const selectHistoryAnswer = useCallback((indexOrId) => {
+    setAnswersHistory((currentHistory) => {
+      let target = null;
+      let idx = -1;
+      if (typeof indexOrId === 'number') {
+        idx = indexOrId;
+        target = currentHistory[indexOrId];
+      } else {
+        idx = currentHistory.findIndex((a) => a.id === indexOrId);
+        target = currentHistory[idx];
+      }
+      if (target) {
+        setCueLine(target.question);
+        setAnswerHtml(target.answerHtml);
+        setCurrentAnswerIndex(idx);
+        setShowAnswerCard(true);
+      }
+      return currentHistory;
+    });
+  }, []);
+
+  const prevAnswer = useCallback(() => {
+    if (currentAnswerIndex < answersHistory.length - 1) {
+      const nextIdx = currentAnswerIndex + 1;
+      const target = answersHistory[nextIdx];
+      if (target) {
+        setCueLine(target.question);
+        setAnswerHtml(target.answerHtml);
+        setCurrentAnswerIndex(nextIdx);
+        setShowAnswerCard(true);
+      }
+    }
+  }, [currentAnswerIndex, answersHistory]);
+
+  const nextAnswer = useCallback(() => {
+    if (currentAnswerIndex > 0) {
+      const prevIdx = currentAnswerIndex - 1;
+      const target = answersHistory[prevIdx];
+      if (target) {
+        setCueLine(target.question);
+        setAnswerHtml(target.answerHtml);
+        setCurrentAnswerIndex(prevIdx);
+        setShowAnswerCard(true);
+      }
+    }
+  }, [currentAnswerIndex, answersHistory]);
+
+  // Re-runs the call that produced the answer on screen, optionally with a
+  // different `action` (shorten/deepen/answer) — the shared path behind
+  // Regenerate, Shorten, Expand and the error card's Retry button.
+  const rerun = useCallback((overrides = {}) => {
+    const last = lastCallRef.current;
+    if (!last) return undefined;
+    return generateAnswer(last.question, { ...last.opts, ...overrides });
+  }, [generateAnswer]);
+
   return {
     thinking,
     answerHtml,
@@ -137,7 +220,15 @@ export function useAnswerStreaming() {
     setCueLine,
     showAnswerCard,
     setShowAnswerCard,
+    hasError,
+    answersHistory,
+    setAnswersHistory,
+    currentAnswerIndex,
+    selectHistoryAnswer,
+    prevAnswer,
+    nextAnswer,
     generateAnswer,
+    rerun,
     clearAnswer,
   };
 }

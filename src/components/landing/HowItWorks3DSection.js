@@ -75,7 +75,7 @@ const ROW_2_CARDS = [
     step: '07',
     tag: 'STEALTH SHIELD',
     title: 'Stealth Multi-Monitor HUD',
-    description: 'Completely invisible to screen-shares (Zoom, Teams, Google Meet) with customizable opacity & emergency hotkeys.',
+    description: 'Completely invisible to screen-shares (Zoom, Teams, Meet, WhatsApp, Discord, Webex, Jitsi, Slack, Loom, GoTo, Whereby) with customizable opacity & emergency hotkeys.',
     icon: Layers,
     accent: '#8b5cf6',
   },

@@ -26,14 +26,14 @@ function parseSseFrame(frame) {
  * committed to returning whatever text it got.
  */
 export async function streamAnswer({
-  question, images, answerStyle, transcript, sessionId, language, signal, onToken, onError,
+  question, images, answerStyle, transcript, sessionId, language, action, signal, onToken, onError,
 }) {
   const res = await fetch('/api/answer', {
     method: 'POST',
     signal,
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      question, images, answerStyle, transcript,
+      question, images, answerStyle, transcript, action,
       session_id: sessionId, language: language || 'en',
     }),
   });

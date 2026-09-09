@@ -77,12 +77,21 @@ export function parseAnswerSections(rawText) {
     if (/^\[POINTS\]/i.test(line)) {
       currentSection = 'points';
       hasStructure = true;
+      const rest = line.replace(/^\[POINTS\]/i, '').trim();
+      if (rest) {
+        const cleaned = rest.replace(/^[-*•\d.]+\s*/, '').trim();
+        if (cleaned) points.push(cleaned);
+      }
       continue;
     }
 
     if (/^\[ANSWER\]/i.test(line)) {
       currentSection = 'answer';
       hasStructure = true;
+      const rest = line.replace(/^\[ANSWER\]/i, '').trim();
+      if (rest) {
+        answer += (answer ? '\n' : '') + rest;
+      }
       continue;
     }
 
@@ -109,10 +118,9 @@ export function parseAnswerSections(rawText) {
     }
   }
 
-  // Fallback: If no [ANSWER] tag was explicitly provided but [POINTS] was,
-  // check if points contains everything or if answer is empty
-  if (hasStructure && !answer && points.length > 0) {
-    // If the model only returned points so far during stream
+  // Fallback: If no [ANSWER] tag was explicitly provided but body text was entered
+  if (!answer && !hasStructure && rawText.trim()) {
+    answer = rawText.trim();
   }
 
   return {
@@ -186,29 +194,37 @@ function escapeHtml(str) {
 /**
  * Live-streaming preview, used while tokens are still arriving.
  *
- * The full formatParakeetAnswer() below re-classifies [TYPE]/[POINTS]/[ANSWER]
- * from scratch on every partial substring, so mid-tag fragments ("[TY",
- * "[POINT") get shown as raw body text for a few ticks and then vanish the
- * instant the tag completes and the section state machine reclassifies them —
- * that's the flicker/"blinking" a viewer sees. The backend's answer always
- * carries this preamble ahead of the spoken reply, so instead of rendering
- * anything before [ANSWER] is fully visible, this returns null and the caller
- * keeps the thinking indicator up; once [ANSWER] is found, only the text after
- * it is shown, and that text only ever grows — never reclassified, never
- * removed, so nothing already on screen can disappear.
+ * Streams answer content smoothly without tag flicker.
  */
 export function formatStreamingAnswer(accumulatedText) {
+  if (!accumulatedText) return null;
+
   const idx = String(accumulatedText || '').search(/\[ANSWER\]/i);
-  if (idx === -1) return null;
-  const after = accumulatedText.slice(idx).replace(/^\[ANSWER\]\s*\n?/i, '');
-  if (!after) return null;
-  return (
-    '<div class="parakeet-answer-container">' +
-      '<div class="teleprompter-explanation">' +
-        `<div class="explanation-body">${formatBodyWithCodeBlocks(after)}</div>` +
-      '</div>' +
-    '</div>'
-  );
+  if (idx !== -1) {
+    const after = accumulatedText.slice(idx).replace(/^\[ANSWER\]\s*\n?/i, '').trim();
+    if (!after) return null;
+    return (
+      '<div class="parakeet-answer-container">' +
+        '<div class="teleprompter-explanation">' +
+          `<div class="explanation-body">${formatBodyWithCodeBlocks(after)}</div>` +
+        '</div>' +
+      '</div>'
+    );
+  }
+
+  // If streaming direct markdown / text without [TYPE] or [POINTS] tags (e.g. Chat or Screenshot solve):
+  const hasTagPreamble = /^\s*\[(TYPE|POINTS)/i.test(accumulatedText);
+  if (!hasTagPreamble && accumulatedText.trim().length > 10) {
+    return (
+      '<div class="parakeet-answer-container">' +
+        '<div class="teleprompter-explanation">' +
+          `<div class="explanation-body">${formatBodyWithCodeBlocks(accumulatedText)}</div>` +
+        '</div>' +
+      '</div>'
+    );
+  }
+
+  return null;
 }
 
 /**
@@ -260,28 +276,23 @@ export function formatParakeetAnswer(rawText) {
 
   // 2. Explanation / Narrative Delivery Section (if present)
   if (answer) {
-    html += `
-      <div class="teleprompter-explanation">
-        ${points && points.length > 0 ? '<div class="explanation-divider"></div>' : ''}
-        <div class="explanation-body">
-          ${formatBodyWithCodeBlocks(answer)}
+    const cleanAns = answer.replace(/\s+/g, ' ').trim().toLowerCase();
+    const cleanPoints = (points || []).join('. ').replace(/\s+/g, ' ').trim().toLowerCase();
+    const isRedundantRepeat = (points && points.length > 0) && (
+      cleanAns === cleanPoints ||
+      cleanAns === cleanPoints + '.'
+    );
+
+    if (!isRedundantRepeat) {
+      html += `
+        <div class="teleprompter-explanation">
+          ${points && points.length > 0 ? '<div class="explanation-divider"></div>' : ''}
+          <div class="explanation-body">
+            ${formatBodyWithCodeBlocks(answer)}
+          </div>
         </div>
-      </div>
-    `;
-  } else if (points && points.length > 0) {
-    // The model emitted [POINTS] but dropped the mandatory [ANSWER] tag — a
-    // known gpt-4o-mini flake (see the tag reminder in answer.js). Without
-    // this, the user sees a bare bullet list and nothing to actually say out
-    // loud, which is strictly worse than a rough fallback built from the
-    // fragments it did produce.
-    html += `
-      <div class="teleprompter-explanation">
-        <div class="explanation-divider"></div>
-        <div class="explanation-body">
-          <p class="parakeet-para">${formatInlineMarkdown(points.join('. ') + '.')}</p>
-        </div>
-      </div>
-    `;
+      `;
+    }
   } else if (!hasStructure && !points.length) {
     html += `
       <div class="teleprompter-explanation">

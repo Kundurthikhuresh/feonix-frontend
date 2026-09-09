@@ -1,15 +1,14 @@
 import { forwardRef } from 'react';
 
 const STATUS = {
-  processing: { label: 'Processing', dotClass: 'pk-mini-pill-dot-processing' },
-  listening: { label: 'Listening', dotClass: 'pk-mini-pill-dot-listening' },
+  processing: { label: 'Crafting…', dotClass: 'pk-mini-pill-dot-processing' },
+  listening: { label: 'Listening…', dotClass: 'pk-mini-pill-dot-listening' },
   ready: { label: 'Ready', dotClass: 'pk-mini-pill-dot-ready' },
+  error: { label: 'Error', dotClass: 'pk-mini-pill-dot-error' },
 };
 
-// The minimized state: a small status pill, equally visible to anyone who
-// can see the screen — including a screen share. No "hidden from X"
-// framing; it's a normal minimize, same as any other app's tray-minimized
-// window would look if it left something on screen at all.
+// Parakeet AI Minimized Floating Status Pill:
+// Compact, top-docked glass capsule with live status indicator and one-click expand.
 const AssistantPill = forwardRef(function AssistantPill(
   { status = 'ready', dragPos, dragging, onDragStart, onOpen }, ref
 ) {
@@ -29,12 +28,15 @@ const AssistantPill = forwardRef(function AssistantPill(
         margin: 0,
         cursor: dragging ? 'grabbing' : 'grab',
       } : { cursor: 'grab' }}
-      title="Click to open Feonix AI · Ctrl+Shift+Space"
+      title="Click to open Copilot HUD (Ctrl+Shift+Space)"
     >
+      <span className="pk-mini-pill-sparkle">✨</span>
       <span className={`pk-mini-pill-dot ${dotClass}`} />
-      <span className="pk-mini-pill-label">Feonix AI · {label}</span>
+      <span className="pk-mini-pill-label">{label}</span>
+      <span className="pk-mini-pill-expand" title="Expand">⤢</span>
     </div>
   );
 });
 
 export default AssistantPill;
+

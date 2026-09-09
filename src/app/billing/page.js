@@ -6,32 +6,14 @@ import Link from 'next/link';
 export default function BillingPage() {
   const [sub, setSub] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [openingPortal, setOpeningPortal] = useState(false);
 
   useEffect(() => {
-    fetch('/api/stripe/subscription')
+    fetch('/api/razorpay/subscription')
       .then(r => r.json())
       .then(d => setSub(d))
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
-
-  async function handleOpenPortal() {
-    setOpeningPortal(true);
-    try {
-      const res = await fetch('/api/stripe/create-portal-session', { method: 'POST' });
-      const data = await res.json();
-      if (res.ok && data.url) {
-        window.location.href = data.url;
-      } else {
-        alert(data.message || 'Customer portal is not available.');
-      }
-    } catch {
-      alert('Error connecting to billing portal.');
-    } finally {
-      setOpeningPortal(false);
-    }
-  }
 
   return (
     <div style={s.page}>
@@ -60,7 +42,7 @@ export default function BillingPage() {
               <div style={s.detailItem}>
                 <div style={s.detailLabel}>Payment Details Added</div>
                 <div style={{ ...s.detailValue, color: sub?.payment_details_added ? '#34d399' : '#f59e0b' }}>
-                  {sub?.payment_details_added ? '✓ Active in Stripe' : 'Not Added Yet'}
+                  {sub?.payment_details_added ? '✓ Paid via Razorpay' : 'Not Added Yet'}
                 </div>
               </div>
               <div style={s.detailItem}>
@@ -77,23 +59,21 @@ export default function BillingPage() {
               </div>
             </div>
 
-            {sub?.payment_details_added ? (
-              <button style={s.portalBtn} onClick={handleOpenPortal} disabled={openingPortal}>
-                {openingPortal ? '⏳ Opening Portal...' : '⚙ Manage Payment Methods & Invoices in Stripe'}
-              </button>
-            ) : (
-              <div style={s.promoBox}>
-                <div>
-                  <strong>5 Free Credits Period Status</strong>
-                  <p style={{ margin: '4px 0 0', fontSize: 13 }}>
-                    {sub?.trials_remaining === 0
-                      ? 'You have completed all 5 free credits. Upgrade via Stripe to add paid credits and continue.'
+            <div style={s.promoBox}>
+              <div>
+                <strong>{sub?.payment_details_added ? 'Credits run low? Top up anytime' : '5 Free Credits Period Status'}</strong>
+                <p style={{ margin: '4px 0 0', fontSize: 13 }}>
+                  {sub?.payment_details_added
+                    ? 'Every plan purchase adds credits on top of what you already have — buy again whenever you need more.'
+                    : sub?.trials_remaining === 0
+                      ? 'You have completed all 5 free credits. Upgrade via Razorpay to add paid credits and continue.'
                       : 'You are using your initial 5 free trial credits. Upgrade to Pro/Premium for high quotas.'}
-                  </p>
-                </div>
-                <Link href="/pricing" style={s.upgradeBtn}>Upgrade with Stripe →</Link>
+                </p>
               </div>
-            )}
+              <Link href="/pricing" style={s.upgradeBtn}>
+                {sub?.payment_details_added ? 'Buy More Credits →' : 'Upgrade with Razorpay →'}
+              </Link>
+            </div>
           </div>
         )}
       </div>
@@ -121,7 +101,6 @@ const s = {
   detailItem: { display: 'flex', flexDirection: 'column', gap: 4 },
   detailLabel: { fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase' },
   detailValue: { fontSize: 15, fontWeight: 700, color: '#cbd5e1' },
-  portalBtn: { width: '100%', background: 'rgba(0,245,255,0.1)', border: '1px solid rgba(0,245,255,0.3)', color: '#00f5ff', borderRadius: 10, padding: '12px', fontWeight: 800, fontSize: 14, cursor: 'pointer' },
   promoBox: { background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: '18px', fontSize: 13.5, color: '#94a3b8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
   upgradeBtn: { background: 'linear-gradient(135deg, #00f5ff, #0891b2)', color: '#0a0b0f', borderRadius: 8, padding: '8px 18px', fontWeight: 800, fontSize: 13, textDecoration: 'none', flexShrink: 0 },
 };

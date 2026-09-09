@@ -377,6 +377,17 @@ export default function Page() {
 
     const initialView = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('view') : null;
 
+    // "Go to sign in" after a password reset (and anywhere else that wants
+    // to land straight on the login form, e.g. an expired-session redirect)
+    // used to just push to '/' — landing on the plain marketing page, not
+    // actually on sign-in, requiring a further click to find and open it.
+    // ?auth=login opens it immediately instead.
+    const initialAuth = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('auth') : null;
+    if (initialAuth === 'login' || initialAuth === 'register') {
+      setAuthMode(initialAuth);
+      setShowAuthModal(true);
+    }
+
     if (initialView === 'dash') {
       setCurrentView('dash');
       if (typeof window !== 'undefined') {

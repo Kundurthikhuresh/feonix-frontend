@@ -1,15 +1,13 @@
-// Row 2 of the HUD: the live transcript strip. Doubles as the microphone /
-// listening indicator (the little waveform bars vs. a paused glyph) and as
-// where a detected question gets picked up from if you'd rather tap it than
-// wait for auto-answer.
+// Parakeet AI Row 2: Live Transcript Strip
+// Shows real-time speech waveform, detected question chips with one-click solve, and clear trigger.
 export default function QuestionPanel({
   listening, transcriptChips, chipsContainerRef, onChipClick, onClear, onDragStart,
 }) {
   return (
     <div className="pk-strip" onMouseDown={onDragStart}>
-      <div className="pk-strip-wave" title={listening ? 'Listening…' : 'Not listening'}>
+      <div className="pk-strip-wave" title={listening ? 'Listening to interviewer audio…' : 'Microphone paused'}>
         {listening ? (
-          <><i /><i /><i /></>
+          <><i /><i /><i /><i /></>
         ) : (
           <span className="pk-strip-pause">▐▐</span>
         )}
@@ -25,19 +23,22 @@ export default function QuestionPanel({
             key={idx}
             className={`pk-chip ${chip.isQuestion ? 'pk-chip-q' : ''}`}
             onClick={() => onChipClick(chip)}
-            title="Click to solve"
+            title={chip.isQuestion ? "Click to generate answer (⌘↵)" : chip.text}
           >
-            {chip.text}
+            {chip.isQuestion && <span className="pk-chip-badge">Question</span>}
+            <span className="pk-chip-text">{chip.text}</span>
+            {chip.isQuestion && <span className="pk-chip-solve">✨ Solve</span>}
           </span>
         ))}
         {transcriptChips.length === 0 && (
-          <span className="pk-chip pk-chip-idle">Waiting for conversation transcript…</span>
+          <span className="pk-chip pk-chip-idle">Listening for interview question…</span>
         )}
       </div>
 
-      <button className="pk-strip-clear" onClick={onClear} type="button" title="Clear transcript">
+      <button className="pk-strip-clear" onClick={onClear} type="button" title="Clear conversation transcript">
         Clear <kbd>⌘⇧⌫</kbd>
       </button>
     </div>
   );
 }
+
