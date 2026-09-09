@@ -9,7 +9,7 @@ import {
  * like a question — the caller decides what to do with that (auto-answer is
  * a policy choice that belongs to useInterview, not to speech capture itself).
  */
-export function useSpeechRecognition({ sessionId, source = 'mic', onQuestionDetected, onToast } = {}) {
+export function useSpeechRecognition({ sessionId, source = 'mic', language = 'en', onQuestionDetected, onToast } = {}) {
   const [listening, setListening] = useState(false);
   const [elapsedText, setElapsedText] = useState('00:00');
   const [transcriptChips, setTranscriptChips] = useState([]);
@@ -22,6 +22,8 @@ export function useSpeechRecognition({ sessionId, source = 'mic', onQuestionDete
   // session finishes loading, well after this hook first mounts.
   const sessionIdRef = useRef(sessionId);
   sessionIdRef.current = sessionId;
+  const languageRef = useRef(language);
+  languageRef.current = language;
   const onQuestionDetectedRef = useRef(onQuestionDetected);
   onQuestionDetectedRef.current = onQuestionDetected;
 
@@ -32,6 +34,17 @@ export function useSpeechRecognition({ sessionId, source = 'mic', onQuestionDete
     try {
       const data = await transcribeChunk(blob, sessionIdRef.current);
       if (data.text) {
+        const lang = String(languageRef.current || 'en').toLowerCase();
+        if (lang === 'en' || lang === 'english') {
+          // Reject foreign script noise hallucinations (Japanese, Chinese, Korean, Cyrillic, Arabic) in English sessions
+          if (/[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff66-\uff9f\uac00-\ud7af\u0400-\u04ff\u0600-\u06ff]/.test(data.text)) {
+            return;
+          }
+          if (data.text.startsWith('¿') || data.text.startsWith('¡')) {
+            return;
+          }
+        }
+
         const isQuestion = looksLikeQuestion(data.text);
         setTranscriptChips((prev) => [...prev, { text: data.text, isQuestion }]);
         if (isQuestion && onQuestionDetectedRef.current) onQuestionDetectedRef.current(data.text);

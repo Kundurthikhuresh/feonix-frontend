@@ -151,7 +151,7 @@ export default function DualModeSection() {
                 </li>
                 <li style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', color: '#cbd5e1' }}>
                   <Check size={14} style={{ color: '#00f5ff' }} />
-                  <span>100% invisible to screen-shares (Zoom, Teams, Google Meet)</span>
+                  <span>100% invisible to screen-shares (Zoom, Teams, Meet, WhatsApp, Discord, Webex, Jitsi, Slack, Loom, GoTo, Whereby)</span>
                 </li>
               </ul>
             </div>

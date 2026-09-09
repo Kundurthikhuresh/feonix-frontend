@@ -9,14 +9,43 @@ function LaunchContent() {
   const sessionId = searchParams.get('session');
 
   const [sessionName, setSessionName] = useState('');
-  const [title, setTitle] = useState('Open in FeonixAI');
-  const [lede, setLede] = useState('Click "Open desktop app" or choose an option below:');
+  const [title, setTitle] = useState('Open FeonixAI Desktop');
+  const [lede, setLede] = useState('Click "Open desktop app" to launch your interview session:');
   const [pulsing, setPulsing] = useState(false);
   const [showFallback, setShowFallback] = useState(true);
   const [msg, setMsg] = useState({ text: '', type: '' });
-  const [isMacOS, setIsMacOS] = useState(true);
+  const [isMacOS, setIsMacOS] = useState(false);
   const [launching, setLaunching] = useState(false);
 
+  const handleOpenDesktopApp = async () => {
+    if (!sessionId) {
+      router.replace('/');
+      return;
+    }
+    setMsg({ text: '', type: '' });
+    setLaunching(true);
+    setPulsing(true);
+    try {
+      const res = await fetch(`/api/sessions/${sessionId}/handoff`, { method: 'POST' });
+      if (res.ok) {
+        const { deep_link: deepLink } = await res.json();
+        try {
+          const iframe = document.createElement('iframe');
+          iframe.style.display = 'none';
+          iframe.src = deepLink;
+          document.body.appendChild(iframe);
+          setTimeout(() => {
+            try { document.body.removeChild(iframe); } catch {}
+          }, 1000);
+        } catch {}
+      }
+    } catch {
+      // Continue to session-type even if handoff network had an issue
+    }
+
+    // When clicking "Open desktop app", redirect to Start Interview screen
+    window.location.href = `/session-type?session=${encodeURIComponent(sessionId)}`;
+  };
 
   useEffect(() => {
     if (!sessionId) {
@@ -29,11 +58,6 @@ function LaunchContent() {
 
   const checkAuthAndLoad = async () => {
     try {
-      // A reload landing during a backend restart or a slow cold DB connect
-      // used to bounce a logged-in user straight to the landing page on the
-      // very first non-ok response — same failure mode already fixed for
-      // the dashboard boot in app/page.js. Mirror that retry here instead
-      // of treating a transient 503 as "not logged in".
       let res = await fetch('/api/auth/me');
       for (let attempt = 1; attempt < 3 && !res.ok; attempt++) {
         const body = await res.json().catch(() => ({}));
@@ -63,55 +87,6 @@ function LaunchContent() {
       setSessionName(session.company + (session.role ? ' · ' + session.role : ''));
     } catch (err) {
       console.error('Failed to load session details:', err);
-    }
-  };
-
-  const handleOpenDesktopApp = async () => {
-    if (!sessionId) {
-      router.replace('/');
-      return;
-    }
-    // This used to just navigate to /session-type in the same tab — identical
-    // to "run this session in the browser" below it, so clicking "Open
-    // desktop app" could never actually reach the desktop app; it always
-    // stayed in whatever browser tab you clicked it from. The real desktop
-    // app is a separate process reachable only through the feonixai://
-    // custom-protocol link the backend mints per click (one-time, 90s TTL —
-    // see backend/src/handoff.js) — firing that is what actually hands off
-    // to it, the same way the installer registers Windows to route that
-    // scheme to the app.
-    setMsg({ text: '', type: '' });
-    setLaunching(true);
-    try {
-      const res = await fetch(`/api/sessions/${sessionId}/handoff`, { method: 'POST' });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        setMsg({ text: data.message || 'Could not prepare the handoff.', type: 'err' });
-        setLaunching(false);
-        return;
-      }
-      const { deep_link: deepLink } = await res.json();
-      // window.location.href = deepLink used to navigate this whole tab to
-      // the custom feonixai:// URL. With the desktop app installed, Chrome
-      // has that scheme registered — and navigating the top-level page to a
-      // *registered* custom protocol can actually begin tearing down this
-      // page's own document before handing off to the OS, leaving a blank
-      // page behind (this only shows up once the protocol is registered;
-      // it's a no-op with no visible effect otherwise, which is why it
-      // looked fine during earlier testing without the app installed). A
-      // hidden iframe triggers the same OS handoff without ever navigating
-      // this page itself, so it survives regardless of registration state.
-      const iframe = document.createElement('iframe');
-      iframe.style.display = 'none';
-      iframe.src = deepLink;
-      document.body.appendChild(iframe);
-      setTimeout(() => {
-        document.body.removeChild(iframe);
-        setLaunching(false);
-      }, 1500);
-    } catch {
-      setMsg({ text: 'Could not reach the server.', type: 'err' });
-      setLaunching(false);
     }
   };
 

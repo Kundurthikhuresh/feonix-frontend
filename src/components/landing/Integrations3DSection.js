@@ -136,6 +136,150 @@ const INTEGRATIONS_DATA = {
     description: 'Seamless integration with Teams enterprise desktop app and web portal.',
     highlights: ['Low-latency virtual audio route', 'Dark HUD contrast', 'Whisper-quiet cues']
   },
+  whatsapp: {
+    name: 'WhatsApp Screen Sharing Stealth HUD',
+    category: 'video',
+    icon: Video,
+    latency: '72 ms',
+    mode: 'Screen Share Guard / Anti-Capture',
+    status: 'End-to-End Stealth Active',
+    codeHeader: 'FEONIX AI // WHATSAPP SCREEN SHARING STEALTH HUD',
+    codeSnippet: [
+      '[MEDIA STREAM DETECTED] WhatsApp live screen share active',
+      '[OS DISPLAY AFFINITY] WDA_EXCLUDEFROMCAPTURE enforced',
+      '-------------------------------------------------------',
+      '[STATUS] Copilot HUD invisible to remote WhatsApp viewer',
+      '[REAL-TIME CUE] Whisper prompts streamed without capture leak'
+    ],
+    description: 'Stealth teleprompter HUD floating over WhatsApp desktop & web calls with zero visibility on shared screen streams.',
+    highlights: ['100% invisible on WhatsApp screen sharing', 'Zero-lag audio transcript', 'Emergency hotkey hide']
+  },
+  discord: {
+    name: 'Discord Screen & Application Sharing',
+    category: 'video',
+    icon: Video,
+    latency: '75 ms',
+    mode: 'Go Live / Window Stream Bypass',
+    status: 'Stream Guard Active',
+    codeHeader: 'FEONIX AI // DISCORD GO LIVE SCREEN STEALTH',
+    codeSnippet: [
+      '[DISCORD HOOK] Go Live stream session detected',
+      '[DISPLAY AFFINITY] Window capture bypass verified',
+      '-------------------------------------------------------',
+      '[AI HUD ACTIVE] Code solution overlay visible to candidate only',
+      '[TELEMETRY] 0% frame bleed into Discord application capture'
+    ],
+    description: 'Anti-capture protection prevents copilot overlay from displaying in Discord Go Live streams and screen shares.',
+    highlights: ['Discord Go Live invisibility', 'Application-share mask', 'Sub-80ms question solver']
+  },
+  webex: {
+    name: 'Cisco Webex Enterprise Screen Stealth',
+    category: 'video',
+    icon: Video,
+    latency: '80 ms',
+    mode: 'Enterprise Meeting & App Share Hook',
+    status: 'Enterprise Shield Active',
+    codeHeader: 'FEONIX AI // CISCO WEBEX SCREEN PROTECTION',
+    codeSnippet: [
+      '[CISCO WEBEX] Enterprise meeting session connected',
+      '[CAPTURE SHIELD] Application share exclusion enabled',
+      '-------------------------------------------------------',
+      '[QUESTION CAPTURED] "Explain distributed transactions with 2PC."',
+      '[STAR PROMPT] "Cover Prepare, Commit phase, and single point failure of coordinator."'
+    ],
+    description: 'Seamless stealth protection during Cisco Webex presentations, application sharing, and corporate interviews.',
+    highlights: ['Enterprise application share bypass', 'Anti-recording display mask', 'Whisper audio sync']
+  },
+  jitsi: {
+    name: 'Jitsi Meet Screen/Window/Tab Guard',
+    category: 'video',
+    icon: Video,
+    latency: '76 ms',
+    mode: 'WebRTC Screen & Tab Air-Gap',
+    status: 'Open WebRTC Sync',
+    codeHeader: 'FEONIX AI // JITSI MEET TAB & SCREEN SHIELD',
+    codeSnippet: [
+      '[JITSI WEBRTC] Screen / Tab display stream initiated',
+      '[STEALTH FILTER] Exclusion layer active on display buffer',
+      '-------------------------------------------------------',
+      '[AI HUD PROMPT] "Break down Paxos vs Raft consensus differences."',
+      '[HUD STATUS] 100% hidden from Jitsi conference feed'
+    ],
+    description: 'Automatic stealth protection across Jitsi Meet screen, window, and browser tab presentations.',
+    highlights: ['Tab & window share protection', 'Open-source WebRTC support', 'Sub-80ms response speed']
+  },
+  slackhuddles: {
+    name: 'Slack Huddles Screen & Window Sharing',
+    category: 'video',
+    icon: Video,
+    latency: '84 ms',
+    mode: 'Huddle Direct Audio & Screen Mask',
+    status: 'Huddle Shield Active',
+    codeHeader: 'FEONIX AI // SLACK HUDDLE SCREEN INVISIBILITY',
+    codeSnippet: [
+      '[SLACK HUDDLE] Interactive screen sharing started',
+      '[AFFINITY MASK] Copilot HUD excluded from screen stream',
+      '-------------------------------------------------------',
+      '[LIVE PROMPT] "Emphasize event-driven CQRS with event sourcing."',
+      '[STEALTH AUDIT] Overlay omitted from Slack desktop capture'
+    ],
+    description: 'Complete overlay invisibility during Slack Huddles live screen and application window sharing sessions.',
+    highlights: ['Slack Huddle stealth HUD', 'Live audio sync', 'Background hotkey toggle']
+  },
+  loom: {
+    name: 'Loom Video & Screen Recorder Bypass',
+    category: 'video',
+    icon: Video,
+    latency: '79 ms',
+    mode: 'Screen / Tab Video Recorder Air-Gap',
+    status: 'Recorder Mask Active',
+    codeHeader: 'FEONIX AI // LOOM SCREEN & WINDOW RECORDER BYPASS',
+    codeSnippet: [
+      '[LOOM DETECTED] Desktop / Tab recording session started',
+      '[HARDWARE SHIELD] Excluded from video stream render target',
+      '-------------------------------------------------------',
+      '[AI ASSIST] Code architecture cues presented on screen',
+      '[RECORDER CHECK] Output MP4 video contains zero HUD artifacts'
+    ],
+    description: 'Excludes copilot HUD from Loom async recordings, browser tab captures, and full desktop video recording.',
+    highlights: ['Loom video recorder bypass', 'Tab & window exclusion', 'Clean presentation recording']
+  },
+  gotomeeting: {
+    name: 'GoTo Meeting Screen/Application Shield',
+    category: 'video',
+    icon: Video,
+    latency: '85 ms',
+    mode: 'Direct Display Hook & App Share Mask',
+    status: 'Enterprise Shield Active',
+    codeHeader: 'FEONIX AI // GOTO MEETING SCREEN APPLICATION SHIELD',
+    codeSnippet: [
+      '[GOTO MEETING] Screen / application presentation live',
+      '[CAPTURE SHIELD] WDA_EXCLUDEFROMCAPTURE confirmed',
+      '-------------------------------------------------------',
+      '[QUESTION DETECTED] "How do you handle schema migrations with zero downtime?"',
+      '[AI ANSWER HUD] "Mention Expand and Contract pattern with dual writes."'
+    ],
+    description: 'Hardware-level display affinity masks the copilot HUD from GoTo Meeting screenshares and presenter broadcasts.',
+    highlights: ['GoTo Meeting anti-capture', 'Presenter view protection', 'Ultra-low latency RAG']
+  },
+  whereby: {
+    name: 'Whereby Browser Room Screen Shield',
+    category: 'video',
+    icon: Video,
+    latency: '74 ms',
+    mode: 'Browser Room Screen & Window Guard',
+    status: 'Zero-Lag Room Sync',
+    codeHeader: 'FEONIX AI // WHEREBY BROWSER ROOM SCREEN SHIELD',
+    codeSnippet: [
+      '[WHEREBY ROOM] Screen / window share active in room',
+      '[DISPLAY AFFINITY] Overlay excluded from captured stream',
+      '-------------------------------------------------------',
+      '[AI HUD STREAM] Real-time answers display for candidate eyes only',
+      '[STREAM STATUS] 0 frame leaks to Whereby conference attendees'
+    ],
+    description: 'Invisible to Whereby video rooms during full screen, window, or individual browser tab screen shares.',
+    highlights: ['Whereby room stealth', 'Zero-install browser protection', 'Instant hotkey hide']
+  },
   bytebytego: {
     name: 'System Design Docs & Architecture RAG',
     category: 'docs',

@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSpeechRecognition } from './useSpeechRecognition';
 import { useAnswerStreaming } from './useAnswerStreaming';
+import { formatParakeetAnswer } from '../lib/answerFormatter';
 
 /**
  * The interview domain, composed from speech capture + answer streaming:
@@ -11,7 +12,7 @@ import { useAnswerStreaming } from './useAnswerStreaming';
  * open/close, the chat compose box) stays in the page/components that own
  * that UI — this hook only owns what the interview itself needs to run.
  */
-export function useInterview({ querySessionId, plan, queryAuto, screenshots = [], answerStyle = 'star' }) {
+export function useInterview({ querySessionId, plan, queryAuto, screenshots = [], answerStyle = 'star', audioSource = 'mic' }) {
   const router = useRouter();
 
   const [session, setSession] = useState(null);
@@ -40,10 +41,11 @@ export function useInterview({ querySessionId, plan, queryAuto, screenshots = []
   // this hook's handlers below (and same as the original overlay page) — a
   // few closures per render is not a cost worth memoizing around here.
   const askQuestion = (question, opts = {}) => {
-    const { images = [], style = 'star', transcript } = opts;
+    const { images = [], style = 'star', transcript, action = 'answer' } = opts;
     return answering.generateAnswer(question, {
       images,
       style,
+      action,
       transcript: transcript !== undefined ? transcript : speech.transcriptChips.map((c) => c.text).join('\n'),
       sessionId: session ? session.id : querySessionId,
       language: session ? (session.language || 'en') : 'en',
@@ -52,7 +54,8 @@ export function useInterview({ querySessionId, plan, queryAuto, screenshots = []
 
   const speech = useSpeechRecognition({
     sessionId: session ? session.id : querySessionId,
-    source: 'mic',
+    source: audioSource,
+    language: session ? (session.language || 'en') : 'en',
     onQuestionDetected: (text) => {
       // screenshots/answerStyle come in as plain params, captured by this
       // closure fresh on every render (useSpeechRecognition re-syncs its
@@ -80,7 +83,7 @@ export function useInterview({ querySessionId, plan, queryAuto, screenshots = []
       id: id || 'default-session',
       status: 'active',
       plan: 'full',
-      expires_at: new Date(Date.now() + 5 * 60 * 1000).toISOString().replace('T', ' ').slice(0, 19),
+      expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString().replace('T', ' ').slice(0, 19),
     });
 
     try {
@@ -129,6 +132,29 @@ export function useInterview({ querySessionId, plan, queryAuto, screenshots = []
       if (queryAuto) {
         setAutoAnswer(true);
       }
+
+      // Preload previous answers from session history if available
+      try {
+        const histRes = await fetch('/api/history?limit=20');
+        if (histRes.ok) {
+          const histData = await histRes.json();
+          if (histData && Array.isArray(histData.answers) && histData.answers.length > 0) {
+            const formatted = histData.answers.map((a) => ({
+              id: a.id,
+              question: a.question,
+              answerHtml: formatParakeetAnswer(a.reply),
+              style: a.mode || 'star',
+              timestamp: a.created_at ? new Date(a.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
+            }));
+            answering.setAnswersHistory(formatted);
+            if (!answering.answerHtml && formatted.length > 0) {
+              answering.setCueLine(formatted[0].question);
+              answering.setAnswerHtml(formatted[0].answerHtml);
+              answering.setCurrentAnswerIndex(0);
+            }
+          }
+        }
+      } catch {}
     } catch (err) {
       console.warn('Fallback session activated:', err);
       setSession(fallbackSession(querySessionId));
@@ -139,58 +165,41 @@ export function useInterview({ querySessionId, plan, queryAuto, screenshots = []
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [querySessionId, plan, queryAuto, updateCreditsDisplay, triggerToast]);
 
-  const handleEndSession = useCallback(async () => {
-    if (sessionEndedRef.current) return;
-    sessionEndedRef.current = true;
+  const handleEndSession = useCallback(() => {
     setShowWarningModal(false);
+
+    // Stop mic fire-and-forget
     try {
-      await speech.stopRecording();
-    } catch (err) {
-      // A MediaRecorder in an unexpected state (or a revoked mic
-      // permission) throwing here used to abort the entire function before
-      // it ever reached the /end call or window.feonix.quit() below —
-      // silently stranding sessionEndedRef at true, so every later click on
-      // End became a permanent no-op with no visible error. Ending the
-      // session and quitting the app must not depend on the mic having
-      // stopped cleanly.
-      console.error('Failed to stop recording during end-session:', err);
-    }
-    try {
-      const res = await fetch(`/api/sessions/${querySessionId}/end`, { method: 'POST' });
-      if (res.ok) {
-        const data = await res.json();
-        const settlement = data.settlement;
-        if (settlement) {
-          const totalSecs = Math.round((settlement.minutes || 0) * 60);
-          const m = Math.floor(totalSecs / 60);
-          const s = totalSecs % 60;
-          const durationText = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-          const costText = settlement.kind === 'unlimited'
-            ? 'Unlimited plan'
-            : `${Number(settlement.credits || 0).toFixed(2)} Credits used`;
-          triggerToast(`Session ended — ${durationText} · ${costText}`);
-        }
+      if (speech && typeof speech.stopRecording === 'function') {
+        speech.stopRecording().catch(() => {});
       }
-    } catch (err) {
-      console.error('End session failed:', err);
+    } catch {}
+
+    // Post session end fire-and-forget
+    if (querySessionId) {
+      try {
+        fetch(`/api/sessions/${querySessionId}/end`, { method: 'POST' }).catch(() => {});
+      } catch {}
     }
 
+    // Immediately close/quit without delay
     if (typeof window !== 'undefined') {
       if (window.feonix && typeof window.feonix.quit === 'function') {
         window.feonix.quit();
+        return;
+      }
+      if (window.feonix && typeof window.feonix.closeOverlay === 'function') {
+        window.feonix.closeOverlay();
         return;
       }
       if (window.feonix && typeof window.feonix.back === 'function') {
         window.feonix.back();
         return;
       }
-      window.close();
-      setTimeout(() => {
-        if (!window.closed) window.location.href = '/?view=dash';
-      }, 350);
+      try { window.close(); } catch {}
+      window.location.href = '/?view=dash';
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [querySessionId, triggerToast]);
+  }, [querySessionId, speech]);
 
   const handleBackToDashboard = useCallback(async () => {
     if (speech.listening) await speech.stopRecording();

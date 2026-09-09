@@ -135,14 +135,40 @@ function ResetPasswordContent() {
 
         {done && (
           <>
-            <div className="msg msg-ok">{msg.text}</div>
-            <button
-              className="btn btn-wide btn-3d-primary"
-              type="button"
-              style={{ marginTop: 16 }}
-              onClick={() => router.push('/')}
+            <div
+              className="msg msg-ok"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                color: '#10b981',
+                background: 'rgba(16, 185, 129, 0.12)',
+                border: '1px solid rgba(16, 185, 129, 0.3)',
+                padding: '12px 16px',
+                borderRadius: '8px',
+                fontSize: '14px',
+                fontWeight: '500',
+                marginTop: '16px',
+              }}
             >
-              Go to sign in
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+              <span>{msg.text || 'Password updated. You can now sign in.'}</span>
+            </div>
+            <button
+              className="btn btn-wide"
+              type="button"
+              style={{
+                marginTop: 20,
+                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                color: '#ffffff',
+                fontWeight: '700',
+                boxShadow: '0 4px 14px rgba(16, 185, 129, 0.35)',
+              }}
+              onClick={() => router.push('/?auth=login')}
+            >
+              Go to sign in →
             </button>
           </>
         )}

@@ -50,14 +50,56 @@ export function downscaleDataUrl(dataUrl) {
   });
 }
 
+// Waits for a video frame that was actually rendered after `afterMs` — a
+// plain `requestAnimationFrame` or fixed delay can still grab a frame that
+// was already in flight before the caller's own on-screen change (e.g.
+// hiding the copilot HUD) took effect. requestVideoFrameCallback reports
+// each decoded frame's real presentation time, so this can tell "a frame
+// from before we hid it" apart from "a frame from after." Falls back to a
+// short fixed wait on browsers without it (Firefox, as of this writing).
+function waitForFreshFrame(video, afterMs) {
+  // Bounded no matter what: if requestVideoFrameCallback never fires again
+  // for any reason (a throttled/backgrounded window, a browser that
+  // supports the API but stops delivering callbacks for a captured-canvas
+  // source, etc.), this still resolves and the capture proceeds — a frame
+  // that's very occasionally a touch stale beats a screenshot feature that
+  // can hang forever.
+  const fallback = new Promise((resolve) => setTimeout(resolve, 400));
+  if (typeof video.requestVideoFrameCallback !== 'function') return fallback;
+
+  const freshFrame = new Promise((resolve) => {
+    // presentationTime (unlike mediaTime, which is relative to the video's
+    // own playback position and starts near 0) shares its clock with
+    // performance.now() — that's what makes it comparable to `afterMs`.
+    const check = (_now, metadata) => {
+      if (metadata.presentationTime >= afterMs) {
+        resolve();
+      } else {
+        video.requestVideoFrameCallback(check);
+      }
+    };
+    video.requestVideoFrameCallback(check);
+  });
+  return Promise.race([freshFrame, fallback]);
+}
+
 /**
  * Grabs a single still frame of whatever the user picks in the browser's
  * share picker (screen / window / tab) and returns it as a JPEG data URL,
  * downscaled to a size that stays fast to send without losing legibility.
  * Throws NOT_SUPPORTED if the platform has no getDisplayMedia at all, so the
  * caller can fall back to the file picker instead of showing a dead end.
+ *
+ * `onBeforeFrame`, if given, runs once the stream is actually flowing but
+ * before the frame is grabbed — the caller uses this to hide its own UI
+ * (e.g. the copilot HUD) for this one local, self-triggered capture so it
+ * doesn't clutter the image being sent to the AI. This has nothing to do
+ * with, and does not affect, any separate live screen-share broadcast to
+ * another viewer (Zoom/Meet/Teams) — this window is never shared with
+ * anyone, capturing it here is a one-shot, entirely local operation the
+ * user initiated themselves.
  */
-export async function captureScreenSnapshot() {
+export async function captureScreenSnapshot({ onBeforeFrame } = {}) {
   if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getDisplayMedia) {
     const err = new Error('Screen capture not supported in this browser.');
     err.code = 'NOT_SUPPORTED';
@@ -69,6 +111,12 @@ export async function captureScreenSnapshot() {
   const video = document.createElement('video');
   video.srcObject = displayStream;
   await video.play();
+
+  if (onBeforeFrame) {
+    const hiddenAtMs = performance.now();
+    await onBeforeFrame();
+    await waitForFreshFrame(video, hiddenAtMs);
+  }
 
   const nativeWidth = video.videoWidth || 1920;
   const nativeHeight = video.videoHeight || 1080;

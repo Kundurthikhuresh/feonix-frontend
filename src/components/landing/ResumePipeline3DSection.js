@@ -20,7 +20,7 @@ export default function ResumePipeline3DSection() {
     if (isHovered) return;
     const interval = setInterval(() => {
       setActiveStep((prev) => (prev + 1) % PIPELINE_STEPS.length);
-    }, 10);
+    }, 2000);
     return () => clearInterval(interval);
   }, [isHovered]);
 
@@ -88,7 +88,7 @@ export default function ResumePipeline3DSection() {
                   border: `1.5px solid ${isActive ? step.color : 'rgba(255, 255, 255, 0.1)'}`,
                   backdropFilter: 'blur(20px)',
                   cursor: 'pointer',
-                  transition: 'all 0.03s ease',
+                  transition: 'all 0.4s ease',
                   boxShadow: isActive ? `0 16px 35px rgba(0,0,0,0.8), 0 0 25px ${step.color}45` : '0 8px 20px rgba(0,0,0,0.4)',
                   transform: isActive ? 'translateY(-6px) scale(1.03)' : 'none'
                 }}

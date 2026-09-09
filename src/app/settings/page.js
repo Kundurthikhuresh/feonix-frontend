@@ -160,7 +160,7 @@ export default function SettingsPage() {
                 Redacts credential-shaped values (API keys, tokens, connection strings) out of anything
                 logged to the browser console while this is on. It does not — and cannot — hide this
                 app&apos;s window content from screen-sharing or recording software. Whatever you choose to
-                share with Zoom, Teams, Meet, or an OS screen recorder is exactly what appears in it.
+                share with Zoom, Teams, Meet, WhatsApp, Discord, Webex, or an OS screen recorder is exactly what appears in it.
               </p>
             </div>
             <button
@@ -212,7 +212,7 @@ export default function SettingsPage() {
           )}
           <div style={styles.note}>
             Screen-capture detection: Electron/Chromium expose no reliable, cross-platform API to detect
-            whether this window is currently being captured by another application (Zoom, Teams, OBS,
+            whether this window is currently being captured by another application (Zoom, Teams, WhatsApp, Discord, Webex, OBS,
             etc.), so this app does not claim to show that status — a fabricated indicator would be worse
             than none.
           </div>

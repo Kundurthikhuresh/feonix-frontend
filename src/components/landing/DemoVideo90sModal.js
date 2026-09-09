@@ -132,7 +132,7 @@ const DEMO_SCENES = [
     secEnd: 87,
     title: 'Pricing & Upgrade',
     headline: 'Choose Your Plan',
-    subheading: 'Unlock advanced AI models with seamless Stripe checkout.',
+    subheading: 'Unlock advanced AI models with seamless Razorpay checkout.',
     voiceOver: 'Choose the plan that fits your career goals and unlock more powerful AI features.',
     color: '#f59e0b'
   },

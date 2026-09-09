@@ -157,10 +157,18 @@ function SessionTypeContent() {
     }
   };
 
-  const showBalance = (user) => {
-    if (!user) return;
-    const left = Number(user.tokens_remaining || 0);
-    setCreditsText(left.toLocaleString() + ' Credits');
+  const showBalance = async (user) => {
+    try {
+      const res = await fetch('/api/sessions/account');
+      if (res.ok) {
+        const data = await res.json();
+        const acc = data.account || {};
+        const creds = acc.credits !== undefined ? acc.credits : 5;
+        setCreditsText(`${creds} ${creds === 1 ? 'Credit' : 'Credits'}`);
+        return;
+      }
+    } catch { }
+    setCreditsText('5 Credits');
   };
 
   const loadSession = async (id) => {
@@ -223,20 +231,47 @@ function SessionTypeContent() {
 
       // Activate/start the session via backend so expires_at is set fresh from NOW
       const billing = plan === 'free' ? 'trial' : 'paid';
-      const startRes = await fetch(`/api/sessions/${activeId}/start`, {
+      let startRes = await fetch(`/api/sessions/${activeId}/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ billing, plan }),
       });
-      const startData = await startRes.json().catch(() => ({}));
+      let startData = await startRes.json().catch(() => ({}));
       if (!startRes.ok) {
-        say(startData.message || 'Could not start session. Please check your credits.', true);
-        setButtonsDisabled(false);
-        return;
+        // Auto-recover: if session expired or missing, auto-create a new active session
+        if (startRes.status === 410 || startRes.status === 404 || startData.error === 'session_expired') {
+          try {
+            const newRes = await fetch('/api/sessions', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ company: 'General Interview', role: 'Candidate' }),
+            });
+            if (newRes.ok) {
+              const newSessionData = await newRes.json();
+              activeId = newSessionData.session?.id || newSessionData.id;
+              setSessionId(activeId);
+              startRes = await fetch(`/api/sessions/${activeId}/start`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ billing, plan }),
+              });
+              startData = await startRes.json().catch(() => ({}));
+            }
+          } catch {}
+        }
+
+        if (!startRes.ok) {
+          say(startData.message || 'Could not start session. Please check your credits.', true);
+          setButtonsDisabled(false);
+          return;
+        }
       }
 
       if (window.feonix && typeof window.feonix.startSession === 'function') {
         await window.feonix.startSession({ plan, sessionId: activeId, auto: autoAnswer });
+        if (typeof window.feonix.hideMainWindow === 'function') {
+          window.feonix.hideMainWindow();
+        }
       } else {
         // In a standard browser (e.g. Chrome): launch the live copilot overlay (second image)
         say('Launching live copilot overlay…', false, true);
@@ -296,33 +331,6 @@ function SessionTypeContent() {
               <button className="traffic-btn traffic-max" title="Maximize" type="button"></button>
             </div>
 
-            <button
-              className="back-btn-pill"
-              onClick={handleGoBack}
-              title="Back to Dashboard"
-              type="button"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                background: 'rgba(255, 255, 255, 0.08)',
-                border: '1px solid rgba(255, 255, 255, 0.12)',
-                borderRadius: '999px',
-                padding: '4px 10px',
-                color: '#F3F4F4',
-                fontSize: '12px',
-                fontWeight: '600',
-                cursor: 'pointer',
-                transition: 'all 150ms ease'
-              }}
-            >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="19" y1="12" x2="5" y2="12"></line>
-                <polyline points="12 19 5 12 12 5"></polyline>
-              </svg>
-              <span>Dashboard</span>
-            </button>
-
             <div className="brand-badge">
               <div className="brand-logo">⚡</div>
               <span>FeonixAI</span>
@@ -351,28 +359,28 @@ function SessionTypeContent() {
             </div>
 
             <div className="cards-stack">
-              {/* Option: Full Session */}
+              {/* Option 1: Start Interview */}
               <div className="option-card">
                 <div className="card-top">
-                  <h3>Full Session</h3>
-                  <span className="tag green">0.5 credits</span>
+                  <h3>Start Interview Session</h3>
+                  <span className="tag green">1 credit</span>
                 </div>
                 <p className="card-desc">
-                  30 minute full interview session. Auto extends before expiration so answers stream without interruption.
+                  Live stealth copilot with real-time question capture, STAR answer generation, and code problem solver.
                 </p>
                 <button className="btn-primary" onClick={() => handleStart('full')} disabled={buttonsDisabled} type="button">
                   ▶ Start Interview
                 </button>
               </div>
 
-              {/* Option: Free Session */}
+              {/* Option 2: Free Session */}
               <div className="option-card">
                 <div className="card-top">
                   <h3>Free Session</h3>
                   <span className="tag">Free</span>
                 </div>
                 <p className="card-desc">
-                  10 minute trial session. Great for testing your setup before a real interview.
+                  Trial session. Great for testing your setup before a real interview.
                 </p>
                 <button className="btn-secondary" onClick={() => handleStart('free')} disabled={buttonsDisabled} type="button">
                   Start Free Session

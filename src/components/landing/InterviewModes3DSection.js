@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Code2, Server, Terminal, Users, UserCheck, Briefcase, ArrowRight, Sparkles } from 'lucide-react';
 
 const MODES = [
   {
     id: 'coding',
     title: 'Coding Interview',
+    tag: 'ROUND 01',
     icon: Code2,
     color: '#00f5ff',
     steps: ['Understand Problem', 'Approach & Data Structures', 'Time & Space Complexity', 'Code Implementation', 'Edge Case Analysis', 'Optimization']
@@ -14,6 +15,7 @@ const MODES = [
   {
     id: 'system-design',
     title: 'System Design',
+    tag: 'ROUND 02',
     icon: Server,
     color: '#8b5cf6',
     steps: ['Clarify Functional Requirements', 'High-Level Architecture', 'Database & Schema Selection', 'Scaling & Sharding Strategy', 'Reliability & Failover', 'Trade-offs Analysis']
@@ -21,6 +23,7 @@ const MODES = [
   {
     id: 'tech',
     title: 'Technical Deep-Dive',
+    tag: 'ROUND 03',
     icon: Terminal,
     color: '#10b981',
     steps: ['Domain Concepts', 'Memory & Thread Concurrency', 'OS Primitives', 'Network Protocols', 'Framework Internals', 'Performance Bottlenecks']
@@ -28,6 +31,7 @@ const MODES = [
   {
     id: 'behavioral',
     title: 'Behavioral Round',
+    tag: 'ROUND 04',
     icon: Users,
     color: '#ec4899',
     steps: ['Situation (Context)', 'Task (Challenge)', 'Action (Leadership)', 'Result (Quantified Outcome)', 'Key Learnings', 'Follow-up Questions']
@@ -35,6 +39,7 @@ const MODES = [
   {
     id: 'hr',
     title: 'HR Screening',
+    tag: 'ROUND 05',
     icon: UserCheck,
     color: '#f59e0b',
     steps: ['Background Story', 'Career Motivation', 'Compensation Expectation', 'Team Culture Fit', 'Company Values', 'Notice Period']
@@ -42,6 +47,7 @@ const MODES = [
   {
     id: 'manager',
     title: 'Managerial Round',
+    tag: 'ROUND 06',
     icon: Briefcase,
     color: '#38bdf8',
     steps: ['Project Ownership', 'Conflict Resolution', 'Cross-Functional Sync', 'Mentorship Impact', 'Strategic Roadmap', 'Product Execution']
@@ -49,7 +55,24 @@ const MODES = [
 ];
 
 export default function InterviewModes3DSection() {
-  const [selectedMode, setSelectedMode] = useState(MODES[1]); // default System Design
+  const [activeHoverIndex, setActiveHoverIndex] = useState(1); // default System Design
+  const [selectedMode, setSelectedMode] = useState(MODES[1]);
+  const [isUserHovering, setIsUserHovering] = useState(false);
+
+  // Auto-cycles the hover effect across cards every two seconds (card by card)
+  useEffect(() => {
+    if (isUserHovering) return;
+
+    const interval = setInterval(() => {
+      setActiveHoverIndex((prev) => {
+        const next = (prev + 1) % MODES.length;
+        setSelectedMode(MODES[next]);
+        return next;
+      });
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [isUserHovering]);
 
   return (
     <section className="interview-modes-3d-section" style={{ position: 'relative', padding: '100px 24px', background: '#050814', overflow: 'hidden' }}>
@@ -87,33 +110,120 @@ export default function InterviewModes3DSection() {
           </p>
         </div>
 
-        {/* 6 Mode Selector Cards Grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px', marginBottom: '40px' }}>
-          {MODES.map((mode) => {
+        {/* 6 Mode Selector Cards Grid with Enlarged Cards & 2s Auto-Hover Cycle */}
+        <div
+          onMouseEnter={() => setIsUserHovering(true)}
+          onMouseLeave={() => setIsUserHovering(false)}
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
+            gap: '20px',
+            marginBottom: '44px'
+          }}
+        >
+          {MODES.map((mode, idx) => {
             const Icon = mode.icon;
-            const isSelected = selectedMode.id === mode.id;
+            const isHoveredOrActive = activeHoverIndex === idx;
 
             return (
               <div
                 key={mode.id}
-                onClick={() => setSelectedMode(mode)}
+                onClick={() => {
+                  setActiveHoverIndex(idx);
+                  setSelectedMode(mode);
+                }}
+                onMouseEnter={() => {
+                  setIsUserHovering(true);
+                  setActiveHoverIndex(idx);
+                  setSelectedMode(mode);
+                }}
                 style={{
-                  padding: '20px',
-                  borderRadius: '16px',
-                  background: isSelected ? 'rgba(15, 23, 42, 0.95)' : 'rgba(10, 14, 26, 0.75)',
-                  border: `1.5px solid ${isSelected ? mode.color : 'rgba(255, 255, 255, 0.1)'}`,
+                  position: 'relative',
+                  padding: '28px 24px',
+                  minHeight: '175px',
+                  borderRadius: '20px',
+                  background: isHoveredOrActive
+                    ? `linear-gradient(150deg, rgba(20, 29, 52, 0.98) 0%, ${mode.color}25 100%)`
+                    : 'rgba(10, 14, 26, 0.75)',
+                  border: `2px solid ${isHoveredOrActive ? mode.color : 'rgba(255, 255, 255, 0.1)'}`,
                   cursor: 'pointer',
-                  transition: 'all 0.25s ease',
-                  boxShadow: isSelected ? `0 10px 30px ${mode.color}35` : 'none',
-                  transform: isSelected ? 'translateY(-4px)' : 'none'
+                  transition: 'all 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+                  boxShadow: isHoveredOrActive
+                    ? `0 20px 42px ${mode.color}45, 0 0 26px ${mode.color}25, inset 0 1px 0 rgba(255,255,255,0.15)`
+                    : 'none',
+                  transform: isHoveredOrActive ? 'translateY(-10px) scale(1.035)' : 'translateY(0) scale(1)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  overflow: 'hidden'
                 }}
               >
-                <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: `${mode.color}20`, border: `1px solid ${mode.color}50`, color: mode.color, display: 'grid', placeItems: 'center', marginBottom: '12px' }}>
-                  <Icon size={20} />
+                {/* Top Row: Icon + Monospace Round Tag */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div
+                    style={{
+                      width: '52px',
+                      height: '52px',
+                      borderRadius: '14px',
+                      background: isHoveredOrActive ? `${mode.color}30` : `${mode.color}15`,
+                      border: `1.5px solid ${isHoveredOrActive ? mode.color : `${mode.color}40`}`,
+                      color: mode.color,
+                      display: 'grid',
+                      placeItems: 'center',
+                      transition: 'all 0.35s ease',
+                      boxShadow: isHoveredOrActive ? `0 0 20px ${mode.color}60` : 'none'
+                    }}
+                  >
+                    <Icon size={26} />
+                  </div>
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      fontFamily: 'monospace',
+                      fontWeight: '800',
+                      letterSpacing: '0.08em',
+                      color: isHoveredOrActive ? mode.color : '#64748b',
+                      background: isHoveredOrActive ? `${mode.color}18` : 'rgba(255, 255, 255, 0.04)',
+                      padding: '3px 8px',
+                      borderRadius: '6px',
+                      border: `1px solid ${isHoveredOrActive ? `${mode.color}40` : 'transparent'}`,
+                      transition: 'all 0.3s ease'
+                    }}
+                  >
+                    {mode.tag}
+                  </span>
                 </div>
-                <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#ffffff', margin: 0 }}>
-                  {mode.title}
-                </h3>
+
+                {/* Card Title */}
+                <div>
+                  <h3
+                    style={{
+                      fontSize: '18px',
+                      fontWeight: '800',
+                      color: isHoveredOrActive ? '#ffffff' : '#e2e8f0',
+                      margin: '18px 0 0 0',
+                      lineHeight: '1.3',
+                      letterSpacing: '-0.01em',
+                      transition: 'color 0.3s ease'
+                    }}
+                  >
+                    {mode.title}
+                  </h3>
+                </div>
+
+                {/* Bottom Active Glow Bar */}
+                <div
+                  style={{
+                    position: 'absolute',
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    height: '3px',
+                    background: isHoveredOrActive ? mode.color : 'transparent',
+                    boxShadow: isHoveredOrActive ? `0 0 14px ${mode.color}` : 'none',
+                    transition: 'all 0.35s ease'
+                  }}
+                />
               </div>
             );
           })}

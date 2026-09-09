@@ -135,27 +135,6 @@ export default function AIAssistantModal({ isOpen, onClose }) {
     ? 'speaking'
     : 'idle';
 
-  // Client-side fallback intelligence in case of network disconnect
-  const getClientAnswer = (q) => {
-    const query = q.toLowerCase();
-    if (query.includes('feonix') || query.includes('copilot') || query.includes('interview')) {
-      return "Feonix AI is your real-time 3D AI Copilot designed for high-stakes interviews. It processes voice chunks in under 1.5 seconds, presents stealth on-screen hints during live meetings, and protects all sensitive candidate data in an encrypted privacy sandbox. We also provide AI resume tuning and an automated mock simulator.";
-    }
-    if (query.includes('process') && query.includes('thread')) {
-      return "A process is an independent program execution environment with dedicated virtual memory (stack and heap). A thread is an execution unit inside a process. Threads within the same process share heap memory, allowing ultra-fast communication, but requiring synchronization to prevent race conditions.";
-    }
-    if (query.includes('star') || query.includes('behavioral')) {
-      return "The STAR method stands for Situation, Task, Action, and Result. When speaking to interviewers, spend 10% on the Situation and Task, 70% detailing YOUR specific Actions and technical decisions, and 20% highlighting concrete, quantifiable Results.";
-    }
-    if (query.includes('event loop') || query.includes('javascript')) {
-      return "The JavaScript Event Loop coordinates asynchronous execution on a single thread. When the synchronous Call Stack empties, the loop executes all Microtasks (Promises, queueMicrotask) before moving to the next Macrotask in line (setTimeout, intervals, or DOM events).";
-    }
-    if (query.includes('system design') || query.includes('architecture')) {
-      return "In System Design, follow four core steps: 1. Clarify functional requirements and SLAs (read vs write scale). 2. Back-of-the-envelope capacity estimates. 3. High-level architecture (Load Balancer, API Gateway, Cache layer, DB). 4. Deep-dive into data partitions, replication, and failover.";
-    }
-    return `Great question! In software engineering interviews, the key is to communicate your mental model clearly, state your assumptions up front, and analyze algorithmic or architectural trade-offs. How can we dive deeper into "${q}"?`;
-  };
-
   // Handle Submitting a Message
   const handleSend = async (queryText) => {
     const text = (queryText || inputVal).trim();
@@ -179,7 +158,6 @@ export default function AIAssistantModal({ isOpen, onClose }) {
     stopSpeaking();
 
     try {
-      // 1. Try fetching from backend assistant endpoint
       const res = await fetch('/api/assistant/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -187,44 +165,48 @@ export default function AIAssistantModal({ isOpen, onClose }) {
           message: text,
           history: messages.slice(-5),
         }),
-      }).catch(() => null);
+      });
 
-      let answerText = '';
-      if (res && res.ok) {
-        const data = await res.json().catch(() => ({}));
-        answerText = data.answer || getClientAnswer(text);
-      } else {
-        answerText = getClientAnswer(text);
-      }
-
+      const data = await res.json().catch(() => ({}));
       setIsThinking(false);
+
+      if (!res.ok || !data.answer) {
+        const errorMsg = {
+          id: Date.now() + 1,
+          role: 'error',
+          content: data.message || 'Something went wrong. Please try again.',
+          retryText: text,
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        };
+        setMessages((prev) => [...prev, errorMsg]);
+        return;
+      }
 
       const assistantMsg = {
         id: Date.now() + 1,
         role: 'assistant',
-        content: answerText,
+        content: data.answer,
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
 
       setMessages((prev) => [...prev, assistantMsg]);
-      setActiveSpeechCaption(answerText.slice(0, 100) + '...');
+      setActiveSpeechCaption(data.answer.slice(0, 100) + '...');
 
       // Speak response with natural human voice!
-      speak(answerText, null, () => {
+      speak(data.answer, null, () => {
         setActiveSpeechCaption('');
       });
     } catch (err) {
       console.error('Assistant error:', err);
       setIsThinking(false);
-      const fallback = getClientAnswer(text);
-      const assistantMsg = {
+      const errorMsg = {
         id: Date.now() + 1,
-        role: 'assistant',
-        content: fallback,
+        role: 'error',
+        content: 'Could not reach Feonix AI. Check your connection and try again.',
+        retryText: text,
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
-      setMessages((prev) => [...prev, assistantMsg]);
-      speak(fallback);
+      setMessages((prev) => [...prev, errorMsg]);
     }
   };
 
@@ -466,22 +448,34 @@ export default function AIAssistantModal({ isOpen, onClose }) {
         {/* CONVERSATION HISTORY */}
         <div className="assistant-chat-stream">
           {messages.map((m) => (
-            <div key={m.id} className={`chat-bubble-row ${m.role}`}>
-              {m.role === 'assistant' && (
+            <div key={m.id} className={`chat-bubble-row ${m.role === 'error' ? 'assistant' : m.role}`}>
+              {(m.role === 'assistant' || m.role === 'error') && (
                 <div className="bubble-avatar-assistant">
                   <Sparkles size={14} />
                 </div>
               )}
-              <div className="bubble-content-wrap">
+              <div className={`bubble-content-wrap${m.role === 'error' ? ' error' : ''}`}>
                 <div className="bubble-meta">
                   <span className="bubble-author">
-                    {m.role === 'assistant' ? 'Feonix AI' : 'You'}
+                    {m.role === 'user' ? 'You' : 'Feonix AI'}
                   </span>
                   <span className="bubble-time">{m.time}</span>
                 </div>
                 <div className="bubble-text">
                   {m.content}
                 </div>
+                {m.role === 'error' && (
+                  <div className="bubble-actions">
+                    <button
+                      className="bubble-action-btn"
+                      onClick={() => handleSend(m.retryText)}
+                      type="button"
+                    >
+                      <RotateCcw size={13} />
+                      <span>Retry</span>
+                    </button>
+                  </div>
+                )}
                 {m.role === 'assistant' && (
                   <div className="bubble-actions">
                     <button
