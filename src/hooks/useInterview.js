@@ -147,11 +147,6 @@ export function useInterview({ querySessionId, plan, queryAuto, screenshots = []
               timestamp: a.created_at ? new Date(a.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
             }));
             answering.setAnswersHistory(formatted);
-            if (!answering.answerHtml && formatted.length > 0) {
-              answering.setCueLine(formatted[0].question);
-              answering.setAnswerHtml(formatted[0].answerHtml);
-              answering.setCurrentAnswerIndex(0);
-            }
           }
         }
       } catch {}

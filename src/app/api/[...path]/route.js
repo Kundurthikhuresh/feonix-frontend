@@ -36,7 +36,7 @@ async function proxy(req, context) {
     // for up to maxDuration, which is what turned a login into a spinner
     // that never resolved instead of a fast retry or a fast, clear error.
     const isStream = pathStr.startsWith('/api/answer');
-    const upstreamTimeoutMs = isStream ? 60000 : 8000;
+    const upstreamTimeoutMs = isStream ? 60000 : 15000;
 
     const init = {
       method: req.method,
@@ -45,30 +45,40 @@ async function proxy(req, context) {
       body: bodyBuffer,
     };
 
-    let upstream;
-    try {
-      upstream = await fetch(`${PRIMARY_BACKEND}${pathStr}`, { ...init, signal: AbortSignal.timeout(upstreamTimeoutMs) });
-    } catch (primaryErr) {
+    let upstream = null;
+    const maxRetries = isStream ? 1 : 4;
+    const targets = PRIMARY_BACKEND !== FALLBACK_BACKEND
+      ? [PRIMARY_BACKEND, FALLBACK_BACKEND]
+      : [PRIMARY_BACKEND];
+
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      const targetUrl = `${targets[attempt % targets.length]}${pathStr}`;
       try {
-        if (PRIMARY_BACKEND !== FALLBACK_BACKEND) {
-          upstream = await fetch(`${FALLBACK_BACKEND}${pathStr}`, { ...init, signal: AbortSignal.timeout(upstreamTimeoutMs) });
-        } else {
-          throw primaryErr;
+        upstream = await fetch(targetUrl, {
+          ...init,
+          signal: AbortSignal.timeout(upstreamTimeoutMs),
+        });
+        break;
+      } catch (fetchErr) {
+        if (attempt === maxRetries - 1) {
+          throw fetchErr;
         }
-      } catch (fallbackErr) {
-        // Both hosts refused the connection outright — this only ever fires
-        // from a momentary blip (backend mid-restart, a flaky local DNS/TLS
-        // handshake), never from a real "backend is down". One short retry
-        // absorbs that instead of surfacing it as a hard error on the first
-        // request that happens to land during the blip.
-        await new Promise((resolve) => setTimeout(resolve, 400));
-        upstream = await fetch(`${PRIMARY_BACKEND}${pathStr}`, { ...init, signal: AbortSignal.timeout(upstreamTimeoutMs) });
+        const backoffMs = 250 * (attempt + 1);
+        await new Promise((resolve) => setTimeout(resolve, backoffMs));
       }
     }
 
     const outHeaders = new Headers();
     upstream.headers.forEach((value, key) => {
-      if (key === 'transfer-encoding' || key === 'set-cookie') return;
+      const lowerKey = key.toLowerCase();
+      if (
+        lowerKey === 'transfer-encoding' ||
+        lowerKey === 'set-cookie' ||
+        lowerKey === 'content-length' ||
+        lowerKey === 'content-encoding'
+      ) {
+        return;
+      }
       outHeaders.append(key, value);
     });
 
