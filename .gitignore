@@ -27,3 +27,13 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# desktop-electron (Electron wrapper, lives here so it ships alongside the
+# web app but isn't part of it — its own deps/build output stay out of the
+# Next.js dev server's file watcher and out of the web app's git tracking)
+desktop-electron/node_modules/
+desktop-electron/dist/
+
+desktop-electron/backups/
+
+scratch/

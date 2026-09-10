@@ -769,14 +769,17 @@ export default function Page() {
   // that would have succeeded a few seconds later. 4 attempts at 4s each
   // comfortably covers that window (worst case ≈17s) while still failing
   // with a clear error if the backend is genuinely down, not just slow.
-  const postJSONWithRetry = async (path, body, attempts = 4, delayMs = 400) => {
+  const postJSONWithRetry = async (path, body, attempts = 5, delayMs = 600) => {
     for (let attempt = 1; attempt <= attempts; attempt++) {
-      const result = await postJSON(path, body, { timeoutMs: 4000 });
+      const result = await postJSON(path, body, { timeoutMs: 15000 });
       const isTransient = !result.ok && (
         result.status === 0 ||
         (result.status === 503 && result.data?.error === 'server_unavailable')
       );
       if (!isTransient || attempt === attempts) return result;
+      if (attempt >= 2) {
+        setAuthMsg({ text: 'Initializing secure connection…', type: '' });
+      }
       await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
   };
@@ -784,7 +787,7 @@ export default function Page() {
   const handleAuthSubmit = async (e) => {
     e.preventDefault();
     setAuthLoading(true);
-    setAuthMsg({ text: 'Working…', type: '' });
+    setAuthMsg({ text: authMode === 'register' ? 'Creating account…' : 'Signing in…', type: '' });
 
     if (authMode === 'forgot') {
       const { ok, data } = await postJSONWithRetry('/api/auth/forgot-password', { email: authEmail });

@@ -184,20 +184,20 @@ function OverlayContent() {
 
   const handleToggleHide = () => {
     setVisibility((prev) => {
-      if (prev === 'hidden') {
+      const next = prev === 'hidden' ? 'open' : 'hidden';
+      if (next === 'hidden') {
+        if (window.feonix && typeof window.feonix.hide === 'function') {
+          window.feonix.hide();
+        }
+      } else {
         if (window.feonix && typeof window.feonix.show === 'function') {
           window.feonix.show();
         }
         if (window.feonix && typeof window.feonix.bringToFront === 'function') {
           window.feonix.bringToFront();
         }
-        return 'open';
-      } else {
-        if (window.feonix && typeof window.feonix.hide === 'function') {
-          window.feonix.hide();
-        }
-        return 'hidden';
       }
+      return next;
     });
   };
 
@@ -283,8 +283,9 @@ function OverlayContent() {
       // stays live even when visibility is 'hidden' (nothing rendered isn't
       // the same as unmounted), so this is a real way back once you're
       // actually looking at this tab again, not just an Electron feature.
-      if (e.shiftKey && (e.key === 'H' || e.key === 'h')) {
+      if (e.shiftKey && (e.key === 'H' || e.key === 'h' || e.code === 'KeyH')) {
         e.preventDefault();
+        e.stopPropagation();
         const handler = shortcutHandlersRef.current.onToggleHide;
         if (handler) handler();
         return;
@@ -756,7 +757,10 @@ function OverlayContent() {
             transcriptChips={transcriptChips}
             chipsContainerRef={chipsContainerRef}
             onChipClick={handleChipClick}
-            onClear={() => setTranscriptChips([])}
+            onClear={() => {
+              setTranscriptChips([]);
+              clearAnswer();
+            }}
             onDragStart={handleDragStart}
           />
 

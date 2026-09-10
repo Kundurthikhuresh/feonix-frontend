@@ -2998,6 +2998,25 @@ body.is-resizing #answerCard {
   box-shadow: 0 0 6px #22c55e;
 }
 
+.pk-placeholder {
+  color: #98989f;
+  font-size: 13.5px;
+  line-height: 1.6;
+  padding: 10px 4px;
+}
+
+.pk-placeholder strong {
+  color: #00f5ff;
+  font-size: 14.5px;
+  display: inline-block;
+  margin-bottom: 4px;
+}
+
+.pk-placeholder span {
+  color: #86868b;
+  font-size: 13px;
+}
+
 .pk-foot-actions {
   display: flex;
   gap: 5px;
