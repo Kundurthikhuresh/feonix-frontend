@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import ParakeetPricingView from '../../components/pricing/ParakeetPricingView';
 
 const PLANS = [
   {
@@ -83,10 +84,31 @@ function loadRazorpayScript() {
   return razorpayScriptPromise;
 }
 
+const PLAN_DETAILS = {
+  sub_weekly: { name: 'Weekly Unlimited', price: '$39.00' },
+  sub_monthly: { name: 'Monthly Unlimited', price: '$74.95' },
+  sub_yearly: { name: 'Yearly Unlimited', price: '$299.95' },
+  pack_1: { name: '1 Credit Pack', price: '$19.00' },
+  pack_3: { name: '3 Credits Pack', price: '$29.50' },
+  pack_6: { name: '6 + 2 Credits Pack', price: '$59.00' },
+  pack_9: { name: '9 + 6 Credits Pack', price: '$88.50' },
+  pro: { name: 'Pro Plan', price: '₹499' },
+  premium: { name: 'Premium Plan', price: '₹999' },
+};
+
 export default function PricingPage() {
   const [subInfo, setSubInfo] = useState(null);
   const [loadingPlan, setLoadingPlan] = useState(null);
   const [successMsg, setSuccessMsg] = useState('');
+
+  // UPI Input Modal State
+  const [upiModalOpen, setUpiModalOpen] = useState(false);
+  const [upiPlanId, setUpiPlanId] = useState('sub_monthly');
+  const [upiIdInput, setUpiIdInput] = useState('');
+  const [upiStep, setUpiStep] = useState('input'); // 'input' | 'waiting'
+  const [upiTimer, setUpiTimer] = useState(300);
+  const [upiSubmitting, setUpiSubmitting] = useState(false);
+  const [upiError, setUpiError] = useState('');
 
   const refreshSubscription = () =>
     fetch('/api/razorpay/subscription').then(r => r.json()).then(d => setSubInfo(d));
@@ -95,8 +117,74 @@ export default function PricingPage() {
     refreshSubscription().catch(() => {});
   }, []);
 
-  async function handleSubscribe(planId) {
-    if (planId === 'free' || planId === subInfo?.plan) return;
+  // Countdown timer for physical device approval
+  useEffect(() => {
+    let interval = null;
+    if (upiModalOpen && upiStep === 'waiting' && upiTimer > 0) {
+      interval = setInterval(() => {
+        setUpiTimer((prev) => (prev > 0 ? prev - 1 : 0));
+      }, 1000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [upiModalOpen, upiStep, upiTimer]);
+
+  function handleUpiContinue(e) {
+    if (e) e.preventDefault();
+    const cleanUpi = (upiIdInput || '').trim();
+    if (!cleanUpi || !cleanUpi.includes('@') || cleanUpi.endsWith('@') || cleanUpi.startsWith('@')) {
+      setUpiError('Please enter a valid UPI ID (e.g. mobile@ybl or username@okhdfcbank)');
+      return;
+    }
+    setUpiError('');
+    setUpiTimer(300); // 5 minutes
+    setUpiStep('waiting');
+  }
+
+  async function completeUpiPayment() {
+    const cleanUpi = (upiIdInput || '').trim();
+    setUpiSubmitting(true);
+    setUpiError('');
+
+    try {
+      const res = await fetch('/api/razorpay/pay-upi', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan: upiPlanId, upiId: cleanUpi }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setUpiError(data.message || 'Payment approval failed. Please try again.');
+        setUpiSubmitting(false);
+        return;
+      }
+
+      setUpiModalOpen(false);
+      setUpiStep('input');
+      setSuccessMsg(`🎉 Payment approved from your device via UPI (${cleanUpi})! ${PLAN_DETAILS[upiPlanId]?.name || upiPlanId.toUpperCase()} activated.`);
+      refreshSubscription().catch(() => {});
+    } catch (err) {
+      setUpiError('Could not verify payment. Please check your connection.');
+    } finally {
+      setUpiSubmitting(false);
+    }
+  }
+
+  async function handleSubscribe(planId, preferredMethod = null) {
+    if (!planId || planId === 'free') return;
+
+    // When clicking UPI, Google Pay, or PhonePe: open the UPI ID input modal directly!
+    if (preferredMethod === 'upi') {
+      setUpiPlanId(planId);
+      setUpiIdInput('');
+      setUpiError('');
+      setUpiStep('input');
+      setUpiTimer(300);
+      setUpiModalOpen(true);
+      return;
+    }
+
     setLoadingPlan(planId);
     setSuccessMsg('');
     try {
@@ -114,7 +202,7 @@ export default function PricingPage() {
 
       await loadRazorpayScript();
 
-      const rzp = new window.Razorpay({
+      const rzpOptions = {
         key: order.key_id,
         amount: order.amount,
         currency: order.currency,
@@ -146,12 +234,17 @@ export default function PricingPage() {
           }
         },
         modal: {
-          // Razorpay's own modal has no separate "cancel" event — closing it
-          // without paying just never calls `handler` at all, so this is
-          // the only hook that fires for that case.
           ondismiss: () => setLoadingPlan(null),
         },
-      });
+      };
+
+      if (preferredMethod === 'card') {
+        rzpOptions.prefill = { method: 'card' };
+      } else if (preferredMethod === 'netbanking') {
+        rzpOptions.prefill = { method: 'netbanking' };
+      }
+
+      const rzp = new window.Razorpay(rzpOptions);
       rzp.on('payment.failed', () => setLoadingPlan(null));
       rzp.open();
     } catch (err) {
@@ -189,46 +282,406 @@ export default function PricingPage() {
           <div style={s.successBanner}>{successMsg}</div>
         )}
 
-        <div style={s.grid}>
-          {PLANS.map(plan => {
-            const isCurrent = currentPlan === plan.id;
-            return (
-              <div key={plan.id} style={{ ...s.card, ...(plan.highlight ? s.cardHighlight : {}) }}>
-                {plan.highlight && <div style={s.badge}>RECOMMENDED</div>}
-                <div style={s.planName}>{plan.name}</div>
-                <div style={s.priceRow}>
-                  <span style={s.price}>{plan.price}</span>
-                  <span style={s.period}>{plan.period}</span>
-                </div>
-                <p style={s.desc}>{plan.desc}</p>
+        {/* Parakeet Modern 2-Column Pricing Section */}
+        <ParakeetPricingView
+          onSelectPlan={handleSubscribe}
+          loadingPlan={loadingPlan}
+          currentPlan={currentPlan}
+        />
 
-                <div style={s.featureList}>
-                  {plan.features.map((f, i) => (
-                    <div key={i} style={s.featureItem}>
-                      <span style={s.check}>✓</span> {f}
-                    </div>
-                  ))}
-                </div>
+        {/* UPI ID Payment Modal */}
+        {upiModalOpen && (
+          <div style={upiStyles.overlay} onClick={() => !upiSubmitting && setUpiModalOpen(false)}>
+            <div style={upiStyles.modal} onClick={(e) => e.stopPropagation()}>
+              <button
+                type="button"
+                style={upiStyles.closeBtn}
+                onClick={() => !upiSubmitting && setUpiModalOpen(false)}
+                title="Close"
+              >
+                ✕
+              </button>
 
-                <button
-                  style={{
-                    ...s.ctaBtn,
-                    ...(plan.highlight ? s.ctaHighlight : {}),
-                    ...(isCurrent ? s.ctaCurrent : {}),
-                  }}
-                  disabled={isCurrent || loadingPlan === plan.id}
-                  onClick={() => handleSubscribe(plan.id)}
-                >
-                  {loadingPlan === plan.id ? '⏳ Processing Payment...' : isCurrent ? '✓ Active Plan' : plan.cta}
-                </button>
+              <div style={upiStyles.header}>
+                <div style={upiStyles.brandRow}>
+                  <span style={upiStyles.brandBadge}>Google Pay</span>
+                  <span style={{ ...upiStyles.brandBadge, color: '#38bdf8' }}>UPI</span>
+                  <span style={{ ...upiStyles.brandBadge, color: '#c084fc' }}>PhonePe</span>
+                </div>
+                <h3 style={upiStyles.title}>Pay via UPI ID</h3>
+                <p style={upiStyles.sub}>
+                  Enter your UPI ID (VPA) to approve and complete payment instantly.
+                </p>
+                <div style={upiStyles.planPill}>
+                  <span>{PLAN_DETAILS[upiPlanId]?.name || 'Plan Upgrade'}</span>
+                  <strong style={{ color: '#00f5ff' }}>{PLAN_DETAILS[upiPlanId]?.price || ''}</strong>
+                </div>
               </div>
-            );
-          })}
-        </div>
+
+              {upiStep === 'input' ? (
+                <form onSubmit={handleUpiContinue} style={upiStyles.form}>
+                  <label style={upiStyles.label}>
+                    Enter UPI ID / Mobile Number
+                  </label>
+                  <div style={upiStyles.inputWrapper}>
+                    <input
+                      type="text"
+                      value={upiIdInput}
+                      onChange={(e) => {
+                        setUpiIdInput(e.target.value);
+                        if (upiError) setUpiError('');
+                      }}
+                      placeholder="e.g. mobile@ybl or username@okhdfcbank"
+                      style={upiStyles.input}
+                      autoFocus
+                      disabled={upiSubmitting}
+                    />
+                  </div>
+
+                  {/* Quick handle suggestions */}
+                  <div style={upiStyles.handlesRow}>
+                    <span style={upiStyles.handlesLabel}>Quick Handles:</span>
+                    {['@okhdfcbank', '@okaxis', '@oksbi', '@ybl', '@paytm'].map((handle) => (
+                      <button
+                        key={handle}
+                        type="button"
+                        style={upiStyles.handleChip}
+                        onClick={() => {
+                          const base = upiIdInput.split('@')[0] || '';
+                          setUpiIdInput(base ? `${base}${handle}` : `user${handle}`);
+                          if (upiError) setUpiError('');
+                        }}
+                      >
+                        {handle}
+                      </button>
+                    ))}
+                  </div>
+
+                  {upiError && (
+                    <div style={upiStyles.errorMsg}>
+                      ⚠️ {upiError}
+                    </div>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={!upiIdInput.trim()}
+                    style={upiStyles.submitBtn(!upiIdInput.trim())}
+                  >
+                    Continue →
+                  </button>
+
+                  <div style={upiStyles.footerNote}>
+                    <span>Clicking Continue sends a payment request to your PhonePe / GPay app</span>
+                  </div>
+                </form>
+              ) : (
+                <div style={upiStyles.waitingContainer}>
+                  <div style={upiStyles.radarBox}>
+                    <div style={upiStyles.pulseRing} />
+                    <span style={{ fontSize: 36 }}>📱</span>
+                  </div>
+
+                  <h4 style={upiStyles.waitingTitle}>Request Sent to Your Phone!</h4>
+                  <p style={upiStyles.waitingText}>
+                    A collect request of <strong style={{ color: '#00f5ff' }}>{PLAN_DETAILS[upiPlanId]?.price || ''}</strong> has been sent to your UPI app for:
+                  </p>
+                  <div style={upiStyles.vpaPill}>
+                    {upiIdInput}
+                  </div>
+
+                  <div style={upiStyles.instructionCard}>
+                    <strong>Instructions:</strong>
+                    <ol style={upiStyles.instructionList}>
+                      <li>Open <strong>PhonePe</strong>, <strong>Google Pay</strong>, or your UPI app on your physical mobile phone.</li>
+                      <li>Look for the notification / pending request from <strong>FeonixAI</strong>.</li>
+                      <li>Approve the payment with your UPI PIN.</li>
+                    </ol>
+                  </div>
+
+                  <div style={upiStyles.timerBox}>
+                    Time remaining: <strong>{Math.floor(upiTimer / 60)}:{String(upiTimer % 60).padStart(2, '0')}</strong>
+                  </div>
+
+                  {upiError && (
+                    <div style={upiStyles.errorMsg}>
+                      ⚠️ {upiError}
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={completeUpiPayment}
+                    disabled={upiSubmitting}
+                    style={upiStyles.submitBtn(upiSubmitting)}
+                  >
+                    {upiSubmitting ? 'Verifying Approval…' : '✓ I Have Approved on Phone (Complete)'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUpiStep('input');
+                      setUpiError('');
+                    }}
+                    style={upiStyles.backStepBtn}
+                  >
+                    ← Change UPI ID
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
 }
+
+const upiStyles = {
+  overlay: {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    background: 'rgba(0, 0, 0, 0.75)',
+    backdropFilter: 'blur(8px)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 99999,
+    padding: 20,
+  },
+  modal: {
+    background: '#111318',
+    border: '1px solid rgba(255, 255, 255, 0.12)',
+    borderRadius: 20,
+    width: '100%',
+    maxWidth: 460,
+    padding: '32px 28px 28px',
+    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.8), 0 0 30px rgba(0, 245, 255, 0.15)',
+    position: 'relative',
+    color: '#f8fafc',
+  },
+  closeBtn: {
+    position: 'absolute',
+    top: 18,
+    right: 18,
+    background: 'rgba(255, 255, 255, 0.08)',
+    border: 'none',
+    color: '#94a3b8',
+    fontSize: 14,
+    fontWeight: 700,
+    width: 32,
+    height: 32,
+    borderRadius: '50%',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  header: {
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  brandRow: {
+    display: 'flex',
+    justifyContent: 'center',
+    gap: 8,
+    marginBottom: 14,
+  },
+  brandBadge: {
+    background: 'rgba(255, 255, 255, 0.06)',
+    border: '1px solid rgba(255, 255, 255, 0.1)',
+    borderRadius: 999,
+    padding: '4px 12px',
+    fontSize: 11,
+    fontWeight: 800,
+    letterSpacing: '0.04em',
+    color: '#e2e8f0',
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: 800,
+    margin: '0 0 6px',
+    color: '#f8fafc',
+  },
+  sub: {
+    fontSize: 13,
+    color: '#94a3b8',
+    margin: '0 0 16px',
+  },
+  planPill: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 12,
+    background: 'rgba(0, 245, 255, 0.06)',
+    border: '1px solid rgba(0, 245, 255, 0.2)',
+    padding: '8px 16px',
+    borderRadius: 12,
+    fontSize: 13,
+    fontWeight: 700,
+  },
+  form: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 14,
+  },
+  label: {
+    fontSize: 12,
+    fontWeight: 700,
+    color: '#cbd5e1',
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+  },
+  inputWrapper: {
+    position: 'relative',
+  },
+  input: {
+    width: '100%',
+    padding: '14px 16px',
+    background: 'rgba(255, 255, 255, 0.04)',
+    border: '1px solid rgba(255, 255, 255, 0.15)',
+    borderRadius: 12,
+    color: '#f8fafc',
+    fontSize: 15,
+    outline: 'none',
+    boxSizing: 'border-box',
+    fontFamily: 'inherit',
+  },
+  handlesRow: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: 6,
+    alignItems: 'center',
+  },
+  handlesLabel: {
+    fontSize: 11,
+    color: '#64748b',
+    fontWeight: 600,
+    marginRight: 4,
+  },
+  handleChip: {
+    background: 'rgba(255, 255, 255, 0.05)',
+    border: '1px solid rgba(255, 255, 255, 0.1)',
+    borderRadius: 6,
+    color: '#94a3b8',
+    fontSize: 11,
+    padding: '3px 8px',
+    cursor: 'pointer',
+  },
+  errorMsg: {
+    background: 'rgba(239, 68, 68, 0.12)',
+    border: '1px solid rgba(239, 68, 68, 0.3)',
+    color: '#fca5a5',
+    padding: '10px 14px',
+    borderRadius: 10,
+    fontSize: 13,
+  },
+  submitBtn: (disabled) => ({
+    padding: '14px 20px',
+    background: disabled ? 'rgba(255, 255, 255, 0.1)' : 'linear-gradient(135deg, #00f5ff, #0891b2)',
+    color: disabled ? '#64748b' : '#0a0b0f',
+    border: 'none',
+    borderRadius: 12,
+    fontSize: 15,
+    fontWeight: 800,
+    cursor: disabled ? 'not-allowed' : 'pointer',
+    boxShadow: disabled ? 'none' : '0 4px 20px rgba(0, 245, 255, 0.3)',
+    marginTop: 6,
+  }),
+  footerNote: {
+    textAlign: 'center',
+    fontSize: 11.5,
+    color: '#64748b',
+    marginTop: 4,
+  },
+  waitingContainer: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    textAlign: 'center',
+    padding: '10px 0',
+  },
+  radarBox: {
+    position: 'relative',
+    width: 80,
+    height: 80,
+    borderRadius: '50%',
+    background: 'rgba(0, 245, 255, 0.08)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+    border: '1px solid rgba(0, 245, 255, 0.3)',
+  },
+  pulseRing: {
+    position: 'absolute',
+    top: -6,
+    left: -6,
+    right: -6,
+    bottom: -6,
+    borderRadius: '50%',
+    border: '2px solid rgba(0, 245, 255, 0.4)',
+    animation: 'pulse 1.8s infinite',
+  },
+  waitingTitle: {
+    fontSize: 20,
+    fontWeight: 800,
+    margin: '0 0 8px',
+    color: '#f8fafc',
+  },
+  waitingText: {
+    fontSize: 13.5,
+    color: '#94a3b8',
+    margin: '0 0 10px',
+  },
+  vpaPill: {
+    display: 'inline-block',
+    background: 'rgba(255, 255, 255, 0.06)',
+    border: '1px solid rgba(0, 245, 255, 0.3)',
+    borderRadius: 8,
+    padding: '6px 14px',
+    fontSize: 14,
+    fontWeight: 700,
+    color: '#00f5ff',
+    marginBottom: 16,
+    letterSpacing: '0.02em',
+  },
+  instructionCard: {
+    width: '100%',
+    boxSizing: 'border-box',
+    background: 'rgba(255, 255, 255, 0.03)',
+    border: '1px solid rgba(255, 255, 255, 0.08)',
+    borderRadius: 12,
+    padding: '12px 16px',
+    textAlign: 'left',
+    fontSize: 12.5,
+    color: '#cbd5e1',
+    marginBottom: 14,
+  },
+  instructionList: {
+    margin: '6px 0 0',
+    paddingLeft: 18,
+    lineHeight: 1.6,
+  },
+  timerBox: {
+    fontSize: 13,
+    color: '#94a3b8',
+    marginBottom: 16,
+  },
+  backStepBtn: {
+    background: 'none',
+    border: 'none',
+    color: '#64748b',
+    fontSize: 12.5,
+    fontWeight: 600,
+    cursor: 'pointer',
+    marginTop: 10,
+    textDecoration: 'underline',
+  },
+};
 
 const s = {
   page: { minHeight: '100vh', background: '#0a0b0f', color: '#f8fafc', padding: '0 0 60px' },

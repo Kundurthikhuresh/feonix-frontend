@@ -94,7 +94,7 @@ export default function CreateSessionModal({
                 Free Trial {!trialsExhausted && <span className="bill-tag">Rec</span>}
               </span>
               <span className="bill-line">
-                {trialsExhausted ? '0 free trials left' : '15 minutes limit'}
+                {trialsExhausted ? '0 free trials left' : '10 minutes limit'}
               </span>
             </button>
             <button

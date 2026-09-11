@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from 'react';
 import {
   getListenStream, createChunkedRecorder, stopStreamTracks, transcribeChunk, looksLikeQuestion,
+  isSilenceHallucination, deduplicateRepeatedPhrases,
 } from '../services/speechService';
 
 /**
@@ -34,6 +35,10 @@ export function useSpeechRecognition({ sessionId, source = 'mic', language = 'en
     try {
       const data = await transcribeChunk(blob, sessionIdRef.current);
       if (data.text) {
+        if (isSilenceHallucination(data.text)) {
+          return;
+        }
+
         const lang = String(languageRef.current || 'en').toLowerCase();
         if (lang === 'en' || lang === 'english') {
           // Reject foreign script noise hallucinations (Japanese, Chinese, Korean, Cyrillic, Arabic) in English sessions
@@ -45,9 +50,25 @@ export function useSpeechRecognition({ sessionId, source = 'mic', language = 'en
           }
         }
 
-        const isQuestion = looksLikeQuestion(data.text);
-        setTranscriptChips((prev) => [...prev, { text: data.text, isQuestion }]);
-        if (isQuestion && onQuestionDetectedRef.current) onQuestionDetectedRef.current(data.text);
+        const cleanText = deduplicateRepeatedPhrases(data.text);
+        if (!cleanText || cleanText.length < 2 || isSilenceHallucination(cleanText)) return;
+
+        const isQuestion = looksLikeQuestion(cleanText);
+
+        // Deduplicate consecutive identical/redundant chips
+        setTranscriptChips((prev) => {
+          const last = prev[prev.length - 1];
+          if (last) {
+            const lastNorm = last.text.toLowerCase().replace(/[^a-z0-9]/g, '');
+            const currNorm = cleanText.toLowerCase().replace(/[^a-z0-9]/g, '');
+            if (lastNorm === currNorm || (currNorm.length > 5 && lastNorm.includes(currNorm))) {
+              return prev;
+            }
+          }
+          return [...prev, { text: cleanText, isQuestion }];
+        });
+
+        if (isQuestion && onQuestionDetectedRef.current) onQuestionDetectedRef.current(cleanText);
       }
     } catch (err) {
       // Not fatal — this chunk is simply dropped and recording carries on;
@@ -89,7 +110,7 @@ export function useSpeechRecognition({ sessionId, source = 'mic', language = 'en
       // two chunks, so neither one alone reads as a complete question to
       // looksLikeQuestion). 2.5s keeps most short interview questions intact
       // in one chunk while cutting a full second off the old 3.5s floor.
-      const recorder = createChunkedRecorder(stream, { intervalMs: 2500, onChunk: uploadAudioChunk });
+      const recorder = createChunkedRecorder(stream, { intervalMs: 1600, onChunk: uploadAudioChunk });
       recorderRef.current = recorder;
       recorder.start();
     } catch (err) {

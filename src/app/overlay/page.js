@@ -37,7 +37,7 @@ const DEFAULT_SETTINGS = {
   audioSource: 'mic',
 };
 
-const SIZE_PX = { compact: 880, normal: 980, large: 1200 };
+const SIZE_PX = { compact: 980, normal: 1140, large: 1300 };
 
 function OverlayContent() {
   const searchParams = useSearchParams();
@@ -151,7 +151,7 @@ function OverlayContent() {
   // is declared above, ahead of useInterview.)
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
-  const cardSize = { width: 980, height: 500 };
+  const cardSize = { width: 1140, height: 500 };
 
   useEffect(() => {
     if (window.feonix && typeof window.feonix.getSettings === 'function') {
@@ -179,6 +179,21 @@ function OverlayContent() {
     }
     if (window.feonix && typeof window.feonix.bringToFront === 'function') {
       window.feonix.bringToFront();
+    }
+  };
+
+  const handleSetStealth = (val) => {
+    const isTurnOn = Boolean(val);
+    updateSetting('stealthMode', isTurnOn);
+    if (window.feonix && typeof window.feonix.setStealthMode === 'function') {
+      window.feonix.setStealthMode(isTurnOn);
+    }
+    if (typeof triggerToast === 'function') {
+      if (isTurnOn) {
+        triggerToast('🛡️ Private Mode ON: Copilot is visible ONLY to the user (hidden from interviewer / opposite person)');
+      } else {
+        triggerToast('👥 Private Mode OFF: Copilot is visible to BOTH sides (interviewer & user)');
+      }
     }
   };
 
@@ -222,7 +237,6 @@ function OverlayContent() {
   const chipsContainerRef = useRef(null);
   const shellRef = useRef(null);
   const pillRef = useRef(null);
-
   // Drag-to-move state
   const [dragPos, setDragPos] = useState({ x: null, y: null }); // null = use CSS default
   const dragRef = useRef({ dragging: false, hasMoved: false, startX: 0, startY: 0, originX: 0, originY: 0 });
@@ -562,7 +576,7 @@ function OverlayContent() {
     } else if (visibility === 'open') {
       if (typeof window.feonix.show === 'function') window.feonix.show();
       if (typeof window.feonix.resize === 'function') {
-        const targetWidth = Math.max(SIZE_PX[settings.assistantSize] || 980, isExpanded ? 1120 : 980);
+        const targetWidth = Math.max(SIZE_PX[settings.assistantSize] || 1140, isExpanded ? 1220 : 1140);
         if (settingsOpen) {
           window.feonix.resize(targetWidth, 540);
         } else if (promptHubOpen) {
@@ -571,7 +585,7 @@ function OverlayContent() {
           const height = (isExpanded ? 640 : cardSize.height) + 140;
           window.feonix.resize(targetWidth, height);
         } else {
-          window.feonix.resize(targetWidth, 260);
+          window.feonix.resize(targetWidth, 270);
         }
       }
     }
@@ -745,6 +759,7 @@ function OverlayContent() {
             onMinimize={() => setVisibility('minimized')}
             stealthMode={settings.stealthMode}
             onToggleStealth={handleToggleStealth}
+            onSetStealth={handleSetStealth}
             onToggleHide={handleToggleHide}
             settingsOpen={settingsOpen}
             onToggleSettings={() => setSettingsOpen((prev) => !prev)}

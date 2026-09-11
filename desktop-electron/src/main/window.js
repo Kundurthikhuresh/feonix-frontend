@@ -42,9 +42,6 @@ function bringToFront(win, keepAlwaysOnTop = false) {
   win.show();
   win.setAlwaysOnTop(true);
   win.focus();
-  try {
-    win.setContentProtection(true);
-  } catch { /* best effort */ }
   if (!keepAlwaysOnTop) {
     win.setAlwaysOnTop(false);
   }
@@ -111,7 +108,8 @@ function createOverlayWindow(routePath, settingsStore) {
     overlayWindow.loadURL(`${WEB_URL}${routePath}`);
     bringToFront(overlayWindow, alwaysOnTop);
     try {
-      overlayWindow.setContentProtection(true);
+      const stealth = settingsStore ? (settingsStore.get('stealthMode') !== false) : true;
+      overlayWindow.setContentProtection(stealth);
     } catch { }
     return overlayWindow;
   }
@@ -122,8 +120,8 @@ function createOverlayWindow(routePath, settingsStore) {
     // minimize/Hide/settings/End on the right) — it fit only by clipping
     // whichever button ran past the edge, End Interview most often, since
     // .pk-shell clips overflow rather than shrinking it.
-    width: 980,
-    height: 380,
+    width: 1140,
+    height: 390,
     minWidth: 400,
     minHeight: 180,
     frame: false,
@@ -163,13 +161,11 @@ function createOverlayWindow(routePath, settingsStore) {
   // 8. Whereby (screen/window/tab sharing)
   // 9. Google Meet, 10. Zoom, 11. Microsoft Teams, OBS, and OS screen recorders.
   const stealthEnabled = settingsStore ? (settingsStore.get('stealthMode') !== false) : true;
-  if (stealthEnabled) {
-    try {
-      overlayWindow.setContentProtection(true);
-      console.log('🛡️ Screen share stealth enabled: overlayWindow.setContentProtection(true) across 11 platforms');
-    } catch (err) {
-      console.warn('Could not enable content protection on overlay window:', err.message);
-    }
+  try {
+    overlayWindow.setContentProtection(stealthEnabled);
+    console.log(`🛡️ Screen share stealth set to ${stealthEnabled}: overlayWindow.setContentProtection(${stealthEnabled})`);
+  } catch (err) {
+    console.warn('Could not set content protection on overlay window:', err.message);
   }
 
   overlayWindow.webContents.on('did-fail-load', (_e, errorCode, errorDescription, validatedURL) => {
@@ -191,7 +187,8 @@ function createOverlayWindow(routePath, settingsStore) {
     const currentAlwaysOnTop = settingsStore ? Boolean(settingsStore.get('alwaysOnTop')) : alwaysOnTop;
     bringToFront(overlayWindow, currentAlwaysOnTop);
     try {
-      overlayWindow.setContentProtection(true);
+      const currentStealth = settingsStore ? (settingsStore.get('stealthMode') !== false) : true;
+      overlayWindow.setContentProtection(currentStealth);
     } catch { }
     overlayWindow.webContents.focus();
   });

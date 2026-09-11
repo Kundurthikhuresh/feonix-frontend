@@ -13,6 +13,7 @@ export default function TopBar({
   onMinimize,
   stealthMode,
   onToggleStealth,
+  onSetStealth,
   onToggleHide,
   settingsOpen,
   onToggleSettings,
@@ -75,6 +76,7 @@ export default function TopBar({
           onMinimize={onMinimize}
           stealthMode={stealthMode}
           onToggleStealth={onToggleStealth}
+          onSetStealth={onSetStealth}
           onToggleHide={onToggleHide}
           settingsOpen={settingsOpen}
           onToggleSettings={onToggleSettings}

@@ -124,7 +124,7 @@ export const SCREEN_SHARE_PLATFORMS = [
  * Returns an unsubscribe callback.
  */
 export function subscribeToScreenShareEvents(onStateChange) {
-  if (typeof window === 'undefined') return () => {};
+  if (typeof window === 'undefined') return () => { };
 
   if (window.feonix && typeof window.feonix.onScreenShareStateChange === 'function') {
     return window.feonix.onScreenShareStateChange((data) => {
@@ -134,7 +134,7 @@ export function subscribeToScreenShareEvents(onStateChange) {
     });
   }
 
-  return () => {};
+  return () => { };
 }
 
 /**

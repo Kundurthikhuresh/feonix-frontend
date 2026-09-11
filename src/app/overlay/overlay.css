@@ -52,6 +52,13 @@ body {
   padding: 0;
 }
 
+.overlay-page-shell.in-browser-mode {
+  background: radial-gradient(circle at 50% 10%, #1a1a26 0%, #0e0e14 70%, #08080c 100%) !important;
+  min-height: 100vh;
+  justify-content: flex-start;
+  padding-top: 16px;
+}
+
 .stack {
   width: 100%;
   max-width: 1180px;
@@ -1977,7 +1984,7 @@ body.is-resizing #answerCard {
   flex-direction: column;
   gap: 0;
   width: 100%;
-  max-width: 980px;
+  max-width: 1280px;
   max-height: calc(100vh - 10px);
   pointer-events: all;
   position: relative;
@@ -2030,12 +2037,12 @@ body.is-resizing #answerCard {
   justify-content: space-between;
   background: #1c1c1e;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  padding: 6px 12px;
-  min-height: 48px;
+  padding: 8px 12px;
+  min-height: 52px;
   gap: 8px;
   cursor: grab;
   user-select: none;
-  overflow: hidden;
+  overflow: visible;
   box-sizing: border-box;
   position: relative;
   z-index: 500;
@@ -2068,9 +2075,10 @@ body.is-resizing #answerCard {
 .pk-topbar-right {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
   flex-shrink: 0;
   margin-left: auto;
+  padding-right: 4px;
 }
 
 /* Record Button */
@@ -2081,10 +2089,10 @@ body.is-resizing #answerCard {
   background: #2c2c2e;
   color: #aeaeb2;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
+  border-radius: 9px;
   padding: 0 11px;
-  height: 35px;
-  font-size: 13px;
+  height: 38px;
+  font-size: 13.5px;
   font-weight: 600;
   cursor: pointer;
   transition: background 120ms, color 120ms, border-color 120ms;
@@ -2099,8 +2107,8 @@ body.is-resizing #answerCard {
 }
 
 .pk-rec-dot {
-  width: 9px;
-  height: 9px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   background: #ff453a;
   flex-shrink: 0;
@@ -2167,10 +2175,10 @@ body.is-resizing #answerCard {
   background: #2c2c2e;
   color: #e5e5ea;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
-  padding: 0 10px;
-  height: 35px;
-  font-size: 13px;
+  border-radius: 9px;
+  padding: 0 11px;
+  height: 38px;
+  font-size: 13.5px;
   font-weight: 600;
   cursor: pointer;
   transition: background 120ms, transform 80ms, border-color 120ms;
@@ -2194,7 +2202,7 @@ body.is-resizing #answerCard {
   color: #8e8e93;
   background: rgba(255, 255, 255, 0.1);
   border-radius: 4px;
-  padding: 1px 4px;
+  padding: 1.5px 4px;
   margin-left: 4px;
 }
 
@@ -2212,13 +2220,13 @@ body.is-resizing #answerCard {
 }
 
 .pk-sparkle-icon {
-  font-size: 13px;
+  font-size: 14px;
   display: inline-block;
   margin-right: 2px;
 }
 
 .pk-btn-icon {
-  font-size: 13px;
+  font-size: 14px;
   display: inline-block;
   margin-right: 2px;
 }
@@ -2279,23 +2287,32 @@ body.is-resizing #answerCard {
 }
 
 @keyframes pk-pulse-green {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.65; transform: scale(1.2); }
+
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.65;
+    transform: scale(1.2);
+  }
 }
 
 /* Parakeet Session Timer Pill */
 .pk-timer-pill {
-  font-size: 11.5px;
+  font-size: 12.5px;
   font-weight: 600;
   color: #a1a1aa;
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  padding: 0 9px;
-  height: 32px;
-  border-radius: 8px;
+  padding: 0 11px;
+  height: 35px;
+  border-radius: 9px;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.02em;
   user-select: none;
@@ -2337,13 +2354,13 @@ body.is-resizing #answerCard {
 .pk-icon-btn {
   display: grid;
   place-items: center;
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   background: #2c2c2e;
   color: #8e8e93;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 7px;
-  font-size: 14px;
+  border-radius: 8px;
+  font-size: 14.5px;
   cursor: pointer;
   transition: background 120ms, color 120ms;
   flex-shrink: 0;
@@ -2354,17 +2371,115 @@ body.is-resizing #answerCard {
   color: #e5e5ea;
 }
 
+.pk-private-capsule {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 35px;
+  padding: 0 4px 0 9px;
+  border-radius: 8px;
+  user-select: none;
+  transition: all 140ms ease;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.pk-private-capsule.pk-capsule-on {
+  background: rgba(48, 209, 88, 0.12);
+  border: 1px solid rgba(48, 209, 88, 0.35);
+  color: #30d158;
+}
+
+.pk-private-capsule.pk-capsule-off {
+  background: #2c2c2e;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #8e8e93;
+}
+
+.pk-capsule-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: -0.1px;
+}
+
+.pk-capsule-on .pk-capsule-label {
+  color: #30d158;
+}
+
+.pk-capsule-off .pk-capsule-label {
+  color: #8e8e93;
+}
+
+.pk-capsule-toggle {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  padding: 2.5px;
+  gap: 3px;
+}
+
+.pk-capsule-btn {
+  border: none;
+  background: transparent;
+  color: #8e8e93;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 2px 9px;
+  height: 25px;
+  border-radius: 5px;
+  cursor: pointer;
+  line-height: 1;
+  transition: all 120ms ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pk-capsule-btn:hover {
+  color: #e5e5ea;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.pk-capsule-btn.pk-capsule-btn-on-active {
+  background: #30d158;
+  color: #0b2211;
+  font-weight: 700;
+  box-shadow: 0 1px 4px rgba(48, 209, 88, 0.4);
+}
+
+.pk-capsule-btn.pk-capsule-btn-on-active:hover {
+  background: #34e060;
+  color: #05160a;
+}
+
+.pk-capsule-btn.pk-capsule-btn-off-active {
+  background: #ff9f0a;
+  color: #261400;
+  font-weight: 700;
+  box-shadow: 0 1px 4px rgba(255, 159, 10, 0.4);
+}
+
+.pk-capsule-btn.pk-capsule-btn-off-active:hover {
+  background: #ffaa24;
+  color: #170b00;
+}
+
 .pk-hide-btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 32px;
+  height: 35px;
   background: rgba(48, 209, 88, 0.12);
   color: #30d158;
   border: 1px solid rgba(48, 209, 88, 0.35);
-  border-radius: 7px;
-  padding: 0 10px;
-  font-size: 12px;
+  border-radius: 8px;
+  padding: 0 11px;
+  font-size: 12.5px;
   font-weight: 600;
   cursor: pointer;
   transition: all 120ms ease;
@@ -2408,19 +2523,21 @@ body.is-resizing #answerCard {
 .pk-end-btn {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  justify-content: center;
   background: #ff3b30;
   color: #fff;
   border: none;
-  border-radius: 7px;
-  padding: 0 11px;
-  height: 32px;
-  font-size: 12.5px;
+  border-radius: 8px;
+  padding: 0 15px;
+  height: 35px;
+  font-size: 13px;
   font-weight: 700;
+  letter-spacing: 0.2px;
   cursor: pointer;
   transition: background 120ms, transform 80ms;
   box-shadow: 0 2px 8px rgba(255, 59, 48, 0.35);
   flex-shrink: 0;
+  margin-right: 2px;
 }
 
 .pk-end-btn:hover {
@@ -2433,15 +2550,15 @@ body.is-resizing #answerCard {
 
 .pk-end-btn kbd {
   font-family: inherit;
-  font-size: 10px;
+  font-size: 10.5px;
   font-weight: 600;
   color: rgba(255, 255, 255, 0.85);
   background: rgba(0, 0, 0, 0.25);
   border-radius: 4px;
-  padding: 1px 4px;
+  padding: 1.5px 5px;
 }
 
-@media (max-width: 1040px) {
+@media (max-width: 1120px) {
 
   .pk-action-btn kbd,
   .pk-end-btn kbd {
@@ -2521,11 +2638,11 @@ body.is-resizing #answerCard {
 .pk-strip {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   background: #18181a;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  padding: 6px 14px;
-  min-height: 40px;
+  padding: 7px 16px;
+  min-height: 44px;
   overflow: hidden;
   cursor: grab;
   user-select: none;
@@ -2543,32 +2660,32 @@ body.is-resizing #answerCard {
 .pk-strip-wave {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 2.5px;
   flex-shrink: 0;
-  width: 26px;
-  height: 22px;
+  width: 28px;
+  height: 24px;
 }
 
 .pk-strip-wave i {
   display: inline-block;
-  width: 3px;
+  width: 3.5px;
   background: #30d158;
   border-radius: 2px;
   animation: pk-wave 0.9s ease-in-out infinite;
 }
 
 .pk-strip-wave i:nth-child(1) {
-  height: 8px;
+  height: 9px;
   animation-delay: 0s;
 }
 
 .pk-strip-wave i:nth-child(2) {
-  height: 14px;
+  height: 16px;
   animation-delay: 0.15s;
 }
 
 .pk-strip-wave i:nth-child(3) {
-  height: 8px;
+  height: 9px;
   animation-delay: 0.3s;
 }
 
@@ -2585,14 +2702,14 @@ body.is-resizing #answerCard {
 }
 
 .pk-strip-pause {
-  font-size: 11px;
+  font-size: 12px;
   color: #636366;
 }
 
 .pk-chips {
   flex: 1;
   display: flex;
-  gap: 5px;
+  gap: 6px;
   overflow-x: auto;
   scrollbar-width: none;
   -ms-overflow-style: none;
@@ -2608,9 +2725,9 @@ body.is-resizing #answerCard {
   display: inline-flex;
   align-items: center;
   white-space: nowrap;
-  padding: 4px 11px;
+  padding: 5px 13px;
   border-radius: 999px;
-  font-size: 13.5px;
+  font-size: 14px;
   background: #2c2c2e;
   color: #aeaeb2;
   cursor: default;
@@ -2633,7 +2750,7 @@ body.is-resizing #answerCard {
 .pk-chip-badge {
   display: inline-flex;
   align-items: center;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -2641,7 +2758,7 @@ body.is-resizing #answerCard {
   color: #30d158;
   border: 1px solid rgba(48, 209, 88, 0.35);
   border-radius: 4px;
-  padding: 1px 5px;
+  padding: 1.5px 6px;
   margin-right: 7px;
 }
 
@@ -2653,13 +2770,13 @@ body.is-resizing #answerCard {
 .pk-chip-solve {
   display: inline-flex;
   align-items: center;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   color: #ffd60a;
   background: rgba(255, 214, 10, 0.15);
   border: 1px solid rgba(255, 214, 10, 0.3);
   border-radius: 4px;
-  padding: 1px 6px;
+  padding: 2px 7px;
   margin-left: 8px;
   transition: transform 120ms ease;
 }
@@ -2671,20 +2788,21 @@ body.is-resizing #answerCard {
 .pk-chip-idle {
   color: #636366;
   cursor: default;
+  font-size: 14px;
 }
 
 .pk-strip-clear {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   flex-shrink: 0;
   background: #2c2c2e;
   color: #8e8e93;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 7px;
-  padding: 0 10px;
-  height: 28px;
-  font-size: 12px;
+  border-radius: 8px;
+  padding: 0 12px;
+  height: 32px;
+  font-size: 12.5px;
   font-weight: 600;
   cursor: pointer;
   transition: background 120ms;
@@ -2696,10 +2814,10 @@ body.is-resizing #answerCard {
 }
 
 .pk-strip-clear kbd {
-  font-size: 10px;
+  font-size: 11px;
   background: rgba(255, 255, 255, 0.1);
   border-radius: 4px;
-  padding: 1px 4px;
+  padding: 1.5px 5px;
 }
 
 /* Row 3: Answer Nav Bar */
@@ -2728,8 +2846,8 @@ body.is-resizing #answerCard {
   color: #a1a1aa;
   border: none;
   border-radius: 6px;
-  padding: 3px 9px;
-  font-size: 11.5px;
+  padding: 4px 11px;
+  font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   transition: all 120ms ease;
@@ -2953,23 +3071,25 @@ body.is-resizing #answerCard {
 }
 
 .pk-placeholder {
-  padding: 10px 4px;
-  font-size: 13.5px;
-  line-height: 1.5;
-  color: #8e8e93;
+  color: #98989f;
+  font-size: 14.5px;
+  line-height: 1.6;
+  padding: 14px 6px;
   text-align: left;
 }
 
 .pk-placeholder strong {
-  color: #e5e5ea;
-  font-size: 14px;
+  color: #00f5ff;
+  font-size: 16px;
+  display: inline-block;
+  margin-bottom: 5px;
 }
 
 .pk-placeholder span {
-  font-size: 12.5px;
+  color: #86868b;
+  font-size: 13.5px;
   display: block;
   margin-top: 3px;
-  color: #636366;
 }
 
 .pk-answer-foot {
@@ -2982,7 +3102,7 @@ body.is-resizing #answerCard {
 }
 
 .pk-foot-label {
-  font-size: 12px;
+  font-size: 12.5px;
   color: #71717a;
   display: inline-flex;
   align-items: center;
@@ -2996,25 +3116,6 @@ body.is-resizing #answerCard {
   background: #22c55e;
   display: inline-block;
   box-shadow: 0 0 6px #22c55e;
-}
-
-.pk-placeholder {
-  color: #98989f;
-  font-size: 13.5px;
-  line-height: 1.6;
-  padding: 10px 4px;
-}
-
-.pk-placeholder strong {
-  color: #00f5ff;
-  font-size: 14.5px;
-  display: inline-block;
-  margin-bottom: 4px;
-}
-
-.pk-placeholder span {
-  color: #86868b;
-  font-size: 13px;
 }
 
 .pk-foot-actions {
@@ -3208,10 +3309,10 @@ body.is-resizing #answerCard {
   flex: 1;
   background: #1c1c1e;
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 8px;
-  padding: 8px 12px;
+  border-radius: 9px;
+  padding: 10px 14px;
   color: #e5e5ea;
-  font-size: 13.5px;
+  font-size: 14px;
   font-family: inherit;
   outline: none;
   transition: border-color 150ms;
@@ -3229,9 +3330,9 @@ body.is-resizing #answerCard {
   background: #0a84ff;
   color: #fff;
   border: none;
-  border-radius: 8px;
-  padding: 8px 16px;
-  font-size: 13.5px;
+  border-radius: 9px;
+  padding: 10px 18px;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;

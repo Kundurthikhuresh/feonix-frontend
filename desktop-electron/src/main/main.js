@@ -41,8 +41,12 @@ function parseDeepLink(url) {
     if (parsed.protocol.toLowerCase() !== `${SCHEME.toLowerCase()}:`) return null;
     const token = parsed.searchParams.get('token');
     const sessionParam = parsed.searchParams.get('session');
-    if (!token) return null;
-    return { token, session: sessionParam };
+    const action = parsed.searchParams.get('action');
+    const start = parsed.searchParams.get('start');
+    const auto = parsed.searchParams.get('auto') || '1';
+    const plan = parsed.searchParams.get('plan') || 'full';
+    if (!token && !sessionParam) return null;
+    return { token, session: sessionParam, action, start, auto, plan };
   } catch {
     return null;
   }
@@ -52,17 +56,43 @@ function deliverHandoff(handoff) {
   if (!handoff) return;
   pendingHandoff = handoff;
 
+  // ONLY open the overlay window if the user explicitly clicked "Start Interview" (action=start_session)
+  if (handoff.action === 'start_session' && handoff.session) {
+    const query = new URLSearchParams({
+      session: String(handoff.session || ''),
+      plan: handoff.plan || 'full',
+      auto: handoff.auto || '1',
+      start: 'open',
+    }).toString();
+    const overlayRoute = `/overlay?${query}`;
+    logger.info('deliverHandoff launching overlay on start_session:', overlayRoute);
+
+    const { createOverlayWindow } = require('./window');
+    const overlayWin = createOverlayWindow(overlayRoute, settingsStore);
+    if (overlayWin && !overlayWin.isDestroyed()) {
+      bringToFront(overlayWin, true);
+    }
+
+    const mainWindow = getMainWindow();
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.hide();
+    }
+    return;
+  }
+
+  // When setting up a session or on /session-type, ALWAYS close any existing overlay!
+  // The copilot must NEVER be open before the user clicks "Start Interview".
+  const overlayWindow = getOverlayWindow();
+  if (overlayWindow && !overlayWindow.isDestroyed()) {
+    overlayWindow.close();
+  }
+
   const sessionQuery = handoff.session ? `&session=${encodeURIComponent(handoff.session)}` : '';
   const tokenQuery = handoff.token ? `token=${encodeURIComponent(handoff.token)}` : '';
   const query = tokenQuery ? `?${tokenQuery}${sessionQuery}` : (sessionQuery ? `?${sessionQuery.slice(1)}` : '');
   const routePath = `/session-type${query}`;
 
   logger.info('deliverHandoff routing to:', routePath);
-
-  const overlayWindow = getOverlayWindow();
-  if (overlayWindow && !overlayWindow.isDestroyed()) {
-    overlayWindow.close();
-  }
 
   const mainWindow = getMainWindow();
   if (mainWindow && !mainWindow.isDestroyed()) {
@@ -103,7 +133,7 @@ if (!gotLock) {
 } else {
   app.on('second-instance', (_event, argv) => {
     const prefix = `${SCHEME.toLowerCase()}:`;
-    const link = argv.find((arg) => typeof arg === 'string' && arg.toLowerCase().startsWith(prefix));
+    const link = argv.find((arg) => typeof arg === 'string' && arg.trim().replace(/^["']/, '').toLowerCase().startsWith(prefix));
     const handoff = link ? parseDeepLink(link) : null;
     if (handoff) {
       deliverHandoff(handoff);
@@ -122,13 +152,13 @@ if (!gotLock) {
     logger.info('IPC handlers registered.');
 
     applyLaunchAtStartup(settingsStore.get('launchAtStartup'));
-    if (settingsStore.get('showTrayIcon')) createTray({ onOpenSettings: () => {} });
+    if (settingsStore.get('showTrayIcon')) createTray({ onOpenSettings: () => { } });
     registerShortcuts(settingsStore);
     initScreenShareDetector(settingsStore, logger);
 
     // Windows/Linux cold start via protocol link: the URL arrives as an argv entry.
     const prefix = `${SCHEME.toLowerCase()}:`;
-    const coldLink = process.argv.find((arg) => typeof arg === 'string' && arg.toLowerCase().startsWith(prefix));
+    const coldLink = process.argv.find((arg) => typeof arg === 'string' && arg.trim().replace(/^["']/, '').toLowerCase().startsWith(prefix));
     const coldHandoff = coldLink ? parseDeepLink(coldLink) : null;
 
     if (coldHandoff) {

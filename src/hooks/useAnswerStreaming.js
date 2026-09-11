@@ -1,11 +1,13 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { streamAnswer } from '../services/aiService';
-import { formatParakeetAnswer, formatStreamingAnswer } from '../lib/answerFormatter';
+import { formatParakeetAnswer, formatStreamingAnswer, isCodingQuestion } from '../lib/answerFormatter';
+import { deduplicateRepeatedPhrases } from '../services/speechService';
 
 const QTYPE_LABELS = {
   code: '⚡ Code Solution',
   teleprompter: '💡 Teleprompter Hints',
   quiz: '📝 Multiple Choice Answer',
+  star: '⭐ STAR Method Response',
 };
 
 /**
@@ -43,9 +45,12 @@ export function useAnswerStreaming() {
     setCueLine('');
   }, []);
 
-  const generateAnswer = useCallback(async (question, opts = {}) => {
+  const generateAnswer = useCallback(async (rawQuestion, opts = {}) => {
+    const question = deduplicateRepeatedPhrases(rawQuestion) || rawQuestion;
     const { images = [], style = 'star', transcript = '', sessionId = null, language = 'en', action = 'answer' } = opts;
-    lastCallRef.current = { question, opts };
+    const isCode = isCodingQuestion(question) || style === 'code';
+    const effectiveStyle = isCode && style !== 'teleprompter' && style !== 'quiz' ? 'code' : style;
+    lastCallRef.current = { question, opts: { ...opts, style: effectiveStyle } };
 
     setShowAnswerCard(true);
     if (answerAbortRef.current) answerAbortRef.current.abort();
@@ -56,7 +61,7 @@ export function useAnswerStreaming() {
     setHasError(false);
     setAnswerHtml('');
     setCueLine(question);
-    setQtype(QTYPE_LABELS[style] || '⭐ STAR Method Response');
+    setQtype(isCode ? '⚡ Code Solution' : (QTYPE_LABELS[effectiveStyle] || '💡 Direct Answer'));
 
     let textAccumulator = '';
     let typedCharIndex = 0;
@@ -85,13 +90,18 @@ export function useAnswerStreaming() {
       await streamAnswer({
         question,
         images,
-        answerStyle: style,
+        answerStyle: effectiveStyle,
         transcript,
         sessionId,
         language,
         action,
         signal: controller.signal,
-        onToken: (_chunk, full) => { textAccumulator = full; },
+        onToken: (_chunk, full) => {
+          textAccumulator = full;
+          if (full && full.trim().length > 0) {
+            setThinking(false);
+          }
+        },
         onError: (message) => {
           setAnswerHtml(`<div class="parakeet-error">Stream error: ${message}</div>`);
         },
@@ -116,14 +126,14 @@ export function useAnswerStreaming() {
       const finalHtml = formatParakeetAnswer(textAccumulator);
       setAnswerHtml(finalHtml);
       setThinking(false);
-      setQtype('Final Solution');
+      setQtype(isCode ? '⚡ Code Solution' : 'Final Solution');
 
       // Keep record in answers history for instant retrieval
       const newEntry = {
         id: Date.now(),
         question,
         answerHtml: finalHtml,
-        style,
+        style: effectiveStyle,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
       setAnswersHistory((prev) => {

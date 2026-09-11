@@ -164,14 +164,12 @@ class ScreenShareDetector {
     const overlay = getOverlayWindow();
     if (!overlay || overlay.isDestroyed()) return;
 
-    // Enforce anti-capture content protection strictly whenever stealth mode is on
+    // Enforce anti-capture content protection strictly whenever stealth mode is on/off
     const stealthEnabled = this.settingsStore ? (this.settingsStore.get('stealthMode') !== false) : true;
-    if (stealthEnabled) {
-      try {
-        overlay.setContentProtection(true);
-      } catch (err) {
-        // Non-fatal
-      }
+    try {
+      overlay.setContentProtection(stealthEnabled);
+    } catch (err) {
+      // Non-fatal
     }
 
     if (isCurrentlyActive && !previousActive) {
@@ -191,7 +189,7 @@ class ScreenShareDetector {
       });
 
       try {
-        overlay.setContentProtection(true);
+        overlay.setContentProtection(stealthEnabled);
       } catch {
         // Non-fatal
       }
