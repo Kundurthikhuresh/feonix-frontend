@@ -11,8 +11,54 @@ const QUESTION_STARTERS = /^(what|why|how|when|where|who|whom|whose|which|can|co
 export function looksLikeQuestion(text) {
   const t = String(text || '').trim();
   if (!t) return false;
+  if (isSilenceHallucination(t)) return false;
   if (t.endsWith('?')) return true;
   return QUESTION_STARTERS.test(t);
+}
+
+export function isSilenceHallucination(text) {
+  if (!text || typeof text !== 'string') return true;
+  const t = text.trim();
+  if (t.length < 2) return true;
+
+  const patterns = [
+    /transcrib(ed|tion|ing)\s+by/i,
+    /subtitles?\s+by/i,
+    /captions?\s+by/i,
+    /closed\s+captions/i,
+    /amara\.org/i,
+    /otter\.ai/i,
+    /https?:\/\//i,
+    /www\./i,
+    /\bopenai\b/i,
+    /thank(s|\s+you)\s+for\s+(watching|listening)/i,
+    /like\s+and\s+subscribe/i,
+    /subscribe\s+to\s+(my\s+)?channel/i,
+    /see\s+you\s+(in\s+the\s+next|next\s+time)/i,
+    /bye\s*bye/i,
+    /^\[.*\]$/,
+    /^\(.*\)$/,
+    /[♪♫]/,
+  ];
+
+  return patterns.some((p) => p.test(t));
+}
+
+export function deduplicateRepeatedPhrases(text) {
+  if (!text || typeof text !== 'string') return '';
+  const clean = text.replace(/https?:\/\/\S+/gi, '').replace(/\b(transcribed|subtitles|captions)\s+by\s+[^.!?]+/gi, '').trim();
+  const parts = clean.split(/(?<=[?.!])\s+/).map((p) => p.trim()).filter(Boolean);
+  if (parts.length <= 1) return clean;
+
+  const unique = [];
+  for (const part of parts) {
+    const norm = part.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const lastNorm = unique.length ? unique[unique.length - 1].toLowerCase().replace(/[^a-z0-9]/g, '') : '';
+    if (norm && norm !== lastNorm) {
+      unique.push(part);
+    }
+  }
+  return unique.join(' ');
 }
 
 const AUDIO_CONSTRAINTS = {
@@ -64,7 +110,7 @@ function pickSupportedMimeType() {
  * chunking is what lets a question get answered while the interviewer is
  * still mid-call instead of only after they stop talking.
  */
-export function createChunkedRecorder(stream, { intervalMs = 3500, onChunk } = {}) {
+export function createChunkedRecorder(stream, { intervalMs = 1600, onChunk } = {}) {
   const mimeType = pickSupportedMimeType();
   let recorder;
   try {

@@ -16,7 +16,13 @@ async function proxy(req, context) {
     const headers = new Headers();
     req.headers.forEach((value, key) => {
       const lowerKey = key.toLowerCase();
-      if (lowerKey === 'host' || lowerKey === 'connection' || lowerKey === 'content-length') return;
+      if (
+        lowerKey === 'host' ||
+        lowerKey === 'connection' ||
+        lowerKey === 'content-length' ||
+        lowerKey === 'transfer-encoding' ||
+        lowerKey === 'keep-alive'
+      ) return;
       headers.set(key, value);
     });
 
@@ -102,6 +108,13 @@ async function proxy(req, context) {
       });
     }
 
+    if (isStream || contentType.includes('text/event-stream')) {
+      return new Response(upstream.body, {
+        status: upstream.status,
+        headers: outHeaders,
+      });
+    }
+
     const nullBodyStatus = [101, 204, 205, 304].includes(upstream.status);
     const responseBuffer = nullBodyStatus ? null : await upstream.arrayBuffer().catch(() => null);
     return new Response(responseBuffer, {
@@ -112,7 +125,7 @@ async function proxy(req, context) {
     console.error('PROXY ERROR:', err);
     return new Response(JSON.stringify({
       error: 'server_unavailable',
-      message: 'Authentication service is initializing. Please try again in a moment.'
+      message: err.message || 'Service is initializing. Please try again in a moment.'
     }), {
       status: 503,
       headers: { 'Content-Type': 'application/json' }

@@ -22,7 +22,8 @@ function getSessionRemainingInfo(s, currentNow) {
   }
   if (s.started_at) {
     const startMs = parseTimestamp(s.started_at);
-    if (Number.isFinite(startMs) && currentNow >= startMs + 15 * 60 * 1000) {
+    const limitMin = (s.billing_kind === 'trial' || s.plan === 'free') ? 10 : 15;
+    if (Number.isFinite(startMs) && currentNow >= startMs + limitMin * 60 * 1000) {
       return { isEnded: true };
     }
   }

@@ -35,9 +35,9 @@ function LaunchContent() {
           iframe.src = deepLink;
           document.body.appendChild(iframe);
           setTimeout(() => {
-            try { document.body.removeChild(iframe); } catch {}
+            try { document.body.removeChild(iframe); } catch { }
           }, 1000);
-        } catch {}
+        } catch { }
       }
     } catch {
       // Continue to session-type even if handoff network had an issue

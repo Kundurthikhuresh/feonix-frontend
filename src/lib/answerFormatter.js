@@ -5,6 +5,30 @@
  */
 
 /**
+ * Detects if the question is asking for code, programming, implementation, queries, or functions.
+ */
+export function isCodingQuestion(text) {
+  const q = String(text || '').toLowerCase().trim();
+  if (!q) return false;
+
+  // Direct code / program / syntax / implementation keywords
+  if (/\b(example|sample|demo|snippet|syntax)\s+code\b/i.test(q)) return true;
+  if (/\bcode\s+(example|sample|demo|snippet|template|syntax|solution)\b/i.test(q)) return true;
+  if (/\b(write|create|implement|provide|generate|give|show|build|develop|solve|draft|need|want|share)\b.*?\b(code|program|script|function|class|method|query|algorithm|snippet|solution|component|syntax)\b/i.test(q)) return true;
+  if (/\b(write\s+a?\s*code|write\s+code|code\s+(for|to|of|in|that|addition|subtraction|multiplication|division)|coding\s+question|coding\s+problem)\b/i.test(q)) return true;
+  if (/\b(python|javascript|typescript|java|c\+\+|cpp|c#|golang|go|rust|ruby|php|swift|kotlin|sql|html|css|bash|powershell|regex)\s+(code|script|program|solution|function|implementation|snippet|syntax)\b/i.test(q)) return true;
+  if (/\b(code|function|program|script|solution|implementation|snippet|syntax)\s+(in|using|with|for)\s+(python|javascript|typescript|java|c\+\+|cpp|c#|golang|go|rust|ruby|php|swift|kotlin|sql|html|css|bash|powershell)\b/i.test(q)) return true;
+  if (/\b(with|in)\s+code\b/i.test(q)) return true;
+  if (/\b(write\s+(a\s+)?python|write\s+(a\s+)?javascript|write\s+(a\s+)?typescript|write\s+(a\s+)?java|write\s+(a\s+)?c\+\+|write\s+(a\s+)?cpp|write\s+(a\s+)?sql|write\s+(a\s+)?query)\b/i.test(q)) return true;
+  if (/\b(sql\s+query|select\s+.*\s+from|insert\s+into|update\s+.*\s+set|delete\s+from|create\s+table)\b/i.test(q)) return true;
+  if (/\b(leetcode|hackerrank|codewars)\b/i.test(q)) return true;
+  if (/\b(write\s+a\s+program|write\s+program|program\s+to\s+[a-z]+|function\s+to\s+[a-z]+)\b/i.test(q)) return true;
+  if (/\b(implement|code|program)\s+(a\s+|an\s+|the\s+)?([a-z0-9_-]+\s+)?(binary search|quicksort|mergesort|dfs|bfs|dijkstra|lru cache|linked list|stack|queue|tree|heap|two sum|fibonacci|palindrome|reverse|if condition|while loop|for loop)\b/i.test(q)) return true;
+  if (/\b(if\s+condition|for\s+loop|while\s+loop|switch\s+case)\s+code\b/i.test(q)) return true;
+  return false;
+}
+
+/**
  * Plain text for "Copy Response" — targets the specific structure this file
  * generates (.teleprompter-bullet-list, .bullet-text, .parakeet-para,
  * .parakeet-code-block) rather than walking generic tags. The templates
@@ -65,19 +89,19 @@ export function parseAnswerSections(rawText) {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
 
-    // Check Section Headers
-    if (/^\[TYPE\]/i.test(line)) {
+    // Check Section Headers (supports [TYPE], [TYPE: ...], [POINTS], [POINTS: ...], [ANSWER], [ANSWER: ...])
+    if (/^\[TYPE/i.test(line)) {
       currentSection = 'type';
       hasStructure = true;
-      const typeVal = line.replace(/^\[TYPE\]/i, '').trim();
+      const typeVal = line.replace(/^\[TYPE:?\s*\]?/i, '').replace(/\]$/, '').trim();
       if (typeVal) type = typeVal;
       continue;
     }
 
-    if (/^\[POINTS\]/i.test(line)) {
+    if (/^\[POINTS/i.test(line)) {
       currentSection = 'points';
       hasStructure = true;
-      const rest = line.replace(/^\[POINTS\]/i, '').trim();
+      const rest = line.replace(/^\[POINTS:?\s*\]?/i, '').replace(/\]$/, '').trim();
       if (rest) {
         const cleaned = rest.replace(/^[-*•\d.]+\s*/, '').trim();
         if (cleaned) points.push(cleaned);
@@ -85,10 +109,10 @@ export function parseAnswerSections(rawText) {
       continue;
     }
 
-    if (/^\[ANSWER\]/i.test(line)) {
+    if (/^\[ANSWER/i.test(line)) {
       currentSection = 'answer';
       hasStructure = true;
-      const rest = line.replace(/^\[ANSWER\]/i, '').trim();
+      const rest = line.replace(/^\[ANSWER:?\s*\]?/i, '').replace(/\]$/, '').trim();
       if (rest) {
         answer += (answer ? '\n' : '') + rest;
       }
@@ -97,10 +121,13 @@ export function parseAnswerSections(rawText) {
 
     // Process Line Content based on active section
     if (currentSection === 'type') {
-      if (line && !type) {
+      if (line && !type && !/^\[/i.test(line)) {
         type = line;
       }
     } else if (currentSection === 'points') {
+      if (/^\[/i.test(line)) {
+        continue;
+      }
       if (line.startsWith('-') || line.startsWith('*') || line.startsWith('•') || /^[0-9]+\./.test(line)) {
         const cleaned = line.replace(/^[-*•\d.]+\s*/, '').trim();
         if (cleaned) points.push(cleaned);
@@ -113,6 +140,9 @@ export function parseAnswerSections(rawText) {
     } else {
       // If no tag has been encountered yet
       if (!hasStructure) {
+        if (/^\[/i.test(line)) {
+          continue;
+        }
         answer += (answer ? '\n' : '') + lines[i];
       }
     }
@@ -148,7 +178,14 @@ function formatInlineMarkdown(text) {
 function formatBodyWithCodeBlocks(text) {
   if (!text) return '';
 
-  const parts = text.split(/(```[\s\S]*?```)/g);
+  // If there is an unclosed code block during live streaming, temporarily close it for clean layout
+  let formattedText = text;
+  const backtickMatches = formattedText.match(/```/g);
+  if (backtickMatches && backtickMatches.length % 2 !== 0) {
+    formattedText += '\n```';
+  }
+
+  const parts = formattedText.split(/(```[\s\S]*?```)/g);
 
   return parts
     .map((part) => {
@@ -194,31 +231,84 @@ function escapeHtml(str) {
 /**
  * Live-streaming preview, used while tokens are still arriving.
  *
- * Streams answer content smoothly without tag flicker.
+ * Streams points and answer content smoothly and immediately without waiting for stream completion.
  */
 export function formatStreamingAnswer(accumulatedText) {
-  if (!accumulatedText) return null;
+  if (!accumulatedText || typeof accumulatedText !== 'string') return null;
 
-  const idx = String(accumulatedText || '').search(/\[ANSWER\]/i);
-  if (idx !== -1) {
-    const after = accumulatedText.slice(idx).replace(/^\[ANSWER\]\s*\n?/i, '').trim();
-    if (!after) return null;
-    return (
-      '<div class="parakeet-answer-container">' +
-        '<div class="teleprompter-explanation">' +
-          `<div class="explanation-body">${formatBodyWithCodeBlocks(after)}</div>` +
-        '</div>' +
-      '</div>'
-    );
+  const { points, answer, hasStructure, type } = parseAnswerSections(accumulatedText);
+
+  if (hasStructure) {
+    if (!points.length && !answer) {
+      // Tokens have started arriving! Provide immediate live visual feedback instead of staying stuck on thinking spinner
+      return (
+        '<div class="parakeet-answer-container">' +
+          '<div class="teleprompter-live-indicator" style="display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border-radius:9999px;background:rgba(0,245,255,0.08);border:1px solid rgba(0,245,255,0.25);color:#00f5ff;font-size:12px;font-weight:600;letter-spacing:0.02em;">' +
+            '<span class="live-dot-pulse" style="width:7px;height:7px;border-radius:50%;background:#00f5ff;box-shadow:0 0 8px #00f5ff;display:inline-block;"></span> ' +
+            `Streaming ${type ? escapeHtml(type.toLowerCase()) : 'solution'}…` +
+          '</div>' +
+        '</div>'
+      );
+    }
+
+    let html = '<div class="parakeet-answer-container">';
+
+    if (points.length > 0) {
+      html += '<ul class="teleprompter-bullet-list">';
+      points.forEach((point) => {
+        const starMatch = point.match(/^([STAR])\s*:\s*(.*)/i);
+        if (starMatch) {
+          const starLetter = starMatch[1].toUpperCase();
+          const starText = starMatch[2];
+          const starNames = { S: 'SITUATION', T: 'TASK', A: 'ACTION', R: 'RESULT' };
+          const starColors = { S: 'star-s', T: 'star-t', A: 'star-a', R: 'star-r' };
+          html += `
+            <li class="teleprompter-bullet-item star-bullet-item">
+              <span class="star-badge ${starColors[starLetter] || ''}">${starLetter}</span>
+              <div class="bullet-text">
+                <strong class="star-label">${starNames[starLetter] || starLetter}:</strong>
+                <span>${formatInlineMarkdown(starText)}</span>
+              </div>
+            </li>
+          `;
+        } else {
+          html += `
+            <li class="teleprompter-bullet-item">
+              <span class="bullet-glow-dot">•</span>
+              <div class="bullet-text">
+                <span>${formatInlineMarkdown(point)}</span>
+              </div>
+            </li>
+          `;
+        }
+      });
+      html += '</ul>';
+    }
+
+    if (answer) {
+      html += `
+        <div class="teleprompter-explanation">
+          ${points.length > 0 ? '<div class="explanation-divider"></div>' : ''}
+          <div class="explanation-body">
+            ${formatBodyWithCodeBlocks(answer)}
+          </div>
+        </div>
+      `;
+    }
+
+    html += '</div>';
+    return html;
   }
 
-  // If streaming direct markdown / text without [TYPE] or [POINTS] tags (e.g. Chat or Screenshot solve):
-  const hasTagPreamble = /^\s*\[(TYPE|POINTS)/i.test(accumulatedText);
-  if (!hasTagPreamble && accumulatedText.trim().length > 10) {
+  // Non-tagged output (e.g. Chat direct prompt or direct code solution)
+  const cleanedText = accumulatedText.replace(/^\[[A-Z_\s-]*\]?/i, '').trim();
+  const textToRender = cleanedText.length > 0 ? cleanedText : accumulatedText;
+
+  if (textToRender.trim().length > 2) {
     return (
       '<div class="parakeet-answer-container">' +
         '<div class="teleprompter-explanation">' +
-          `<div class="explanation-body">${formatBodyWithCodeBlocks(accumulatedText)}</div>` +
+          `<div class="explanation-body">${formatBodyWithCodeBlocks(textToRender)}</div>` +
         '</div>' +
       '</div>'
     );

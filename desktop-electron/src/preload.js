@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('feonix', {
   goToDashboard: () => ipcRenderer.send('feonix:dashboard'),
   minimize: () => ipcRenderer.send('feonix:minimize'),
   hide: () => ipcRenderer.send('feonix:hide'),
+  closeOverlay: () => ipcRenderer.send('feonix:close-overlay'),
   hideMainWindow: () => ipcRenderer.send('feonix:hide-main-window'),
   show: () => ipcRenderer.send('feonix:show'),
   bringToFront: () => ipcRenderer.send('feonix:bring-to-front'),
@@ -24,6 +25,7 @@ contextBridge.exposeInMainWorld('feonix', {
   // Assistant settings (persisted in the main process — see settingsStore.js)
   getSettings: () => ipcRenderer.invoke('feonix:get-settings'),
   setSetting: (key, value) => ipcRenderer.invoke('feonix:set-setting', key, value),
+  setStealthMode: (enabled) => ipcRenderer.invoke('feonix:set-stealth-mode', Boolean(enabled)),
 
   // Keeps the tray's Start/Stop Listening label accurate no matter where
   // recording was actually toggled from.

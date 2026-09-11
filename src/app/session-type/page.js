@@ -27,6 +27,11 @@ function SessionTypeContent() {
     const autoOn = storedAuto === null ? true : storedAuto === '1';
     setAutoAnswer(autoOn);
 
+    // If an overlay was left open from a previous run, close it so it never floats before Start Interview
+    if (window.feonix && typeof window.feonix.closeOverlay === 'function') {
+      window.feonix.closeOverlay();
+    }
+
     // Initial boot sequence
     bootSequence(autoOn);
   }, []);
@@ -257,7 +262,7 @@ function SessionTypeContent() {
               });
               startData = await startRes.json().catch(() => ({}));
             }
-          } catch {}
+          } catch { }
         }
 
         if (!startRes.ok) {
@@ -273,15 +278,8 @@ function SessionTypeContent() {
           window.feonix.hideMainWindow();
         }
       } else {
-        // In a standard browser (e.g. Chrome): launch the live copilot overlay (second image)
+        // In a standard browser (e.g. Chrome): ONLY launch when user clicks "Start Interview"
         say('Launching live copilot overlay…', false, true);
-        // start=open is load-bearing, not decorative: overlay/page.js only
-        // trusts localStorage's remembered visibility when this param is
-        // absent (so a genuinely reopened/reloaded overlay can stay hidden
-        // across a reload if the user left it that way). Omitting it here
-        // meant a fresh "Start Interview" click inherited whatever hidden/
-        // minimized state a previous overlay session had left behind —
-        // usually rendering nothing at all, a blank page with no error.
         window.location.href = `/overlay?session=${encodeURIComponent(activeId)}&plan=${encodeURIComponent(plan || 'full')}&auto=${autoAnswer ? '1' : '0'}&start=open`;
       }
     } catch (err) {

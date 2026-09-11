@@ -1,0 +1,556 @@
+/* ==========================================================================
+   Parakeet AI Modern Two-Column Pricing Section
+   ========================================================================== */
+
+.pk-pricing-section {
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 40px 20px 60px;
+  color: #f1f5f9;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
+  box-sizing: border-box;
+}
+
+.pk-pricing-header {
+  text-align: center;
+  margin-bottom: 36px;
+}
+
+.pk-pricing-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px;
+  background: rgba(34, 197, 94, 0.12);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  border-radius: 999px;
+  color: #4ade80;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin-bottom: 14px;
+}
+
+.pk-pricing-title {
+  font-size: 32px;
+  font-weight: 800;
+  line-height: 1.25;
+  color: #ffffff;
+  margin: 0 0 10px;
+  letter-spacing: -0.02em;
+}
+
+.pk-pricing-subtitle {
+  font-size: 16px;
+  color: #94a3b8;
+  max-width: 680px;
+  margin: 0 auto;
+  line-height: 1.5;
+}
+
+/* Two-Column Cards Grid */
+.pk-pricing-grid {
+  display: grid;
+  grid-template-columns: 1.05fr 1fr;
+  gap: 28px;
+  align-items: stretch;
+  margin-bottom: 48px;
+}
+
+@media (max-width: 960px) {
+  .pk-pricing-grid {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+}
+
+/* Card Base */
+.pk-card {
+  position: relative;
+  background: #18191d;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 24px;
+  padding: 32px 28px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+  transition: border-color 0.2s ease, transform 0.2s ease;
+  box-sizing: border-box;
+}
+
+.pk-card:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Subscription Card Special Accent (Left Card) */
+.pk-card-sub {
+  background: linear-gradient(180deg, rgba(20, 36, 28, 0.85) 0%, rgba(18, 22, 21, 0.95) 100%);
+  border: 1.5px solid rgba(34, 197, 94, 0.5);
+  box-shadow: 0 0 40px rgba(34, 197, 94, 0.12), 0 20px 50px rgba(0, 0, 0, 0.6);
+}
+
+.pk-card-sub:hover {
+  border-color: rgba(34, 197, 94, 0.8);
+  box-shadow: 0 0 50px rgba(34, 197, 94, 0.2), 0 24px 60px rgba(0, 0, 0, 0.7);
+}
+
+/* Card Header */
+.pk-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.pk-card-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.pk-card-title {
+  font-size: 26px;
+  font-weight: 800;
+  color: #ffffff;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.pk-tag-recommended {
+  background: #16a34a;
+  color: #ffffff;
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  letter-spacing: 0.02em;
+  box-shadow: 0 2px 8px rgba(22, 163, 74, 0.4);
+}
+
+.pk-card-desc {
+  font-size: 14px;
+  color: #94a3b8;
+  margin: 0;
+  line-height: 1.4;
+}
+
+/* Segmented Pill Switcher (Total / Per month / Per hour) */
+.pk-segmented-pills {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  padding: 3px;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.pk-pill-btn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.pk-pill-btn:hover {
+  color: #ffffff;
+}
+
+.pk-pill-btn.is-active {
+  background: #ffffff;
+  color: #0f172a;
+  font-weight: 700;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+}
+
+/* Options List (Radio Rows) */
+.pk-options-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 28px;
+}
+
+.pk-option-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1.5px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.pk-option-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.pk-option-item.is-selected {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: #22c55e;
+  box-shadow: 0 0 16px rgba(34, 197, 94, 0.2);
+}
+
+.pk-card-credits .pk-option-item.is-selected {
+  border-color: #38bdf8;
+  box-shadow: 0 0 16px rgba(56, 189, 248, 0.2);
+}
+
+.pk-option-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Radio Indicator */
+.pk-radio-circle {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid #64748b;
+  display: grid;
+  place-items: center;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.pk-option-item:hover .pk-radio-circle {
+  border-color: #94a3b8;
+}
+
+.pk-option-item.is-selected .pk-radio-circle {
+  border-color: #22c55e;
+  background: rgba(34, 197, 94, 0.15);
+}
+
+.pk-card-credits .pk-option-item.is-selected .pk-radio-circle {
+  border-color: #38bdf8;
+  background: rgba(56, 189, 248, 0.15);
+}
+
+.pk-radio-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #22c55e;
+}
+
+.pk-card-credits .pk-radio-dot {
+  background: #38bdf8;
+}
+
+/* Option Label & Tags */
+.pk-option-label-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.pk-option-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pk-option-name {
+  font-size: 15.5px;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.pk-badge-yellow {
+  background: #fef08a;
+  color: #854d0e;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 1.5px 7px;
+  border-radius: 999px;
+  line-height: 1.2;
+}
+
+.pk-badge-amber {
+  background: #fde68a;
+  color: #92400e;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 1.5px 7px;
+  border-radius: 999px;
+  line-height: 1.2;
+}
+
+.pk-option-sub {
+  font-size: 12px;
+  color: #94a3b8;
+  margin: 0;
+}
+
+/* Option Price */
+.pk-option-price-wrap {
+  text-align: right;
+}
+
+.pk-option-price {
+  font-size: 18px;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: -0.01em;
+}
+
+.pk-option-period {
+  font-size: 13px;
+  font-weight: 500;
+  color: #94a3b8;
+  margin-left: 2px;
+}
+
+/* Checklist */
+.pk-features-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
+}
+
+.pk-feature-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14.5px;
+  color: #cbd5e1;
+}
+
+.pk-check-icon {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(34, 197, 94, 0.15);
+  color: #22c55e;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+/* Action Button */
+.pk-action-btn-main {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 14px 20px;
+  border-radius: 14px;
+  font-size: 15.5px;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  white-space: nowrap;
+}
+
+.pk-btn-unlimited {
+  background: #22c55e;
+  color: #052e16;
+  box-shadow: 0 4px 20px rgba(34, 197, 94, 0.4);
+}
+
+.pk-btn-unlimited:hover {
+  background: #34d399;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 26px rgba(34, 197, 94, 0.5);
+}
+
+.pk-btn-credits {
+  background: #38bdf8;
+  color: #082f49;
+  box-shadow: 0 4px 20px rgba(56, 189, 248, 0.4);
+}
+
+.pk-btn-credits:hover {
+  background: #60a5fa;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 26px rgba(56, 189, 248, 0.5);
+}
+
+.pk-btn-loading-state {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.pk-action-subnote {
+  text-align: center;
+  font-size: 13px;
+  color: #94a3b8;
+  margin: 10px 0 0;
+}
+
+.pk-action-single-credit {
+  text-align: center;
+  font-size: 13px;
+  color: #94a3b8;
+  margin: 12px 0 0;
+}
+
+.pk-single-link {
+  color: #38bdf8;
+  text-decoration: underline;
+  cursor: pointer;
+  font-weight: 600;
+  background: transparent;
+  border: none;
+  padding: 0;
+  font-size: inherit;
+}
+
+.pk-single-link:hover {
+  color: #7dd3fc;
+}
+
+/* ==========================================================================
+   Bottom Trust Highlights & Payment Logos
+   ========================================================================== */
+
+.pk-trust-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  margin-bottom: 40px;
+}
+
+@media (max-width: 768px) {
+  .pk-trust-row {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+}
+
+.pk-trust-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 16px;
+  transition: all 0.15s ease;
+}
+
+.pk-trust-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.pk-trust-icon {
+  font-size: 22px;
+  flex-shrink: 0;
+}
+
+.pk-trust-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.pk-trust-title {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.pk-trust-sub {
+  font-size: 12.5px;
+  color: #94a3b8;
+}
+
+.pk-trust-link {
+  color: #38bdf8;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.pk-trust-link:hover {
+  text-decoration: underline;
+}
+
+/* Payment Methods Bar */
+.pk-payment-bar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.pk-payment-label {
+  font-size: 13.5px;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.pk-payment-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.pk-pay-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 14px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #e2e8f0;
+  letter-spacing: 0.02em;
+  transition: all 0.15s ease;
+  cursor: pointer;
+  white-space: nowrap;
+  font-family: inherit;
+}
+
+.pk-pay-chip:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.pk-pay-chip:active {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+.pk-pay-logo {
+  height: 18px;
+  width: auto;
+  display: block;
+  flex-shrink: 0;
+}

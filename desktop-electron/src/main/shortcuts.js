@@ -36,7 +36,8 @@ function handleShortcutHide(settingsStore) {
         win.webContents.focus();
       } catch { }
       try {
-        win.setContentProtection(true);
+        const stealth = settingsStore ? (settingsStore.get('stealthMode') !== false) : true;
+        win.setContentProtection(stealth);
       } catch { /* best effort */ }
       try {
         win.webContents.send('feonix:shortcut-hide', { visible: true });
@@ -53,7 +54,8 @@ function handleShortcutToggle(settingsStore) {
     win.show();
     bringToFront(win, alwaysOnTop);
     try {
-      win.setContentProtection(true);
+      const stealth = settingsStore ? (settingsStore.get('stealthMode') !== false) : true;
+      win.setContentProtection(stealth);
     } catch { /* best effort */ }
     win.webContents.send('feonix:shortcut-toggle');
     return;
