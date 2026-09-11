@@ -102,7 +102,7 @@ export default function Page() {
   const [currentView, setCurrentView] = useState(() => {
     if (typeof window !== 'undefined') {
       const v = new URLSearchParams(window.location.search).get('view');
-      if (v === 'dash' || v === 'app' || v === 'review') return v;
+      if (v === 'app' || v === 'review') return v;
     }
     return 'landing';
   }); // 'landing', 'dash', 'app', 'review'
@@ -388,24 +388,16 @@ export default function Page() {
       setShowAuthModal(true);
     }
 
-    if (initialView === 'dash') {
-      setCurrentView('dash');
-      if (typeof window !== 'undefined') {
-        if (!window.history.state || window.history.state.view !== 'dash') {
-          window.history.replaceState({ view: 'landing' }, '', '/');
-          window.history.pushState({ view: 'dash' }, '', '/?view=dash');
-        }
-      }
-    } else if (isReload) {
+    if (isReload) {
       if (typeof window !== 'undefined') {
         window.history.replaceState({ view: 'landing' }, '', '/');
       }
       setCurrentView('landing');
-    } else if (initialView) {
+    } else if (initialView && initialView !== 'dash') {
       window.history.replaceState({ view: initialView }, '');
       setCurrentView(initialView);
     } else if (typeof window !== 'undefined') {
-      if (!window.history.state || !window.history.state.view) {
+      if (!window.history.state || !window.history.state.view || window.history.state.view === 'dash') {
         window.history.replaceState({ view: 'landing' }, '', '/');
       }
     }
@@ -415,8 +407,20 @@ export default function Page() {
       const queryView = urlParams ? urlParams.get('view') : null;
 
       if (e.state && e.state.view) {
+        if (e.state.view === 'dash' && !userRef.current) {
+          setCurrentView('landing');
+          setShowAuthModal(true);
+          setAuthMode('login');
+          return;
+        }
         setCurrentView(e.state.view);
       } else if (queryView === 'dash') {
+        if (!userRef.current) {
+          setCurrentView('landing');
+          setShowAuthModal(true);
+          setAuthMode('login');
+          return;
+        }
         setCurrentView('dash');
       } else if (queryView === 'app') {
         setCurrentView('app');
@@ -588,8 +592,16 @@ export default function Page() {
       // superseded run, which is expected and not a real error)
     }
     if (stale()) return;
+    setUser(null);
     changeView('landing', true);
     setAuthChecked(true);
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('view') === 'dash') {
+        setShowAuthModal(true);
+        setAuthMode('login');
+      }
+    }
   };
 
   const enterApp = async (loggedInUser, replaceHistory = false) => {
@@ -1364,6 +1376,9 @@ export default function Page() {
 
   // 2. Dashboard Page View
   if (currentView === 'dash') {
+    if (!user) {
+      return null;
+    }
     return (
       <div id="dashView">
         <Sidebar
