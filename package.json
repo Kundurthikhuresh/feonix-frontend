@@ -6,8 +6,10 @@
     "dev": "next dev -p 3000",
     "build": "next build",
     "start": "next start -p 3000",
+    "desktop:install": "npm --prefix desktop-electron install",
     "desktop:dev": "npm --prefix desktop-electron start",
-    "desktop:dist:win": "npm --prefix desktop-electron run dist:win"
+    "desktop:dist:win": "npm --prefix desktop-electron run dist:win",
+    "desktop:build:win": "npm --prefix desktop-electron install && npm --prefix desktop-electron run dist:win"
   },
   "dependencies": {
     "@types/three": "^0.185.4",
