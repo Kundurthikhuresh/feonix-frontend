@@ -3989,6 +3989,23 @@ body[data-shell="tauri"] .answer-pane { padding: 20px 22px; }
   line-height: 1.5;
 }
 
+.launch-steps {
+  text-align: left;
+  font-size: 13px;
+  color: var(--dim);
+  line-height: 1.6;
+  margin: 0 0 20px;
+  padding-left: 20px;
+}
+
+.launch-steps li {
+  margin-bottom: 6px;
+}
+
+.launch-steps strong {
+  color: var(--paper);
+}
+
 .launch-fallback .launch-btn {
   width: 100%;
   margin-bottom: 16px;

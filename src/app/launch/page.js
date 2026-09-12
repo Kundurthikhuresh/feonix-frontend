@@ -25,26 +25,64 @@ function LaunchContent() {
     setMsg({ text: '', type: '' });
     setLaunching(true);
     setPulsing(true);
+
     try {
       const res = await fetch(`/api/sessions/${sessionId}/handoff`, { method: 'POST' });
-      if (res.ok) {
-        const { deep_link: deepLink } = await res.json();
-        try {
-          const iframe = document.createElement('iframe');
-          iframe.style.display = 'none';
-          iframe.src = deepLink;
-          document.body.appendChild(iframe);
-          setTimeout(() => {
-            try { document.body.removeChild(iframe); } catch { }
-          }, 1000);
-        } catch { }
+      if (!res.ok) {
+        setLaunching(false);
+        setPulsing(false);
+        setMsg({ text: 'Unable to start desktop handoff. Please try again.', type: 'err' });
+        return;
       }
-    } catch {
-      // Continue to session-type even if handoff network had an issue
-    }
 
-    // When clicking "Open desktop app", redirect to Start Interview screen
-    window.location.href = `/session-type?session=${encodeURIComponent(sessionId)}`;
+      const { deep_link: deepLink } = await res.json();
+
+      let appOpened = false;
+      const onBlur = () => {
+        appOpened = true;
+      };
+      const onVisibility = () => {
+        if (document.hidden) {
+          appOpened = true;
+        }
+      };
+
+      window.addEventListener('blur', onBlur);
+      document.addEventListener('visibilitychange', onVisibility);
+
+      // Trigger the OS deep link
+      window.location.href = deepLink;
+
+      // Monitor if the browser window lost focus (OS opened the app or prompted)
+      setTimeout(() => {
+        window.removeEventListener('blur', onBlur);
+        document.removeEventListener('visibilitychange', onVisibility);
+
+        setLaunching(false);
+        setPulsing(false);
+
+        if (!appOpened) {
+          // Desktop app is NOT installed
+          setMsg({
+            text: `FeonixAI Desktop is not installed on this ${isMacOS ? 'Mac' : 'Windows PC'}. Please download and install the setup below first.`,
+            type: 'err',
+          });
+          setShowFallback(true);
+          const fallbackEl = document.getElementById('fallback');
+          if (fallbackEl) {
+            fallbackEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          }
+        } else {
+          setMsg({ text: '', type: '' });
+        }
+      }, 2500);
+
+    } catch (err) {
+      console.error('Launch handoff error:', err);
+      setLaunching(false);
+      setPulsing(false);
+      setMsg({ text: 'Error connecting to server. Please try again.', type: 'err' });
+    }
   };
 
   useEffect(() => {
@@ -72,7 +110,7 @@ function LaunchContent() {
 
       await loadSession();
 
-      const isMac = typeof navigator !== 'undefined' && navigator.userAgent.includes('Mac');
+      const isMac = typeof navigator !== 'undefined' && (/Mac|iPod|iPhone|iPad/.test(navigator.platform) || /Macintosh|Mac OS X/.test(navigator.userAgent));
       setIsMacOS(isMac);
     } catch {
       router.replace('/');
@@ -124,13 +162,32 @@ function LaunchContent() {
           {launching ? 'Opening…' : 'Open desktop app'}
         </button>
 
+        {msg.text && msg.type === 'err' && (
+          <div 
+            className="launch-msg launch-msg-err"
+            style={{ marginBottom: '24px', textAlign: 'center', fontWeight: '500' }}
+          >
+            {msg.text}
+          </div>
+        )}
+
         {showFallback && (
           <div className="launch-fallback" id="fallback">
-            <h2>Don&apos;t have the desktop app yet?</h2>
-            <p>Install it once, then this page opens it automatically every time.</p>
-
-            <button className="launch-btn" onClick={handleDownloadWin} type="button">Download for Windows</button>
-            <button className="launch-btn" onClick={handleDownloadMac} type="button" style={{ marginBottom: '20px' }}>Download for macOS</button>
+            <button
+              className="launch-btn"
+              onClick={handleDownloadWin}
+              type="button"
+            >
+              Download for Windows
+            </button>
+            <button
+              className="launch-btn"
+              onClick={handleDownloadMac}
+              type="button"
+              style={{ marginBottom: '20px' }}
+            >
+              Download for macOS
+            </button>
 
             <div className="launch-platform-note">
               Or,{' '}
@@ -139,12 +196,6 @@ function LaunchContent() {
               </button>{' '}
               instead.
             </div>
-          </div>
-        )}
-
-        {msg.text && (
-          <div className={`launch-msg ${msg.type === 'err' ? 'launch-msg-err' : 'launch-msg-ok'}`}>
-            {msg.text}
           </div>
         )}
 
