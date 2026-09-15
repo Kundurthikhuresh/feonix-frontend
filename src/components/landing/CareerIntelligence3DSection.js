@@ -115,7 +115,7 @@ export default function CareerIntelligence3DSection() {
       className="career-intelligence-section"
       style={{
         position: 'relative',
-        padding: '100px 24px',
+        padding: '68px 24px 72px 24px',
         background: '#040711',
         overflow: 'hidden'
       }}
@@ -123,7 +123,7 @@ export default function CareerIntelligence3DSection() {
       <div style={{ maxWidth: '1240px', margin: '0 auto', position: 'relative', zIndex: 5 }}>
         
         {/* Section Header */}
-        <div style={{ textAlign: 'center', marginBottom: '60px' }}>
+        <div style={{ textAlign: 'center', marginBottom: '36px' }}>
           <div
             style={{
               display: 'inline-flex',

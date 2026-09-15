@@ -54,7 +54,10 @@ export default function Navbar3D({
 
         {/* Desktop Navigation Links */}
         <nav className="navbar-desktop-nav" aria-label="Main Navigation">
-          <a href="#hero" className="nav-item-link">Home</a>
+          <a href="#hero" className="nav-item-link active">
+            Home
+            <span className="nav-active-dot" />
+          </a>
           <a href="#copilot" className="nav-item-link">Simulator</a>
           <a href="#features" className="nav-item-link">Features</a>
           <a href="#showcase" className="nav-item-link">3D Neural Core</a>
@@ -76,22 +79,22 @@ export default function Navbar3D({
             {themeMode === 'light' ? <Moon size={17} /> : <Sun size={17} />}
           </button>
 
-          {/* Login / Dashboard Button */}
+          {/* Login Button */}
           <button
             className="navbar-btn-ghost"
             onClick={onLoginClick}
             type="button"
           >
-            {user ? 'Dashboard' : 'Login'}
+            Login
           </button>
 
-          {/* Get Started CTA */}
+          {/* Open Workspace CTA */}
           <button
             className="navbar-btn-primary"
             onClick={onSignupClick}
             type="button"
           >
-            <span>{user ? 'Open Workspace' : 'Get Started'}</span>
+            <span>Open Workspace</span>
             <ArrowRight size={15} className="btn-arrow-icon" />
             <div className="btn-glow-shimmer" />
           </button>
@@ -129,7 +132,7 @@ export default function Navbar3D({
                 onLoginClick();
               }}
             >
-              {user ? 'Go to Dashboard' : 'Login'}
+              Login
             </button>
             <button
               className="btn-mobile-signup"
@@ -138,7 +141,7 @@ export default function Navbar3D({
                 onSignupClick();
               }}
             >
-              Get Started Free
+              Open Workspace
             </button>
           </div>
         </div>

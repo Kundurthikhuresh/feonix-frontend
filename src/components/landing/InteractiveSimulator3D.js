@@ -225,6 +225,10 @@ export default function InteractiveSimulator3D() {
 
   return (
     <section className="sim-3d-section" id="copilot" ref={sectionRef}>
+      {/* Premium Night Mode Background Blobs */}
+      <div className="premium-bg-blob premium-bg-blob-1" aria-hidden="true" />
+      <div className="premium-bg-blob premium-bg-blob-2" aria-hidden="true" />
+      <div className="premium-bg-blob premium-bg-blob-3" aria-hidden="true" />
       <div className="sim-3d-container">
         
         {/* Section Header */}

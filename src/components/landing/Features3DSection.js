@@ -142,6 +142,10 @@ function TiltCard3D({ feature }) {
 export default function Features3DSection() {
   return (
     <section className="features-3d-section" id="features">
+      {/* Premium Night Mode Background Blobs */}
+      <div className="premium-bg-blob premium-bg-blob-1" aria-hidden="true" />
+      <div className="premium-bg-blob premium-bg-blob-2" aria-hidden="true" />
+      <div className="premium-bg-blob premium-bg-blob-3" aria-hidden="true" />
       <div className="features-3d-container">
         {/* Section Header */}
         <div className="section-header-centered">

@@ -306,7 +306,7 @@ export default function AskFeonix3DSection() {
       className="ask-feonix-3d-section"
       style={{
         position: 'relative',
-        padding: '100px 24px',
+        padding: '68px 24px 72px 24px',
         background: 'radial-gradient(ellipse at center, rgba(13, 20, 38, 0.95) 0%, rgba(6, 9, 16, 1) 100%)',
         overflow: 'hidden'
       }}
@@ -344,7 +344,7 @@ export default function AskFeonix3DSection() {
       <div style={{ maxWidth: '1240px', margin: '0 auto', position: 'relative', zIndex: 5 }}>
         
         {/* Header */}
-        <div style={{ textAlign: 'center', marginBottom: '56px' }}>
+        <div style={{ textAlign: 'center', marginBottom: '36px' }}>
           <div
             style={{
               display: 'inline-flex',
