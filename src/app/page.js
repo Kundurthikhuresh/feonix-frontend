@@ -226,6 +226,8 @@ export default function Page() {
   const [newAuto, setNewAuto] = useState(true);
   const [newSaveTranscript, setNewSaveTranscript] = useState(true);
   const [createMsg, setCreateMsg] = useState('');
+  const [isCreatingSession, setIsCreatingSession] = useState(false);
+  const isCreatingSessionRef = useRef(false);
 
   // Live Copilot App States
   const [activeSession, setActiveSession] = useState(null);
@@ -843,42 +845,51 @@ export default function Page() {
   // ----------------------------------------------------
   const handleCreateSession = async (e) => {
     e.preventDefault();
+    if (isCreatingSessionRef.current) return;
+    isCreatingSessionRef.current = true;
+    setIsCreatingSession(true);
     setCreateMsg('Creating…');
 
-    const body = {
-      company: sessionType === 'interview' ? newCompany : newTitle,
-      role: sessionType === 'interview' ? newRole : '',
-      job_description: sessionType === 'interview' ? newJd : newDesc,
-      // The backend's POST /api/sessions reads `context` and `agent` — this
-      // used to send `instructions`/`agent_id`, field names it never reads,
-      // so anything typed into "Context & instructions" (or picked in the
-      // agent selector) was silently discarded and never reached a session.
-      context: newContext,
-      language: newLanguage,
-      agent: newAgent,
-      auto_answer: newAuto,
-      save_transcript: newSaveTranscript,
-      billing: billingChoice,
-    };
+    try {
+      const body = {
+        company: sessionType === 'interview' ? newCompany : newTitle,
+        role: sessionType === 'interview' ? newRole : '',
+        job_description: sessionType === 'interview' ? newJd : newDesc,
+        context: newContext,
+        language: newLanguage,
+        agent: newAgent,
+        auto_answer: newAuto,
+        save_transcript: newSaveTranscript,
+        billing: billingChoice,
+      };
 
-    // A plain postJSON() call here had only a 4s timeout and no retry, so
-    // the same transient slowness that postJSONWithRetry already absorbs
-    // for login (a request landing right after a backend/DB restart) showed
-    // up here as "Could not reach the server." instead of just creating the
-    // session a couple seconds later.
-    const { ok, data } = await postJSONWithRetry('/api/sessions', body);
-    if (!ok) {
-      setCreateMsg(data.message || 'Could not create session.');
-      return;
-    }
+      // Direct postJSON with 30s timeout and no blind retry loops that duplicate session creation
+      const { ok, data } = await postJSON('/api/sessions', body, { timeoutMs: 30000 });
+      if (!ok) {
+        setCreateMsg(data.message || 'Could not create session.');
+        return;
+      }
 
-    setShowCreateSheet(false);
-    setCreateMsg('');
-    if (data?.session) {
-      setSessions((prev) => [data.session, ...prev.filter((s) => s.id !== data.session.id)]);
+      setShowCreateSheet(false);
+      setCreateMsg('');
+      setNewCompany('');
+      setNewRole('');
+      setNewJd('');
+      setNewTitle('');
+      setNewDesc('');
+      setNewContext('');
+      if (data?.session) {
+        setSessions((prev) => [data.session, ...prev.filter((s) => s.id !== data.session.id)]);
+      }
+      await loadSessions();
+      await loadAccount();
+    } catch (err) {
+      console.error('Create session error:', err);
+      setCreateMsg('Could not create session. Please try again.');
+    } finally {
+      isCreatingSessionRef.current = false;
+      setIsCreatingSession(false);
     }
-    await loadSessions();
-    await loadAccount();
   };
 
   const handleStartSession = async (session) => {
@@ -1500,6 +1511,7 @@ export default function Page() {
             newSaveTranscript={newSaveTranscript}
             setNewSaveTranscript={setNewSaveTranscript}
             createMsg={createMsg}
+            isCreating={isCreatingSession}
             handleCreateSession={handleCreateSession}
             setShowCreateSheet={setShowCreateSheet}
           />

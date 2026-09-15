@@ -210,7 +210,7 @@ function formatBodyWithCodeBlocks(text) {
           <div class="parakeet-code-wrapper">
             <div class="parakeet-code-header">
               <span class="parakeet-code-lang">${lang}</span>
-              <span class="parakeet-code-hint">SOLUTION TEMPLATE</span>
+              <button type="button" class="parakeet-code-copy-btn" data-copy-code="true">⧉ Copy</button>
             </div>
             <pre class="parakeet-code-block"><code>${escapeHtml(codeContent)}</code></pre>
           </div>

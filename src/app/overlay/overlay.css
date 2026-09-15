@@ -1678,6 +1678,24 @@ body.is-resizing #answerCard {
   color: #64748b;
 }
 
+.parakeet-code-copy-btn {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #64748b;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 5px;
+  padding: 2px 8px;
+  cursor: pointer;
+  transition: color 120ms, border-color 120ms, background 120ms;
+}
+
+.parakeet-code-copy-btn:hover {
+  color: #00f5ff;
+  border-color: rgba(0, 245, 255, 0.35);
+  background: rgba(0, 245, 255, 0.08);
+}
+
 .parakeet-code-block {
   padding: 16px;
   margin: 0;
@@ -4177,6 +4195,24 @@ body.is-resizing #answerCard {
   font-size: 10px;
   color: #8e8e93;
   letter-spacing: 0.5px;
+}
+
+.parakeet-code-copy-btn {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #8e8e93;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 5px;
+  padding: 2px 8px;
+  cursor: pointer;
+  transition: color 120ms, border-color 120ms, background 120ms;
+}
+
+.parakeet-code-copy-btn:hover {
+  color: #30d158;
+  border-color: rgba(48, 209, 88, 0.35);
+  background: rgba(48, 209, 88, 0.08);
 }
 
 .parakeet-code-block {
