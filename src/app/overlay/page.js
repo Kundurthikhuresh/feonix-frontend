@@ -37,7 +37,14 @@ const DEFAULT_SETTINGS = {
   audioSource: 'mic',
 };
 
-const SIZE_PX = { compact: 980, normal: 1140, large: 1300 };
+const SIZE_PX = { compact: 880, normal: 1140, large: 1340, xlarge: 1540 };
+const SIZE_KEYS = ['compact', 'normal', 'large', 'xlarge'];
+const SIZE_LABELS = {
+  compact: 'Compact',
+  normal: 'Standard',
+  large: 'Large',
+  xlarge: 'X-Large',
+};
 // The chat input bar is now always rendered (it used to only take up space
 // while the prompt hub popup was open) — every resize target needs room for
 // it so it doesn't get clipped at the bottom of the native window.
@@ -279,6 +286,9 @@ function OverlayContent() {
       onScreenshotCapture: () => handleCaptureScreen(),
       onToggleListening: () => handleToggleListening(),
       onToggleHide: () => handleToggleHide(),
+      onToggleExpand: () => handleToggleExpand(),
+      onIncreaseSize: () => handleIncreaseSize(),
+      onDecreaseSize: () => handleDecreaseSize(),
     };
   });
 
@@ -321,6 +331,21 @@ function OverlayContent() {
       }
 
       const handlers = shortcutHandlersRef.current;
+      if (e.shiftKey && (e.key === 'M' || e.key === 'm' || e.code === 'KeyM')) {
+        e.preventDefault();
+        handlers.onToggleExpand?.();
+        return;
+      }
+      if (e.key === '=' || e.key === '+') {
+        e.preventDefault();
+        handlers.onIncreaseSize?.();
+        return;
+      }
+      if (e.key === '-' || e.key === '_') {
+        e.preventDefault();
+        handlers.onDecreaseSize?.();
+        return;
+      }
       if (e.shiftKey && e.key === 'Enter') {
         e.preventDefault();
         handlers.onScreenshotMenu();
@@ -586,13 +611,22 @@ function OverlayContent() {
     } else if (visibility === 'open') {
       if (typeof window.feonix.show === 'function') window.feonix.show();
       if (typeof window.feonix.resize === 'function') {
-        const targetWidth = Math.max(SIZE_PX[settings.assistantSize] || 1140, isExpanded ? 1220 : 1140);
-        if (settingsOpen) {
+        const availW = typeof window !== 'undefined' ? (window.screen?.availWidth || 1920) : 1920;
+        const availH = typeof window !== 'undefined' ? (window.screen?.availHeight || 1080) : 1080;
+        const maxW = Math.min(1680, availW - 32);
+        const maxH = Math.min(960, availH - 60);
+
+        const currentTierWidth = SIZE_PX[settings.assistantSize] || SIZE_PX.normal;
+        const targetWidth = isExpanded ? maxW : currentTierWidth;
+
+        if (isExpanded) {
+          window.feonix.resize(targetWidth, maxH);
+        } else if (settingsOpen) {
           window.feonix.resize(targetWidth, 540);
         } else if (promptHubOpen) {
           window.feonix.resize(targetWidth, 420 + CHAT_INPUT_BAR_PX);
         } else if (cueLine || answerHtml || thinking || (messages && messages.length > 0) || (answersHistory && answersHistory.length > 0)) {
-          const height = (isExpanded ? 640 : cardSize.height) + 140 + CHAT_INPUT_BAR_PX;
+          const height = Math.min(availH - 80, (cardSize.height || 420) + 140 + CHAT_INPUT_BAR_PX);
           window.feonix.resize(targetWidth, height);
         } else {
           window.feonix.resize(targetWidth, 270 + CHAT_INPUT_BAR_PX);
@@ -729,6 +763,46 @@ function OverlayContent() {
     triggerToast(text ? '⧉ Copied' : 'Nothing to copy yet');
   };
 
+  const handleToggleExpand = () => {
+    setIsExpanded((prev) => {
+      const next = !prev;
+      if (typeof window !== 'undefined' && window.feonix?.maximize) {
+        window.feonix.maximize();
+      }
+      triggerToast(next ? '⤢ Copilot Maximized' : '🗗 Copilot Restored');
+      return next;
+    });
+  };
+
+  const handleIncreaseSize = () => {
+    const curIdx = SIZE_KEYS.indexOf(settings.assistantSize);
+    if (curIdx < SIZE_KEYS.length - 1) {
+      const next = SIZE_KEYS[curIdx + 1];
+      handleSettingChange('assistantSize', next);
+      triggerToast(`Copilot Size: ${SIZE_LABELS[next]} (${SIZE_PX[next]}px)`);
+    } else {
+      triggerToast('Copilot is already at maximum size tier');
+    }
+  };
+
+  const handleDecreaseSize = () => {
+    const curIdx = SIZE_KEYS.indexOf(settings.assistantSize);
+    if (curIdx > 0) {
+      const next = SIZE_KEYS[curIdx - 1];
+      handleSettingChange('assistantSize', next);
+      triggerToast(`Copilot Size: ${SIZE_LABELS[next]} (${SIZE_PX[next]}px)`);
+    } else {
+      triggerToast('Copilot is already at compact size tier');
+    }
+  };
+
+  const handleCycleSize = () => {
+    const curIdx = SIZE_KEYS.indexOf(settings.assistantSize);
+    const next = SIZE_KEYS[(curIdx + 1) % SIZE_KEYS.length];
+    handleSettingChange('assistantSize', next);
+    triggerToast(`Copilot Size: ${SIZE_LABELS[next]} (${SIZE_PX[next]}px)`);
+  };
+
   const pillStatus = hasError ? 'error' : thinking ? 'processing' : listening ? 'listening' : 'ready';
 
   return (
@@ -756,8 +830,20 @@ function OverlayContent() {
       {visibility === 'open' && (
         <div
           ref={shellRef}
-          className="pk-shell"
-          style={dragPos.x !== null ? {
+          className={`pk-shell ${isExpanded ? 'pk-maximized' : ''}`}
+          style={isExpanded ? {
+            position: 'fixed',
+            left: '16px',
+            right: '16px',
+            top: '16px',
+            bottom: '16px',
+            width: 'calc(100vw - 32px)',
+            maxWidth: '1680px',
+            margin: '0 auto',
+            transform: 'none',
+            pointerEvents: 'all',
+            zIndex: 9999,
+          } : (dragPos.x !== null ? {
             position: 'fixed',
             left: `${dragPos.x}px`,
             top: `${dragPos.y}px`,
@@ -771,7 +857,7 @@ function OverlayContent() {
             pointerEvents: 'all',
             width: '100%',
             maxWidth: `${SIZE_PX[settings.assistantSize] || SIZE_PX.normal}px`,
-          }}
+          })}
         >
           <TopBar
             onDragStart={handleDragStart}
@@ -796,7 +882,11 @@ function OverlayContent() {
               composeInputRef.current?.focus();
             }}
             isExpanded={isExpanded}
-            onToggleExpand={() => setIsExpanded((prev) => !prev)}
+            onToggleExpand={handleToggleExpand}
+            assistantSize={settings.assistantSize}
+            onIncreaseSize={handleIncreaseSize}
+            onDecreaseSize={handleDecreaseSize}
+            onCycleSize={handleCycleSize}
             onMinimize={() => setVisibility('minimized')}
             stealthMode={settings.stealthMode}
             onToggleStealth={handleToggleStealth}

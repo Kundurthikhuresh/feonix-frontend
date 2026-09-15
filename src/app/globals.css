@@ -1781,7 +1781,7 @@ button, input, textarea, select { font: inherit; color: inherit; }
   margin-left: .12em;
   background: var(--cue);
   vertical-align: -.15em;
-  animation: blink 1s steps(2) infinite;
+  opacity: 1;
 }
 
 @keyframes blink { 50% { opacity: 0; } }
@@ -9308,12 +9308,27 @@ body[data-shell="tauri"] .answer-pane { padding: 20px 22px; }
   flex-direction: column;
   gap: 16px;
   width: 100%;
-  animation: parakeetFadeIn 0.2s ease-out;
+  animation: none !important;
+  opacity: 1 !important;
 }
 
+/* Disabled parakeetFadeIn: was re-triggering on every streaming token/char re-render causing characters to blink/flicker */
 @keyframes parakeetFadeIn {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 1; transform: none; }
+  to { opacity: 1; transform: none; }
+}
+
+/* ChatGPT-Style Live Streaming Cursor (Solid sleek indicator without character blinking) */
+.chatgpt-cursor {
+  display: inline-block;
+  width: 2.5px;
+  height: 1.15em;
+  background: #00f5ff;
+  box-shadow: 0 0 8px rgba(0, 245, 255, 0.85);
+  margin-left: 3px;
+  vertical-align: -0.15em;
+  border-radius: 1px;
+  opacity: 1;
 }
 
 /* 1. Top Type Header */

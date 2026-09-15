@@ -32,9 +32,10 @@ const SHORTCUT_ANSWER_OPTIONS = [
   { value: 'CommandOrControl+Alt+G', label: 'Ctrl+Alt+G' },
 ];
 const SIZE_OPTIONS = [
-  { value: 'compact', label: 'Compact' },
-  { value: 'normal', label: 'Normal' },
-  { value: 'large', label: 'Large' },
+  { value: 'compact', label: 'Compact (880px)' },
+  { value: 'normal', label: 'Standard (1140px)' },
+  { value: 'large', label: 'Large (1340px)' },
+  { value: 'xlarge', label: 'Extra Large (1540px)' },
 ];
 const AUDIO_SOURCE_OPTIONS = [
   { value: 'mic', label: 'Microphone' },

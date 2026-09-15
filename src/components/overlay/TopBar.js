@@ -10,6 +10,7 @@ export default function TopBar({
   screenshots, screenshotMenuOpen, onToggleScreenshotMenu, onUploadClick, onCaptureScreen, onSolveScreenshotNow, onRemoveScreenshot,
   promptHubOpen, onToggleChat,
   isExpanded, onToggleExpand,
+  assistantSize, onIncreaseSize, onDecreaseSize, onCycleSize,
   onMinimize,
   stealthMode,
   onToggleStealth,
@@ -73,6 +74,10 @@ export default function TopBar({
           onDragHandleMouseDown={onDragStart}
           isExpanded={isExpanded}
           onToggleExpand={onToggleExpand}
+          assistantSize={assistantSize}
+          onIncreaseSize={onIncreaseSize}
+          onDecreaseSize={onDecreaseSize}
+          onCycleSize={onCycleSize}
           onMinimize={onMinimize}
           stealthMode={stealthMode}
           onToggleStealth={onToggleStealth}

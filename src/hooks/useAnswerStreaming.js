@@ -124,20 +124,39 @@ export function useAnswerStreaming() {
 
     let textAccumulator = '';
     let typedCharIndex = 0;
+    let isStreamActive = true;
 
-    // Reveals whatever has arrived since the last tick — the 14ms interval
-    // is purely a render-rate cap (one state update per tick instead of one
-    // per SSE token, which would re-render far more often than the screen
-    // can even paint), not an artificial reading-speed throttle. This used
-    // to cap the reveal at 4 chars/14ms (~285 chars/s) "so a fast network
-    // burst doesn't dump the whole answer on screen at once" — but that's a
-    // deliberate slowdown competing directly with wanting the answer fast,
-    // and for a few-hundred-character answer it alone added a couple of
-    // seconds after the network had already delivered everything.
+    // ChatGPT-Style Character Generation:
+    // Characters stream in smoothly without blinking, vibrating, or jarring chunk jumps.
+    // Dynamically scales character reveal speed according to buffer depth so that
+    // generation feels natural and fluid like ChatGPT while ensuring zero latency/lag.
     if (typewriterIntervalRef.current) clearInterval(typewriterIntervalRef.current);
     typewriterIntervalRef.current = setInterval(() => {
-      if (typedCharIndex >= textAccumulator.length) return;
-      typedCharIndex = textAccumulator.length;
+      if (typedCharIndex >= textAccumulator.length) {
+        if (!isStreamActive) {
+          clearInterval(typewriterIntervalRef.current);
+          typewriterIntervalRef.current = null;
+        }
+        return;
+      }
+
+      const remaining = textAccumulator.length - typedCharIndex;
+      let step = 1;
+      if (!isStreamActive) {
+        step = Math.max(4, Math.ceil(remaining / 3));
+      } else if (remaining > 100) {
+        step = Math.ceil(remaining / 4);
+      } else if (remaining > 40) {
+        step = Math.min(remaining, 5);
+      } else if (remaining > 18) {
+        step = Math.min(remaining, 3);
+      } else if (remaining > 6) {
+        step = 2;
+      } else {
+        step = 1;
+      }
+
+      typedCharIndex = Math.min(textAccumulator.length, typedCharIndex + step);
       const preview = formatStreamingAnswer(textAccumulator.slice(0, typedCharIndex));
       if (preview !== null) {
         const safePreview = sanitizeHTML(preview);
@@ -145,7 +164,7 @@ export function useAnswerStreaming() {
         setThinking(false);
         patchAssistantMessage({ html: safePreview, streaming: true });
       }
-    }, 14);
+    }, 16);
 
     try {
       await streamAnswer({
@@ -170,15 +189,16 @@ export function useAnswerStreaming() {
         },
       });
 
-      // Let the typewriter catch up to whatever finished streaming in before
-      // handing off to the final formatted render.
+      isStreamActive = false;
+
+      // Let the character streamer catch up smoothly to whatever finished streaming in
       await new Promise((resolve) => {
         const checkDone = setInterval(() => {
           if (typedCharIndex >= textAccumulator.length) {
             clearInterval(checkDone);
             resolve();
           }
-        }, 20);
+        }, 16);
       });
 
       if (typewriterIntervalRef.current) {

@@ -23,7 +23,7 @@ const DEFAULT_SETTINGS = {
   audioSource: 'mic',
 };
 
-const ASSISTANT_SIZES = ['compact', 'normal', 'large'];
+const ASSISTANT_SIZES = ['compact', 'normal', 'large', 'xlarge'];
 const AUDIO_SOURCES = ['mic', 'tab'];
 
 // A handful of safe presets rather than free-form key capture — the
@@ -148,6 +148,7 @@ class SettingsStore {
 module.exports = {
   SettingsStore,
   DEFAULT_SETTINGS,
+  ASSISTANT_SIZES,
   SHORTCUT_PRESETS,
   HIDE_SHORTCUT_PRESETS,
   SCREENSHOT_SHORTCUT_PRESETS,
