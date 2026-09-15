@@ -113,7 +113,7 @@ export default function AnswerPanel({
     <div className="pk-answer-card-wrap">
       <div
         className={`pk-answer-card pk-conversation ${isExpanded ? 'pk-expanded' : ''}`}
-        style={{ maxHeight: isExpanded ? '78vh' : '440px' }}
+        style={{ maxHeight: isExpanded ? 'calc(100vh - 210px)' : '440px' }}
         ref={containerRef}
         onScroll={handleScroll}
         onClick={handleConversationClick}

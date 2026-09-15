@@ -4,6 +4,10 @@ export default function InterviewControls({
   onDragHandleMouseDown,
   isExpanded,
   onToggleExpand,
+  assistantSize = 'normal',
+  onIncreaseSize,
+  onDecreaseSize,
+  onCycleSize,
   onMinimize,
   stealthMode = true,
   onToggleStealth,
@@ -16,6 +20,8 @@ export default function InterviewControls({
 }) {
   const isUrgent = remainingText && (remainingText.startsWith('00:') || remainingText.startsWith('01:'));
   const isStealthOn = stealthMode !== false;
+  const sizeKeys = ['compact', 'normal', 'large', 'xlarge'];
+  const currentSizeIndex = sizeKeys.indexOf(assistantSize);
 
   const handleSetMode = (turnOn) => {
     if (typeof onSetStealth === 'function') {
@@ -91,13 +97,36 @@ export default function InterviewControls({
         ⊹
       </button>
 
+      {/* Copilot Size Controls (Decrease / Increase) */}
+      <div className="pk-size-capsule" title="Adjust Copilot size (Ctrl+− to shrink, Ctrl++ to enlarge)">
+        <button
+          className="pk-size-step-btn"
+          onClick={onDecreaseSize}
+          disabled={isExpanded || currentSizeIndex <= 0}
+          title="Decrease Copilot size (Ctrl+-)"
+          type="button"
+        >
+          −
+        </button>
+        <button
+          className="pk-size-step-btn"
+          onClick={onIncreaseSize}
+          disabled={isExpanded || currentSizeIndex >= sizeKeys.length - 1}
+          title="Increase Copilot size (Ctrl+=)"
+          type="button"
+        >
+          +
+        </button>
+      </div>
+
+      {/* Maximize / Restore Button */}
       <button
-        className="pk-icon-btn"
+        className={`pk-icon-btn ${isExpanded ? 'pk-action-active pk-maximized-btn' : ''}`}
         onClick={onToggleExpand}
-        title={isExpanded ? 'Collapse answer card' : 'Expand answer card'}
+        title={isExpanded ? 'Restore Copilot size (Exit Maximize)' : 'Maximize Copilot (Full Screen Width & Height)'}
         type="button"
       >
-        ⤢
+        {isExpanded ? '🗗' : '⤢'}
       </button>
 
       <button

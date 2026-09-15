@@ -128,6 +128,21 @@ function registerIpcHandlers({ logger, settingsStore, getPendingHandoff, clearPe
     }
   });
 
+  ipcMain.on('feonix:maximize', (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (!win || win.isDestroyed()) return;
+    if (win.isMaximized()) {
+      win.unmaximize();
+    } else {
+      win.maximize();
+    }
+  });
+
+  ipcMain.handle('feonix:is-maximized', (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    return win && !win.isDestroyed() ? win.isMaximized() : false;
+  });
+
   // The renderer's drag-to-move gesture (mousedown on the drag rail, track
   // mousemove, mouseup to release) only ever updated a CSS position on the
   // HUD's own content — that moves things around fine inside a browser tab,

@@ -334,8 +334,10 @@ export function formatStreamingAnswer(accumulatedText) {
 
     if (points.length > 0) {
       html += '<ul class="teleprompter-bullet-list">';
-      points.forEach((point) => {
+      points.forEach((point, idx) => {
         const starMatch = point.match(/^([STAR])\s*:\s*(.*)/i);
+        const isCurrentActivePoint = idx === points.length - 1 && !answer;
+        const cursor = isCurrentActivePoint ? '<span class="chatgpt-cursor"></span>' : '';
         if (starMatch) {
           const starLetter = starMatch[1].toUpperCase();
           const starText = starMatch[2];
@@ -346,7 +348,7 @@ export function formatStreamingAnswer(accumulatedText) {
               <span class="star-badge ${starColors[starLetter] || ''}">${starLetter}</span>
               <div class="bullet-text">
                 <strong class="star-label">${starNames[starLetter] || starLetter}:</strong>
-                <span>${formatInlineMarkdown(starText)}</span>
+                <span>${formatInlineMarkdown(starText)}${cursor}</span>
               </div>
             </li>
           `;
@@ -355,7 +357,7 @@ export function formatStreamingAnswer(accumulatedText) {
             <li class="teleprompter-bullet-item">
               <span class="bullet-glow-dot">•</span>
               <div class="bullet-text">
-                <span>${formatInlineMarkdown(point)}</span>
+                <span>${formatInlineMarkdown(point)}${cursor}</span>
               </div>
             </li>
           `;
@@ -369,7 +371,7 @@ export function formatStreamingAnswer(accumulatedText) {
         <div class="teleprompter-explanation">
           ${points.length > 0 ? '<div class="explanation-divider"></div>' : ''}
           <div class="explanation-body">
-            ${formatBodyWithCodeBlocks(answer)}
+            ${formatBodyWithCodeBlocks(answer)}<span class="chatgpt-cursor"></span>
           </div>
         </div>
       `;
@@ -387,7 +389,7 @@ export function formatStreamingAnswer(accumulatedText) {
     return (
       '<div class="parakeet-answer-container">' +
         '<div class="teleprompter-explanation">' +
-          `<div class="explanation-body">${formatBodyWithCodeBlocks(textToRender)}</div>` +
+          `<div class="explanation-body">${formatBodyWithCodeBlocks(textToRender)}<span class="chatgpt-cursor"></span></div>` +
         '</div>' +
       '</div>'
     );
