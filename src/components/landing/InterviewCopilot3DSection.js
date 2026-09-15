@@ -114,40 +114,287 @@ export default function InterviewCopilot3DSection({ onSimulate }) {
         >
           <div style={{ display: 'grid', gridTemplateColumns: '0.8fr 1.2fr', gap: '32px', alignItems: 'center' }}>
             
-            {/* Left Box: Interviewer Avatar & Live Audio Stream */}
+            {/* Left Box: Futuristic Interviewer Video Call Stage & Real-Time Audio Feed */}
             <div
               style={{
-                background: 'rgba(7, 10, 18, 0.9)',
-                border: '1px solid rgba(255, 255, 255, 0.12)',
-                borderRadius: '20px',
+                background: 'linear-gradient(165deg, rgba(13, 18, 36, 0.95) 0%, rgba(7, 10, 20, 0.98) 100%)',
+                border: '1.5px solid rgba(0, 245, 255, 0.25)',
+                borderRadius: '24px',
                 padding: '24px',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '20px'
+                gap: '20px',
+                boxShadow: '0 24px 60px rgba(0, 0, 0, 0.75), inset 0 1px 0 rgba(255, 255, 255, 0.1)'
               }}
             >
-              {/* Interviewer Video Avatar Placeholder */}
-              <div style={{ position: 'relative', width: '100%', height: '180px', borderRadius: '14px', background: 'radial-gradient(circle, #1e293b, #0f172a)', border: '1px solid rgba(0,245,255,0.2)', display: 'grid', placeItems: 'center', overflow: 'hidden' }}>
-                <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'linear-gradient(135deg, #00f5ff, #8b5cf6)', display: 'grid', placeItems: 'center', fontSize: '24px', fontWeight: '900', color: '#ffffff', boxShadow: '0 0 25px rgba(0,245,255,0.4)' }}>
-                  FA
+              {/* Ultra-Realistic HD Interviewer Video Stage */}
+              <div
+                style={{
+                  position: 'relative',
+                  width: '100%',
+                  height: '220px',
+                  borderRadius: '18px',
+                  overflow: 'hidden',
+                  border: '1.5px solid rgba(0, 245, 255, 0.3)',
+                  boxShadow: '0 12px 35px rgba(0, 0, 0, 0.8), 0 0 25px rgba(0, 245, 255, 0.15)',
+                  background: '#0a0e1a'
+                }}
+              >
+                {/* Background Image: Speaking AI Interviewer Avatar */}
+                <img
+                  src="/ai_robot_avatar_speaking.jpg"
+                  alt="Interviewer Video Feed"
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    objectPosition: 'center 25%',
+                    filter: 'brightness(0.92) contrast(1.08)'
+                  }}
+                />
+
+                {/* Cyber Scanline & Vignette Gradient Overlay */}
+                <div
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    background: 'linear-gradient(180deg, rgba(5, 8, 20, 0.55) 0%, rgba(5, 8, 20, 0.1) 40%, rgba(5, 8, 20, 0.85) 100%)',
+                    pointerEvents: 'none'
+                  }}
+                />
+
+                {/* Top Video Status HUD Overlay */}
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '12px',
+                    left: '12px',
+                    right: '12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    zIndex: 2
+                  }}
+                >
+                  {/* Live Recording Badge */}
+                  <div
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '7px',
+                      background: 'rgba(0, 0, 0, 0.65)',
+                      backdropFilter: 'blur(10px)',
+                      padding: '4px 10px',
+                      borderRadius: '9999px',
+                      border: '1px solid rgba(239, 68, 68, 0.4)'
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: '8px',
+                        height: '8px',
+                        borderRadius: '50%',
+                        background: '#ef4444',
+                        boxShadow: '0 0 10px #ef4444',
+                        display: 'inline-block'
+                      }}
+                    />
+                    <span style={{ fontSize: '10.5px', fontFamily: 'monospace', fontWeight: '800', color: '#ffffff', letterSpacing: '0.04em' }}>
+                      REC 00:14
+                    </span>
+                  </div>
+
+                  {/* Quality & Network Badges */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span
+                      style={{
+                        fontSize: '10px',
+                        fontFamily: 'monospace',
+                        fontWeight: '800',
+                        color: '#00f5ff',
+                        background: 'rgba(0, 245, 255, 0.15)',
+                        backdropFilter: 'blur(8px)',
+                        padding: '3px 8px',
+                        borderRadius: '6px',
+                        border: '1px solid rgba(0, 245, 255, 0.3)'
+                      }}
+                    >
+                      1080P • 60FPS
+                    </span>
+                    <span
+                      style={{
+                        fontSize: '10px',
+                        fontFamily: 'monospace',
+                        fontWeight: '700',
+                        color: '#10b981',
+                        background: 'rgba(16, 185, 129, 0.15)',
+                        backdropFilter: 'blur(8px)',
+                        padding: '3px 8px',
+                        borderRadius: '6px',
+                        border: '1px solid rgba(16, 185, 129, 0.3)'
+                      }}
+                    >
+                      🟢 14ms
+                    </span>
+                  </div>
                 </div>
 
-                <div style={{ position: 'absolute', bottom: '12px', left: '12px', right: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(0,0,0,0.7)', padding: '6px 12px', borderRadius: '8px', backdropFilter: 'blur(8px)' }}>
-                  <span style={{ fontSize: '11px', fontWeight: '800', color: '#ffffff' }}>INTERVIEWER (SYSTEM ARCHITECT)</span>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#00f5ff' }}>
+                {/* Real-Time Audio Frequency Equalizer Bars */}
+                <div
+                  style={{
+                    position: 'absolute',
+                    bottom: '48px',
+                    left: '16px',
+                    display: 'flex',
+                    alignItems: 'flex-end',
+                    gap: '3px',
+                    height: '24px',
+                    zIndex: 2
+                  }}
+                >
+                  {[14, 22, 18, 24, 12, 20, 16, 22].map((height, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        width: '3.5px',
+                        height: isSimulating ? `${Math.max(6, (height + (i % 3) * 4) % 24)}px` : `${height}px`,
+                        borderRadius: '2px',
+                        background: 'linear-gradient(180deg, #00f5ff 0%, #8b5cf6 100%)',
+                        boxShadow: '0 0 8px rgba(0, 245, 255, 0.6)',
+                        transition: 'height 0.2s ease'
+                      }}
+                    />
+                  ))}
+                  <span style={{ fontSize: '10px', fontFamily: 'monospace', color: '#00f5ff', fontWeight: '800', marginLeft: '6px' }}>
+                    VOICE DETECTED
+                  </span>
+                </div>
+
+                {/* Bottom Video Nameplate Bar */}
+                <div
+                  style={{
+                    position: 'absolute',
+                    bottom: '10px',
+                    left: '12px',
+                    right: '12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    background: 'rgba(6, 10, 22, 0.85)',
+                    padding: '8px 14px',
+                    borderRadius: '12px',
+                    backdropFilter: 'blur(16px)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    zIndex: 2
+                  }}
+                >
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <span style={{ fontSize: '12px', fontWeight: '900', color: '#ffffff', letterSpacing: '-0.01em' }}>
+                      Alex Rivera <span style={{ color: '#00f5ff', fontSize: '11px', fontWeight: '700' }}>• Lead Interviewer</span>
+                    </span>
+                    <span style={{ fontSize: '10px', color: '#94a3b8', fontWeight: '600' }}>
+                      Staff Systems Architect @ Cloud Scale
+                    </span>
+                  </div>
+
+                  <div
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      color: '#00f5ff',
+                      background: 'rgba(0, 245, 255, 0.12)',
+                      padding: '4px 8px',
+                      borderRadius: '6px',
+                      border: '1px solid rgba(0, 245, 255, 0.25)'
+                    }}
+                  >
                     <Volume2 size={13} />
-                    <span style={{ fontSize: '10px', fontFamily: 'monospace' }}>LIVE</span>
+                    <span style={{ fontSize: '10px', fontFamily: 'monospace', fontWeight: '800' }}>
+                      SPEAKING
+                    </span>
                   </div>
                 </div>
               </div>
 
-              {/* Interviewer Question Prompt */}
-              <div style={{ background: 'rgba(15, 23, 42, 0.8)', border: '1px solid rgba(0, 245, 255, 0.3)', borderRadius: '12px', padding: '14px' }}>
-                <div style={{ fontSize: '11px', fontFamily: 'monospace', fontWeight: '800', color: '#00f5ff', marginBottom: '6px' }}>
-                  INTERVIEWER QUESTION:
+              {/* Real-Time Whisper AI Speech-To-Text Transcription Card */}
+              <div
+                style={{
+                  background: 'rgba(10, 15, 30, 0.9)',
+                  border: '1px solid rgba(0, 245, 255, 0.3)',
+                  borderRadius: '16px',
+                  padding: '16px 18px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '10px',
+                  boxShadow: '0 8px 24px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(0, 245, 255, 0.15)'
+                }}
+              >
+                {/* Transcript Meta Header */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span
+                      style={{
+                        width: '7px',
+                        height: '7px',
+                        borderRadius: '50%',
+                        background: '#00f5ff',
+                        boxShadow: '0 0 8px #00f5ff',
+                        display: 'inline-block'
+                      }}
+                    />
+                    <span style={{ fontSize: '11px', fontFamily: 'monospace', fontWeight: '800', color: '#00f5ff', letterSpacing: '0.06em' }}>
+                      LIVE TRANSCRIPTION (WHISPER v3)
+                    </span>
+                  </div>
+
+                  <span style={{ fontSize: '10px', fontFamily: 'monospace', fontWeight: '700', color: '#10b981', background: 'rgba(16, 185, 129, 0.12)', padding: '2px 6px', borderRadius: '4px' }}>
+                    99.6% CONFIDENCE
+                  </span>
                 </div>
-                <div style={{ fontSize: '14px', fontWeight: '700', color: '#ffffff', lineHeight: '1.4' }}>
-                  "How would you design a scalable notification system?"
+
+                {/* Question Body with Highlighted System Entities */}
+                <div style={{ fontSize: '14.5px', fontWeight: '700', color: '#f8fafc', lineHeight: '1.55' }}>
+                  &ldquo;How would you design a{' '}
+                  <span
+                    style={{
+                      color: '#00f5ff',
+                      background: 'rgba(0, 245, 255, 0.15)',
+                      padding: '2px 8px',
+                      borderRadius: '6px',
+                      border: '1px solid rgba(0, 245, 255, 0.35)',
+                      fontWeight: '800'
+                    }}
+                  >
+                    scalable notification system
+                  </span>{' '}
+                  handling{' '}
+                  <span
+                    style={{
+                      color: '#c084fc',
+                      background: 'rgba(139, 92, 246, 0.18)',
+                      padding: '2px 8px',
+                      borderRadius: '6px',
+                      border: '1px solid rgba(139, 92, 246, 0.35)',
+                      fontWeight: '800'
+                    }}
+                  >
+                    100M+ events / sec
+                  </span>{' '}
+                  with zero message loss and multi-region failover?&rdquo;
+                </div>
+
+                {/* Architectural Keyword Pill Tags */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '4px' }}>
+                  <span style={{ fontSize: '10.5px', fontFamily: 'monospace', color: '#94a3b8', background: 'rgba(255, 255, 255, 0.05)', padding: '3px 8px', borderRadius: '6px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                    ⚡ High-Throughput Pub/Sub
+                  </span>
+                  <span style={{ fontSize: '10.5px', fontFamily: 'monospace', color: '#94a3b8', background: 'rgba(255, 255, 255, 0.05)', padding: '3px 8px', borderRadius: '6px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                    🛡️ Idempotent Processing
+                  </span>
+                  <span style={{ fontSize: '10.5px', fontFamily: 'monospace', color: '#94a3b8', background: 'rgba(255, 255, 255, 0.05)', padding: '3px 8px', borderRadius: '6px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                    ⏱️ 4-5 Min Response
+                  </span>
                 </div>
               </div>
             </div>
