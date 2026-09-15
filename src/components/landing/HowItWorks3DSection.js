@@ -144,10 +144,6 @@ function MarqueeCard({ item }) {
 export default function HowItWorks3DSection() {
   return (
     <section className="how-it-works-3d-section" id="how-it-works">
-      {/* Premium Night Mode Background Blobs */}
-      <div className="premium-bg-blob premium-bg-blob-1" aria-hidden="true" />
-      <div className="premium-bg-blob premium-bg-blob-2" aria-hidden="true" />
-      <div className="premium-bg-blob premium-bg-blob-3" aria-hidden="true" />
       <div className="how-it-works-container">
         {/* Section Header */}
         <div className="section-header-centered">

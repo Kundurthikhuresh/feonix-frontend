@@ -201,7 +201,7 @@ export default function VideoShowcase3DSection({ onWatchDemo }) {
       className="video-showcase-3d-section"
       style={{
         position: 'relative',
-        padding: '68px 24px 72px 24px',
+        padding: '100px 24px',
         background: 'radial-gradient(ellipse at center, rgba(13,20,38,0.95) 0%, rgba(6,9,16,1) 100%)',
         overflow: 'hidden'
       }}
@@ -225,7 +225,7 @@ export default function VideoShowcase3DSection({ onWatchDemo }) {
       <div className="video-showcase-container" style={{ maxWidth: '1240px', margin: '0 auto', position: 'relative', zIndex: 2 }}>
         
         {/* Section Header */}
-        <div className="video-section-header" style={{ textAlign: 'center', marginBottom: '36px' }}>
+        <div className="video-section-header" style={{ textAlign: 'center', marginBottom: '50px' }}>
           <div
             style={{
               display: 'inline-flex',

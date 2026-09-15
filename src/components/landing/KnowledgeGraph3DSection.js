@@ -73,11 +73,11 @@ export default function KnowledgeGraph3DSection() {
   }, [activeNode]);
 
   return (
-    <section className="knowledge-graph-3d-section" style={{ position: 'relative', padding: '68px 24px 72px 24px', background: 'radial-gradient(ellipse at center, rgba(13,20,38,0.95) 0%, rgba(4,7,17,1) 100%)', overflow: 'hidden' }}>
+    <section className="knowledge-graph-3d-section" style={{ position: 'relative', padding: '100px 24px', background: 'radial-gradient(ellipse at center, rgba(13,20,38,0.95) 0%, rgba(4,7,17,1) 100%)', overflow: 'hidden' }}>
       <div style={{ maxWidth: '1240px', margin: '0 auto', position: 'relative', zIndex: 5 }}>
         
         {/* Header */}
-        <div style={{ textAlign: 'center', marginBottom: '36px' }}>
+        <div style={{ textAlign: 'center', marginBottom: '60px' }}>
           <div
             style={{
               display: 'inline-flex',

@@ -71,60 +71,34 @@ const STATS_DATA = [
 
 export default function Stats3DSection() {
   return (
-    <section className="stats-3d-section" id="stats">
-      {/* Premium Night Mode Background Blobs */}
-      <div className="premium-bg-blob premium-bg-blob-1" aria-hidden="true" />
-      <div className="premium-bg-blob premium-bg-blob-2" aria-hidden="true" />
-      <div className="premium-bg-blob premium-bg-blob-3" aria-hidden="true" />
-      <div className="stats-3d-container">
-        {/* Header */}
-        <div className="section-header-pill-wrapper" style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <span className="badge-pill-cyan">
-            PROVEN BENCHMARKS &amp; PERFORMANCE
+    <section className="stats-3d-section" style={{ position: 'relative', padding: '80px 24px', background: 'rgba(8, 11, 18, 0.8)' }}>
+      <div className="stats-3d-container" style={{ maxWidth: '1200px', margin: '0 auto' }}>
+        
+        <div style={{ textAlign: 'center', marginBottom: '44px' }}>
+          <span style={{ fontSize: '12px', fontWeight: '800', color: '#00f5ff', letterSpacing: '0.1em', textTransform: 'uppercase', background: 'rgba(0, 245, 255, 0.1)', padding: '4px 14px', borderRadius: '999px', border: '1px solid rgba(0, 245, 255, 0.25)' }}>
+            PROVEN BENCHMARKS & PERFORMANCE
           </span>
-          <h2 style={{ fontSize: 'clamp(26px, 3.2vw, 36px)', fontWeight: '900', color: 'var(--text-primary)', margin: '12px 0 0', letterSpacing: '-0.02em' }}>
+          <h2 style={{ fontSize: '34px', fontWeight: '900', color: '#f8fafc', margin: '12px 0 0' }}>
             Built for Real-World Technical Performance
           </h2>
         </div>
 
-        {/* 4-Column Balanced Grid */}
-        <div className="stats-3d-grid">
+        <div className="stats-3d-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '20px' }}>
           {STATS_DATA.map((stat) => {
             const Icon = stat.icon;
             return (
-              <div
-                key={stat.id}
-                className="stat-3d-card"
-                style={{
-                  border: `1px solid ${stat.color}35`,
-                  '--card-glow': stat.color,
-                }}
-              >
-                <div className="stat-card-border-glow" style={{ borderColor: `${stat.color}25` }} />
+              <div key={stat.id} className="stat-3d-card" style={{ background: 'rgba(15, 23, 42, 0.65)', border: `1px solid ${stat.color}30`, borderRadius: '18px', padding: '24px', transition: 'all 0.25s ease', boxShadow: `0 10px 30px rgba(0,0,0,0.5)` }}>
                 <div className="stat-card-inner">
-                  <div
-                    className="stat-icon-wrapper"
-                    style={{
-                      color: stat.color,
-                      borderColor: `${stat.color}40`,
-                      background: `${stat.color}15`,
-                    }}
-                  >
-                    <Icon size={20} />
+                  <div className="stat-icon-wrapper" style={{ width: '42px', height: '42px', borderRadius: '12px', color: stat.color, border: `1px solid ${stat.color}40`, background: `${stat.color}15`, display: 'grid', placeItems: 'center', marginBottom: '16px' }}>
+                    <Icon size={22} />
                   </div>
-                  <div className="stat-number-wrapper">
-                    <span
-                      className="stat-number"
-                      style={{
-                        color: 'var(--text-primary)',
-                        textShadow: `0 0 24px ${stat.color}50`
-                      }}
-                    >
+                  <div className="stat-number-wrapper" style={{ marginBottom: '8px' }}>
+                    <span className="stat-number" style={{ fontSize: '32px', fontWeight: '900', textShadow: `0 0 24px ${stat.color}60`, fontFamily: 'var(--mono)' }}>
                       {stat.value}
                     </span>
                   </div>
-                  <h3 className="stat-label">{stat.label}</h3>
-                  <p className="stat-desc">{stat.desc}</p>
+                  <h3 className="stat-label" style={{ fontSize: '15px', fontWeight: '800', margin: '0 0 6px' }}>{stat.label}</h3>
+                  <p className="stat-desc" style={{ fontSize: '13px', margin: 0, lineHeight: '1.5' }}>{stat.desc}</p>
                 </div>
               </div>
             );
@@ -134,4 +108,3 @@ export default function Stats3DSection() {
     </section>
   );
 }
-

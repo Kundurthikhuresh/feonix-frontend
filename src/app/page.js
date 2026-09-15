@@ -1258,7 +1258,7 @@ export default function Page() {
           <CareerReadiness3DSection />
 
           {/* Candidate Testimonials 3D Carousel */}
-          <Testimonials3DSection themeMode={themeMode} />
+          <Testimonials3DSection />
 
           {/* NEW 9 — Before vs After Feonix */}
           <BeforeAfter3DSection />

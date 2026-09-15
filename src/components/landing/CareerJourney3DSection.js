@@ -18,11 +18,11 @@ export default function CareerJourney3DSection() {
   const [activeIdx, setActiveIdx] = useState(5);
 
   return (
-    <section className="career-journey-3d-section" style={{ position: 'relative', padding: '68px 24px 72px 24px', background: '#040711', overflow: 'hidden' }}>
+    <section className="career-journey-3d-section" style={{ position: 'relative', padding: '100px 24px', background: '#040711', overflow: 'hidden' }}>
       <div style={{ maxWidth: '1240px', margin: '0 auto', position: 'relative', zIndex: 5 }}>
         
         {/* Header */}
-        <div style={{ textAlign: 'center', marginBottom: '36px' }}>
+        <div style={{ textAlign: 'center', marginBottom: '60px' }}>
           <div
             style={{
               display: 'inline-flex',

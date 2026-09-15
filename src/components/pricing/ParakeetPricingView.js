@@ -195,12 +195,12 @@ export default function ParakeetPricingView({
                       <span className="pk-option-period">{displayPeriod}</span>
                     </div>
                     {subViewMode === 'hourly' && (
-                      <div className="pk-option-note">
+                      <div style={{ fontSize: 11, color: '#64748b', textAlign: 'right', marginTop: 2 }}>
                         {tier.totalPrice} {tier.periodLabel}
                       </div>
                     )}
                     {subViewMode === 'monthly' && key !== 'monthly' && (
-                      <div className="pk-option-note">
+                      <div style={{ fontSize: 11, color: '#64748b', textAlign: 'right', marginTop: 2 }}>
                         {tier.totalPrice} {tier.periodLabel}
                       </div>
                     )}
@@ -210,7 +210,7 @@ export default function ParakeetPricingView({
             })}
           </div>
 
-          <p className="pk-footnote-text">
+          <p style={{ fontSize: 11.5, color: '#64748b', margin: '8px 0 16px', paddingLeft: 4 }}>
             * Assumes 30 hours of calls a month or 1 call per day
           </p>
 

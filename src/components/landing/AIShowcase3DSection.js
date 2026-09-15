@@ -201,10 +201,8 @@ export default function AIShowcase3DSection() {
 
   return (
     <section className="ai-showcase-3d-section" id="showcase">
-      {/* Premium Night Mode Background Blobs */}
-      <div className="premium-bg-blob premium-bg-blob-1" aria-hidden="true" />
-      <div className="premium-bg-blob premium-bg-blob-2" aria-hidden="true" />
-      <div className="premium-bg-blob premium-bg-blob-3" aria-hidden="true" />
+      {/* Background ambient lighting */}
+      <div className="showcase-ambient-glow" />
 
       <div className="ai-showcase-container">
         {/* Section Header */}
