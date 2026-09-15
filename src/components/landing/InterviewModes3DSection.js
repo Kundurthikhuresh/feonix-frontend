@@ -76,7 +76,7 @@ export default function InterviewModes3DSection() {
 
   return (
     <section className="interview-modes-3d-section" style={{ position: 'relative', padding: '68px 24px 72px 24px', background: '#050814', overflow: 'hidden' }}>
-      <div style={{ maxWidth: '1240px', margin: '0 auto', position: 'relative', zIndex: 5 }}>
+      <div style={{ maxWidth: '1360px', margin: '0 auto', position: 'relative', zIndex: 5 }}>
         
         {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: '36px' }}>
@@ -110,14 +110,14 @@ export default function InterviewModes3DSection() {
           </p>
         </div>
 
-        {/* 6 Mode Selector Cards Grid with Enlarged Cards & 2s Auto-Hover Cycle */}
+        {/* 6 Mode Selector Cards in a Single Line */}
         <div
           onMouseEnter={() => setIsUserHovering(true)}
           onMouseLeave={() => setIsUserHovering(false)}
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
-            gap: '20px',
+            gridTemplateColumns: 'repeat(6, minmax(0, 1fr))',
+            gap: '12px',
             marginBottom: '44px'
           }}
         >
@@ -139,55 +139,58 @@ export default function InterviewModes3DSection() {
                 }}
                 style={{
                   position: 'relative',
-                  padding: '28px 24px',
-                  minHeight: '175px',
-                  borderRadius: '20px',
+                  padding: '20px 14px',
+                  minHeight: '150px',
+                  borderRadius: '16px',
                   background: isHoveredOrActive
                     ? `linear-gradient(150deg, rgba(20, 29, 52, 0.98) 0%, ${mode.color}25 100%)`
                     : 'rgba(10, 14, 26, 0.75)',
                   border: `2px solid ${isHoveredOrActive ? mode.color : 'rgba(255, 255, 255, 0.1)'}`,
                   cursor: 'pointer',
-                  transition: 'all 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+                  transition: 'all 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
                   boxShadow: isHoveredOrActive
-                    ? `0 20px 42px ${mode.color}45, 0 0 26px ${mode.color}25, inset 0 1px 0 rgba(255,255,255,0.15)`
+                    ? `0 16px 36px ${mode.color}40, 0 0 22px ${mode.color}20, inset 0 1px 0 rgba(255,255,255,0.15)`
                     : 'none',
-                  transform: isHoveredOrActive ? 'translateY(-10px) scale(1.035)' : 'translateY(0) scale(1)',
+                  transform: isHoveredOrActive ? 'translateY(-8px) scale(1.02)' : 'translateY(0) scale(1)',
                   display: 'flex',
                   flexDirection: 'column',
                   justifyContent: 'space-between',
-                  overflow: 'hidden'
+                  overflow: 'hidden',
+                  minWidth: 0
                 }}
               >
                 {/* Top Row: Icon + Monospace Round Tag */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
                   <div
                     style={{
-                      width: '52px',
-                      height: '52px',
-                      borderRadius: '14px',
+                      width: '42px',
+                      height: '42px',
+                      borderRadius: '12px',
                       background: isHoveredOrActive ? `${mode.color}30` : `${mode.color}15`,
                       border: `1.5px solid ${isHoveredOrActive ? mode.color : `${mode.color}40`}`,
                       color: mode.color,
                       display: 'grid',
                       placeItems: 'center',
                       transition: 'all 0.35s ease',
-                      boxShadow: isHoveredOrActive ? `0 0 20px ${mode.color}60` : 'none'
+                      flexShrink: 0,
+                      boxShadow: isHoveredOrActive ? `0 0 18px ${mode.color}50` : 'none'
                     }}
                   >
-                    <Icon size={26} />
+                    <Icon size={20} />
                   </div>
                   <span
                     style={{
-                      fontSize: '11px',
+                      fontSize: '10px',
                       fontFamily: 'monospace',
                       fontWeight: '800',
-                      letterSpacing: '0.08em',
+                      letterSpacing: '0.06em',
                       color: isHoveredOrActive ? mode.color : '#64748b',
                       background: isHoveredOrActive ? `${mode.color}18` : 'rgba(255, 255, 255, 0.04)',
-                      padding: '3px 8px',
+                      padding: '3px 6px',
                       borderRadius: '6px',
                       border: `1px solid ${isHoveredOrActive ? `${mode.color}40` : 'transparent'}`,
-                      transition: 'all 0.3s ease'
+                      transition: 'all 0.3s ease',
+                      whiteSpace: 'nowrap'
                     }}
                   >
                     {mode.tag}
@@ -198,13 +201,14 @@ export default function InterviewModes3DSection() {
                 <div>
                   <h3
                     style={{
-                      fontSize: '18px',
+                      fontSize: '15px',
                       fontWeight: '800',
                       color: isHoveredOrActive ? '#ffffff' : '#e2e8f0',
-                      margin: '18px 0 0 0',
-                      lineHeight: '1.3',
+                      margin: '14px 0 0 0',
+                      lineHeight: '1.25',
                       letterSpacing: '-0.01em',
-                      transition: 'color 0.3s ease'
+                      transition: 'color 0.3s ease',
+                      wordBreak: 'break-word'
                     }}
                   >
                     {mode.title}
