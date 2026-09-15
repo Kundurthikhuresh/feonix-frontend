@@ -52,7 +52,11 @@ async function proxy(req, context) {
     };
 
     let upstream = null;
-    const maxRetries = isStream ? 1 : 4;
+    const isIdempotent = req.method === 'GET' || req.method === 'HEAD';
+    // Only safe/idempotent reads should retry upstream on transient fetch errors.
+    // Retrying state-mutating requests (POST, PUT, DELETE) across targets can cause
+    // duplicate side-effects (such as duplicate session creation or credit deductions).
+    const maxRetries = (isStream || !isIdempotent) ? 1 : 4;
     const targets = PRIMARY_BACKEND !== FALLBACK_BACKEND
       ? [PRIMARY_BACKEND, FALLBACK_BACKEND]
       : [PRIMARY_BACKEND];

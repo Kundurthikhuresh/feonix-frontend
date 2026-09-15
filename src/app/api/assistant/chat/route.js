@@ -7,9 +7,12 @@ export async function POST(req) {
   const body = await req.json().catch(() => ({}));
 
   try {
+    // The backend route now requires auth (requireAuth), which reads the
+    // session cookie — without forwarding it here, every request 401s.
+    const cookie = req.headers.get('cookie') || '';
     const backendRes = await fetch(`${BACKEND}/api/assistant/chat`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Cookie: cookie },
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(20000),
     });

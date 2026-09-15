@@ -1611,6 +1611,41 @@ body.is-resizing #answerCard {
   border: 1px solid rgba(56, 189, 248, 0.3);
 }
 
+.parakeet-subheading {
+  font-size: 15px;
+  font-weight: 700;
+  color: #38bdf8;
+  margin: 18px 0 8px 0;
+  letter-spacing: 0.02em;
+  border-bottom: 1px solid rgba(56, 189, 248, 0.2);
+  padding-bottom: 4px;
+}
+
+.parakeet-inline-heading {
+  font-weight: 700;
+  color: #38bdf8;
+  display: block;
+  margin: 12px 0 4px 0;
+}
+
+.parakeet-sub-list {
+  margin: 8px 0 14px 22px;
+  padding: 0;
+  list-style-position: outside;
+}
+
+.parakeet-sub-bullet {
+  color: #f1f5f9;
+  margin-bottom: 6px;
+  line-height: 1.65;
+}
+
+.parakeet-sub-numbered {
+  color: #f1f5f9;
+  margin-bottom: 6px;
+  line-height: 1.65;
+}
+
 /* 4. Code Block inside Answer */
 .parakeet-code-wrapper {
   margin: 14px 0;
@@ -1641,6 +1676,24 @@ body.is-resizing #answerCard {
   font-size: 10px;
   font-weight: 700;
   color: #64748b;
+}
+
+.parakeet-code-copy-btn {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #64748b;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 5px;
+  padding: 2px 8px;
+  cursor: pointer;
+  transition: color 120ms, border-color 120ms, background 120ms;
+}
+
+.parakeet-code-copy-btn:hover {
+  color: #00f5ff;
+  border-color: rgba(0, 245, 255, 0.35);
+  background: rgba(0, 245, 255, 0.08);
 }
 
 .parakeet-code-block {
@@ -3224,12 +3277,177 @@ body.is-resizing #answerCard {
   color: #22c55e;
 }
 
-/* Chat / Prompt Hub */
+/* Chat / Prompt Hub — always rendered now (used to be a toggled popup), so
+   it needs flex-shrink:0 to stay pinned at the bottom of .pk-shell's flex
+   column instead of getting squeezed when the conversation above it grows. */
 .pk-prompt-hub {
   background: #2c2c2e;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
-  padding: 12px 14px;
+  padding: 10px 14px 12px;
+  flex-shrink: 0;
+}
 
+.pk-chat-compose {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.pk-chat-textarea {
+  flex: 1;
+  min-height: 36px;
+  max-height: 120px;
+  resize: none;
+  background: #1c1c1e;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  padding: 9px 12px;
+  color: #f4f4f5;
+  font-size: 13.5px;
+  font-family: inherit;
+  line-height: 1.4;
+  outline: none;
+  transition: border-color 150ms;
+}
+
+.pk-chat-textarea::placeholder {
+  color: #71717a;
+}
+
+.pk-chat-textarea:focus {
+  border-color: rgba(100, 210, 255, 0.5);
+}
+
+.pk-hub-pill-close {
+  background: transparent;
+  color: #71717a;
+  margin-left: auto;
+}
+
+/* Conversation — the scrollable message list (.pk-answer-card, unchanged
+   below) plus the floating "Jump to latest" button, which needs a
+   position:relative ancestor that itself takes the remaining vertical
+   space in .pk-shell's flex column. */
+.pk-answer-card-wrap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.pk-answer-card-wrap .pk-answer-card {
+  flex: 1;
+  min-height: 0;
+}
+
+.pk-conversation .pk-user-turn {
+  margin-top: 14px;
+}
+
+.pk-conversation .pk-user-turn:first-child {
+  margin-top: 0;
+}
+
+.pk-ql-multiline {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.pk-msg-screenshots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.pk-msg-screenshot-thumb {
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: #000;
+  cursor: zoom-in;
+}
+
+.pk-msg-assistant {
+  margin-bottom: 6px;
+}
+
+.pk-answer-foot-minor {
+  margin-top: 4px;
+  padding-top: 0;
+  border-top: none;
+  justify-content: flex-start;
+}
+
+.pk-jump-latest {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #2c2c2e;
+  color: #e5e5ea;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 9999px;
+  padding: 6px 14px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+  z-index: 5;
+}
+
+.pk-jump-latest:hover {
+  background: #3a3a3c;
+}
+
+/* In-page screenshot viewer — deliberately not window.open(); the Electron
+   main process denies opening a new window for a data: URL (see
+   desktop-electron/src/main/window.js's setWindowOpenHandler), and this
+   works identically whether running inside Electron or a plain browser tab.
+   position:fixed so it covers the whole overlay window for maximum
+   legibility, not just the message-list area it's triggered from. */
+.pk-image-lightbox {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.82);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  cursor: zoom-out;
+  padding: 24px;
+  box-sizing: border-box;
+}
+
+.pk-image-lightbox-img {
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 8px;
+  box-shadow: 0 16px 50px rgba(0, 0, 0, 0.85);
+  cursor: default;
+}
+
+.pk-image-lightbox-close {
+  position: absolute;
+  top: 16px;
+  right: 20px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #fff;
+  font-size: 15px;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+
+.pk-image-lightbox-close:hover {
+  background: rgba(255, 255, 255, 0.22);
 }
 
 .pk-hub-head {
@@ -3341,6 +3559,12 @@ body.is-resizing #answerCard {
 
 .pk-hub-send:hover {
   background: #007aff;
+}
+
+.pk-hub-send:disabled {
+  background: #3a3a3c;
+  color: #71717a;
+  cursor: not-allowed;
 }
 
 .pk-hub-pills {
@@ -3971,6 +4195,24 @@ body.is-resizing #answerCard {
   font-size: 10px;
   color: #8e8e93;
   letter-spacing: 0.5px;
+}
+
+.parakeet-code-copy-btn {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #8e8e93;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 5px;
+  padding: 2px 8px;
+  cursor: pointer;
+  transition: color 120ms, border-color 120ms, background 120ms;
+}
+
+.parakeet-code-copy-btn:hover {
+  color: #30d158;
+  border-color: rgba(48, 209, 88, 0.35);
+  background: rgba(48, 209, 88, 0.08);
 }
 
 .parakeet-code-block {

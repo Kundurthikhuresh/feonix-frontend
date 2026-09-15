@@ -29,6 +29,7 @@ export default function CreateSessionModal({
   newSaveTranscript,
   setNewSaveTranscript,
   createMsg,
+  isCreating = false,
   handleCreateSession,
   setShowCreateSheet,
 }) {
@@ -253,8 +254,10 @@ export default function CreateSessionModal({
         </div>
 
         <div className="doc-actions">
-          <button className="btn" type="submit">Create session</button>
-          <button className="btn-link" onClick={() => setShowCreateSheet(false)} type="button">
+          <button className="btn" type="submit" disabled={isCreating}>
+            {isCreating ? 'Creating…' : 'Create session'}
+          </button>
+          <button className="btn-link" onClick={() => setShowCreateSheet(false)} type="button" disabled={isCreating}>
             Cancel
           </button>
         </div>

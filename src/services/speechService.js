@@ -109,36 +109,55 @@ function pickSupportedMimeType() {
  * faster and more accurately than it would a growing multi-minute file, and
  * chunking is what lets a question get answered while the interviewer is
  * still mid-call instead of only after they stop talking.
+ *
+ * Uses two alternating MediaRecorder instances on the same stream rather
+ * than stop()-then-start() on one: stopping and restarting a single
+ * MediaRecorder is not instantaneous — there's a real teardown/re-init gap
+ * while the encoder finalizes the old WebM container and spins up a new
+ * one — and any audio spoken during that gap is silently lost, which is
+ * exactly the "sometimes it doesn't pick up what I said" symptom this was
+ * causing. A MediaStreamTrack can be read by more than one MediaRecorder at
+ * once, so the next recorder is started BEFORE the current one is stopped,
+ * overlapping the two by the brief startup window instead of leaving a gap.
+ * The resulting few hundred ms of duplicated audio at each boundary is
+ * already handled downstream: useSpeechRecognition's chip de-duplication
+ * drops a new chip that's a substring of the previous one.
  */
 export function createChunkedRecorder(stream, { intervalMs = 1600, onChunk } = {}) {
   const mimeType = pickSupportedMimeType();
-  let recorder;
-  try {
-    recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
-  } catch (err) {
-    recorder = new MediaRecorder(stream);
-  }
 
-  recorder.ondataavailable = (e) => {
-    if (e.data && e.data.size > 0 && onChunk) onChunk(e.data);
+  const makeRecorder = () => {
+    let recorder;
+    try {
+      recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+    } catch (err) {
+      recorder = new MediaRecorder(stream);
+    }
+    recorder.ondataavailable = (e) => {
+      if (e.data && e.data.size > 0 && onChunk) onChunk(e.data);
+    };
+    return recorder;
   };
 
+  let active = null;
   let cycleTimer = null;
 
   return {
     start() {
-      recorder.start();
+      active = makeRecorder();
+      active.start();
       cycleTimer = setInterval(() => {
-        if (recorder.state === 'recording') {
-          recorder.stop();
-          recorder.start();
-        }
+        const next = makeRecorder();
+        next.start();
+        const previous = active;
+        active = next;
+        if (previous.state === 'recording') previous.stop();
       }, intervalMs);
     },
     stop() {
       if (cycleTimer) clearInterval(cycleTimer);
       cycleTimer = null;
-      if (recorder.state !== 'inactive') recorder.stop();
+      if (active && active.state !== 'inactive') active.stop();
     },
   };
 }

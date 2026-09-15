@@ -1,14 +1,17 @@
+// Persistent compose bar — always rendered at the bottom of the copilot
+// (never toggled away, per the ChatGPT-style requirement that the input
+// stays available even while the user is reading older messages). `open`
+// now only controls the optional quick-prompt pills drawer above it; the
+// screenshot preview row and the textarea+Send row are always visible.
 export default function ChatPanel({
-  open, onClose, customPromptText, onChangePromptText, screenshots, onRemoveScreenshotAt, onSubmit, onQuickPrompt,
+  open, onClose, customPromptText, onChangePromptText, screenshots, onRemoveScreenshotAt,
+  onSubmit, onKeyDown, onQuickPrompt, inputRef, thinking,
 }) {
-  if (!open) return null;
   const hasScreenshots = screenshots && screenshots.length > 0;
+  const canSend = (customPromptText.trim().length > 0 || hasScreenshots) && !thinking;
+
   return (
     <div className="pk-prompt-hub">
-      <div className="pk-hub-head">
-        <span>✦ Custom Prompt</span>
-        <button className="pk-icon-btn" onClick={onClose} type="button">✕</button>
-      </div>
       {hasScreenshots && (
         // A screenshot attached via paste/capture only ever showed up as a
         // one-word placeholder-text change ("Add extra instructions…") —
@@ -31,22 +34,33 @@ export default function ChatPanel({
           </span>
         </div>
       )}
-      <form onSubmit={onSubmit} className="pk-hub-form">
-        <input
+
+      {open && (
+        <div className="pk-hub-pills">
+          <button className="pk-hub-pill" onClick={() => onQuickPrompt('STAR Method', 'star')} type="button">⭐ STAR</button>
+          <button className="pk-hub-pill" onClick={() => onQuickPrompt('Code + Big-O', 'code')} type="button">💻 Code</button>
+          <button className="pk-hub-pill" onClick={() => onQuickPrompt('3 concise bullets', 'teleprompter')} type="button">💡 Bullets</button>
+          <button className="pk-hub-pill" onClick={() => onQuickPrompt('Multiple Choice answer', 'quiz')} type="button">📝 Quiz</button>
+          {onClose && (
+            <button className="pk-hub-pill pk-hub-pill-close" onClick={onClose} type="button" title="Hide quick prompts">✕</button>
+          )}
+        </div>
+      )}
+
+      <form onSubmit={onSubmit} className="pk-chat-compose">
+        <textarea
+          ref={inputRef}
           value={customPromptText}
           onChange={(e) => onChangePromptText(e.target.value)}
-          placeholder={hasScreenshots ? 'Add extra instructions…' : 'Ask any interview question or coding prompt…'}
-          className="pk-hub-input"
-          autoFocus
+          onKeyDown={onKeyDown}
+          placeholder={hasScreenshots ? 'Add extra instructions… (Enter to send, Shift+Enter for a new line)' : 'Ask any interview question or coding prompt… (Enter to send, Shift+Enter for a new line)'}
+          className="pk-chat-textarea"
+          rows={1}
         />
-        <button className="pk-hub-send" type="submit">Solve →</button>
+        <button className="pk-hub-send" type="submit" disabled={!canSend}>
+          {thinking ? '…' : 'Send →'}
+        </button>
       </form>
-      <div className="pk-hub-pills">
-        <button className="pk-hub-pill" onClick={() => onQuickPrompt('STAR Method', 'star')} type="button">⭐ STAR</button>
-        <button className="pk-hub-pill" onClick={() => onQuickPrompt('Code + Big-O', 'code')} type="button">💻 Code</button>
-        <button className="pk-hub-pill" onClick={() => onQuickPrompt('3 concise bullets', 'teleprompter')} type="button">💡 Bullets</button>
-        <button className="pk-hub-pill" onClick={() => onQuickPrompt('Multiple Choice answer', 'quiz')} type="button">📝 Quiz</button>
-      </div>
     </div>
   );
 }
