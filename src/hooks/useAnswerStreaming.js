@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { streamAnswer } from '../services/aiService';
 import { formatParakeetAnswer, formatStreamingAnswer, isCodingQuestion } from '../lib/answerFormatter';
 import { deduplicateRepeatedPhrases } from '../services/speechService';
+import { sanitizeHTML } from '../lib/sanitize';
 
 const QTYPE_LABELS = {
   code: '⚡ Code Solution',
@@ -27,6 +28,14 @@ export function useAnswerStreaming() {
   const [hasError, setHasError] = useState(false);
   const [answersHistory, setAnswersHistory] = useState([]);
   const [currentAnswerIndex, setCurrentAnswerIndex] = useState(0);
+  // The ChatGPT-style conversation: every turn appends a user message and an
+  // assistant message here and neither is ever removed or overwritten by a
+  // later turn — this is what the persistent chat view renders from. The
+  // single-slot state above (cueLine/answerHtml/hasError/...) is kept exactly
+  // as it was for the components that already depend on it (Regenerate/
+  // Shorten/Expand, the Answers history tab) and always mirrors the latest
+  // turn, same as before.
+  const [messages, setMessages] = useState([]);
 
   const answerAbortRef = useRef(null);
   const typewriterIntervalRef = useRef(null);
@@ -34,6 +43,18 @@ export function useAnswerStreaming() {
   // Shorten/Expand/Retry can re-run the same call with only `action` swapped
   // out, instead of the caller having to re-thread question/images/style.
   const lastCallRef = useRef(null);
+  // Monotonic counter for message ids — Date.now() alone can collide when a
+  // user+assistant pair is created in the same millisecond.
+  const messageSeqRef = useRef(0);
+  const nextMessageId = () => {
+    messageSeqRef.current += 1;
+    return `m-${Date.now()}-${messageSeqRef.current}`;
+  };
+  // Ids of the most recent turn, so Regenerate/Shorten/Expand/Retry (all of
+  // which redo the same question, never ask a new one) can update that turn
+  // in place instead of appending a confusing duplicate question bubble.
+  const lastUserMessageIdRef = useRef(null);
+  const lastAssistantMessageIdRef = useRef(null);
 
   useEffect(() => () => {
     if (answerAbortRef.current) answerAbortRef.current.abort();
@@ -43,11 +64,14 @@ export function useAnswerStreaming() {
   const clearAnswer = useCallback(() => {
     setAnswerHtml('');
     setCueLine('');
+    setMessages([]);
+    lastUserMessageIdRef.current = null;
+    lastAssistantMessageIdRef.current = null;
   }, []);
 
   const generateAnswer = useCallback(async (rawQuestion, opts = {}) => {
     const question = deduplicateRepeatedPhrases(rawQuestion) || rawQuestion;
-    const { images = [], style = 'star', transcript = '', sessionId = null, language = 'en', action = 'answer' } = opts;
+    const { images = [], style = 'star', transcript = '', sessionId = null, language = 'en', action = 'answer', replaceLast = false } = opts;
     const isCode = isCodingQuestion(question) || style === 'code';
     const effectiveStyle = isCode && style !== 'teleprompter' && style !== 'quiz' ? 'code' : style;
     lastCallRef.current = { question, opts: { ...opts, style: effectiveStyle } };
@@ -62,6 +86,41 @@ export function useAnswerStreaming() {
     setAnswerHtml('');
     setCueLine(question);
     setQtype(isCode ? '⚡ Code Solution' : (QTYPE_LABELS[effectiveStyle] || '💡 Direct Answer'));
+
+    // A brand-new question appends a fresh turn to the conversation — never
+    // replaces what's already there. Regenerate/Shorten/Expand/Retry redo
+    // the same question rather than asking a new one, so those instead
+    // reset the existing last turn's assistant message in place; otherwise
+    // clicking "Shorten" would show the question a second time.
+    const turnCreatedAt = new Date().toISOString();
+    let userMessageId;
+    let assistantMessageId;
+    if (replaceLast && lastAssistantMessageIdRef.current) {
+      userMessageId = lastUserMessageIdRef.current;
+      assistantMessageId = lastAssistantMessageIdRef.current;
+      setMessages((prev) => prev.map((m) => (
+        m.id === assistantMessageId
+          ? { ...m, content: '', html: '', streaming: true, error: false }
+          : m
+      )));
+    } else {
+      userMessageId = nextMessageId();
+      assistantMessageId = nextMessageId();
+      lastUserMessageIdRef.current = userMessageId;
+      lastAssistantMessageIdRef.current = assistantMessageId;
+      setMessages((prev) => [
+        ...prev,
+        // `images` is kept on the message itself — once the compose area
+        // clears after sending, this is the only remaining record of what
+        // was actually attached to this question, so the conversation can
+        // still show it later even though the live "staged" copy is gone.
+        { id: userMessageId, role: 'user', content: question, images, createdAt: turnCreatedAt },
+        { id: assistantMessageId, role: 'assistant', content: '', html: '', createdAt: turnCreatedAt, streaming: true, error: false },
+      ]);
+    }
+    const patchAssistantMessage = (patch) => {
+      setMessages((prev) => prev.map((m) => (m.id === assistantMessageId ? { ...m, ...patch } : m)));
+    };
 
     let textAccumulator = '';
     let typedCharIndex = 0;
@@ -81,8 +140,10 @@ export function useAnswerStreaming() {
       typedCharIndex = textAccumulator.length;
       const preview = formatStreamingAnswer(textAccumulator.slice(0, typedCharIndex));
       if (preview !== null) {
-        setAnswerHtml(preview);
+        const safePreview = sanitizeHTML(preview);
+        setAnswerHtml(safePreview);
         setThinking(false);
+        patchAssistantMessage({ html: safePreview, streaming: true });
       }
     }, 14);
 
@@ -103,7 +164,9 @@ export function useAnswerStreaming() {
           }
         },
         onError: (message) => {
-          setAnswerHtml(`<div class="parakeet-error">Stream error: ${message}</div>`);
+          const errHtml = `<div class="parakeet-error">Stream error: ${message}</div>`;
+          setAnswerHtml(errHtml);
+          patchAssistantMessage({ html: errHtml, streaming: false, error: true });
         },
       });
 
@@ -123,10 +186,11 @@ export function useAnswerStreaming() {
         typewriterIntervalRef.current = null;
       }
 
-      const finalHtml = formatParakeetAnswer(textAccumulator);
+      const finalHtml = sanitizeHTML(formatParakeetAnswer(textAccumulator));
       setAnswerHtml(finalHtml);
       setThinking(false);
       setQtype(isCode ? '⚡ Code Solution' : 'Final Solution');
+      patchAssistantMessage({ html: finalHtml, content: textAccumulator, streaming: false });
 
       // Keep record in answers history for instant retrieval
       const newEntry = {
@@ -149,6 +213,12 @@ export function useAnswerStreaming() {
         typewriterIntervalRef.current = null;
       }
       if (err.name === 'AbortError') {
+        // Superseded by a newer question (a fresh call aborts whatever was
+        // still streaming) — finalize this message with whatever partial
+        // answer it had rather than leaving it stuck on "thinking" forever
+        // in the conversation list.
+        const partialHtml = textAccumulator ? sanitizeHTML(formatParakeetAnswer(textAccumulator)) : '';
+        patchAssistantMessage({ html: partialHtml, content: textAccumulator, streaming: false });
         return { ok: true, aborted: true };
       }
       console.error('Answer fetch failed:', err);
@@ -158,9 +228,9 @@ export function useAnswerStreaming() {
       const isRequestError = Boolean(err.status);
       const message = isRequestError ? (err.message || 'Could not fetch answer.') : 'Could not reach the answer service. Check your connection and try again.';
       const title = isRequestError ? '⚠️ Answer Request Error' : '⚠️ Connection Error';
-      setAnswerHtml(
-        `<div style="color: #f87171; padding: 12px; border: 1px solid rgba(239,68,68,0.3); border-radius: 8px; background: rgba(239,68,68,0.1); margin-top: 8px;"><strong>${title}</strong><br/><span style="margin-top: 4px; display: inline-block;">${message}</span></div>`
-      );
+      const errorHtml = `<div style="color: #f87171; padding: 12px; border: 1px solid rgba(239,68,68,0.3); border-radius: 8px; background: rgba(239,68,68,0.1); margin-top: 8px;"><strong>${title}</strong><br/><span style="margin-top: 4px; display: inline-block;">${message}</span></div>`;
+      setAnswerHtml(errorHtml);
+      patchAssistantMessage({ html: errorHtml, streaming: false, error: true });
       return { ok: false, message };
     }
   }, []);
@@ -218,7 +288,7 @@ export function useAnswerStreaming() {
   const rerun = useCallback((overrides = {}) => {
     const last = lastCallRef.current;
     if (!last) return undefined;
-    return generateAnswer(last.question, { ...last.opts, ...overrides });
+    return generateAnswer(last.question, { ...last.opts, ...overrides, replaceLast: true });
   }, [generateAnswer]);
 
   return {
@@ -240,5 +310,6 @@ export function useAnswerStreaming() {
     generateAnswer,
     rerun,
     clearAnswer,
+    messages,
   };
 }

@@ -38,6 +38,10 @@ const DEFAULT_SETTINGS = {
 };
 
 const SIZE_PX = { compact: 980, normal: 1140, large: 1300 };
+// The chat input bar is now always rendered (it used to only take up space
+// while the prompt hub popup was open) — every resize target needs room for
+// it so it doesn't get clipped at the bottom of the native window.
+const CHAT_INPUT_BAR_PX = 64;
 
 function OverlayContent() {
   const searchParams = useSearchParams();
@@ -60,6 +64,7 @@ function OverlayContent() {
   const [answerStyle, setAnswerStyle] = useState('star'); // 'star' | 'code' | 'teleprompter' | 'quiz'
   const [customPromptText, setCustomPromptText] = useState('');
   const fileInputRef = useRef(null);
+  const composeInputRef = useRef(null);
 
   // Mirrors backend/src/answer.js's MAX_IMAGES — trimming here gives an
   // immediate toast instead of silently losing the extras only once the
@@ -83,6 +88,7 @@ function OverlayContent() {
 
   const interview = useInterview({
     querySessionId, plan, queryAuto, screenshots, answerStyle, audioSource: settings.audioSource,
+    onScreenshotsConsumed: () => setScreenshots([]),
   });
   const {
     session, autoAnswer, toggleAutoAnswer,
@@ -96,6 +102,7 @@ function OverlayContent() {
   const {
     thinking, answerHtml, cueLine, showAnswerCard, clearAnswer, hasError, rerun,
     answersHistory, currentAnswerIndex, selectHistoryAnswer, prevAnswer, nextAnswer,
+    messages,
   } = answering;
 
   // Visibility: 'open' (full HUD) | 'minimized' (small status pill) |
@@ -263,7 +270,10 @@ function OverlayContent() {
         }
       },
       onScreenshotMenu: () => setScreenshotMenuOpen((prev) => !prev),
-      onChat: () => setPromptHubOpen((prev) => !prev),
+      onChat: () => {
+        setPromptHubOpen((prev) => !prev);
+        composeInputRef.current?.focus();
+      },
       onClearAnswer: () => clearAnswer(),
       onEndSession: () => handleEndSession(),
       onScreenshotCapture: () => handleCaptureScreen(),
@@ -580,16 +590,26 @@ function OverlayContent() {
         if (settingsOpen) {
           window.feonix.resize(targetWidth, 540);
         } else if (promptHubOpen) {
-          window.feonix.resize(targetWidth, 420);
-        } else if (cueLine || answerHtml || thinking || (answersHistory && answersHistory.length > 0)) {
-          const height = (isExpanded ? 640 : cardSize.height) + 140;
+          window.feonix.resize(targetWidth, 420 + CHAT_INPUT_BAR_PX);
+        } else if (cueLine || answerHtml || thinking || (messages && messages.length > 0) || (answersHistory && answersHistory.length > 0)) {
+          const height = (isExpanded ? 640 : cardSize.height) + 140 + CHAT_INPUT_BAR_PX;
           window.feonix.resize(targetWidth, height);
         } else {
-          window.feonix.resize(targetWidth, 270);
+          window.feonix.resize(targetWidth, 270 + CHAT_INPUT_BAR_PX);
         }
       }
     }
-  }, [visibility, cueLine, answerHtml, thinking, answersHistory, isExpanded, settings.assistantSize, settingsOpen, promptHubOpen]);
+  }, [visibility, cueLine, answerHtml, thinking, messages, answersHistory, isExpanded, settings.assistantSize, settingsOpen, promptHubOpen]);
+
+  // Focus the compose box again once an answer finishes arriving (thinking
+  // goes true -> false), so the user can immediately type the next question.
+  const wasThinkingRef = useRef(false);
+  useEffect(() => {
+    if (wasThinkingRef.current && !thinking) {
+      composeInputRef.current?.focus();
+    }
+    wasThinkingRef.current = thinking;
+  }, [thinking]);
 
   const handleToggleListening = () => {
     if (!settings.voiceEnabled) {
@@ -665,12 +685,25 @@ function OverlayContent() {
 
   const handleCustomPromptSubmit = (e) => {
     e.preventDefault();
+    // Disable duplicate submissions — the Send button is already disabled
+    // while thinking, but Enter is a separate code path (see
+    // handleComposeKeyDown) that needs the same guard.
+    if (thinking) return;
     if (!customPromptText.trim() && screenshots.length === 0) return;
     const prompt = customPromptText.trim() || 'Analyze the question and provide the solution.';
     setPromptHubOpen(false);
     setTranscriptChips((prev) => [...prev, { text: prompt, isQuestion: true }]);
     askQuestion(prompt, { images: screenshots, style: answerStyle });
     setCustomPromptText('');
+  };
+
+  // Enter submits, Shift+Enter inserts a newline (the textarea's own
+  // default) — only intercept the plain-Enter case.
+  const handleComposeKeyDown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleCustomPromptSubmit(e);
+    }
   };
 
   const handleQuickPromptClick = (presetText, style) => {
@@ -687,10 +720,13 @@ function OverlayContent() {
     askQuestion(cueLine || 'Analyze this screenshot and provide a solution', { images: screenshots, style: answerStyle });
   };
 
-  const handleCopyResponse = () => {
-    const text = htmlToPlainText(answerHtml);
+  // Shared copy handler for every message in the conversation — a user
+  // message's `content` is already plain text, an assistant message's is
+  // formatted HTML and needs htmlToPlainText first.
+  const handleCopyMessage = (content, isHtml) => {
+    const text = isHtml ? htmlToPlainText(content) : content;
     if (text) navigator.clipboard?.writeText(text);
-    triggerToast(text ? '⧉ Response copied' : 'Nothing to copy yet');
+    triggerToast(text ? '⧉ Copied' : 'Nothing to copy yet');
   };
 
   const pillStatus = hasError ? 'error' : thinking ? 'processing' : listening ? 'listening' : 'ready';
@@ -753,7 +789,12 @@ function OverlayContent() {
             onSolveScreenshotNow={handleSolveScreenshotNow}
             onRemoveScreenshot={() => { setScreenshots([]); setScreenshotMenuOpen(false); }}
             promptHubOpen={promptHubOpen}
-            onToggleChat={() => setPromptHubOpen((prev) => !prev)}
+            onToggleChat={() => {
+              setPromptHubOpen((prev) => !prev);
+              // The compose box is always visible now, but this button used
+              // to also mean "I want to type" — keep that courtesy.
+              composeInputRef.current?.focus();
+            }}
             isExpanded={isExpanded}
             onToggleExpand={() => setIsExpanded((prev) => !prev)}
             onMinimize={() => setVisibility('minimized')}
@@ -781,14 +822,11 @@ function OverlayContent() {
 
           <AnswerPanel
             visible={showAnswerCard}
-            cueLine={cueLine}
-            answerHtml={answerHtml}
-            thinking={thinking}
+            messages={messages}
             isExpanded={isExpanded}
             elapsedText={elapsedText}
             hasError={hasError}
-            onCopyQuestion={() => navigator.clipboard?.writeText(cueLine)}
-            onCopyResponse={handleCopyResponse}
+            onCopyMessage={handleCopyMessage}
             onThumbUp={() => triggerToast('👍 Saved')}
             onThumbDown={() => triggerToast('👎 Noted')}
             onRegenerate={() => rerun({ action: 'answer', style: answerStyle })}
@@ -805,7 +843,10 @@ function OverlayContent() {
             screenshots={screenshots}
             onRemoveScreenshotAt={(index) => setScreenshots((prev) => prev.filter((_, i) => i !== index))}
             onSubmit={handleCustomPromptSubmit}
+            onKeyDown={handleComposeKeyDown}
             onQuickPrompt={handleQuickPromptClick}
+            inputRef={composeInputRef}
+            thinking={thinking}
           />
 
           <AssistantSettings
@@ -820,7 +861,10 @@ function OverlayContent() {
               selectHistoryAnswer(idx);
               setSettingsOpen(false);
             }}
-            onOpenChat={() => setPromptHubOpen(true)}
+            onOpenChat={() => {
+              setPromptHubOpen(true);
+              composeInputRef.current?.focus();
+            }}
           />
         </div>
       )}

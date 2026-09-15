@@ -849,9 +849,13 @@ export default function Page() {
       company: sessionType === 'interview' ? newCompany : newTitle,
       role: sessionType === 'interview' ? newRole : '',
       job_description: sessionType === 'interview' ? newJd : newDesc,
-      instructions: newContext,
+      // The backend's POST /api/sessions reads `context` and `agent` — this
+      // used to send `instructions`/`agent_id`, field names it never reads,
+      // so anything typed into "Context & instructions" (or picked in the
+      // agent selector) was silently discarded and never reached a session.
+      context: newContext,
       language: newLanguage,
-      agent_id: newAgent,
+      agent: newAgent,
       auto_answer: newAuto,
       save_transcript: newSaveTranscript,
       billing: billingChoice,

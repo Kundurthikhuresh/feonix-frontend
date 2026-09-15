@@ -27,6 +27,9 @@ export function useSpeechRecognition({ sessionId, source = 'mic', language = 'en
   languageRef.current = language;
   const onQuestionDetectedRef = useRef(onQuestionDetected);
   onQuestionDetectedRef.current = onQuestionDetected;
+  // Counts consecutive chunk-upload failures so a real outage surfaces once,
+  // instead of either staying silent forever or toasting every 1.6s.
+  const consecutiveFailuresRef = useRef(0);
 
   const toast = useCallback((msg) => { if (onToast) onToast(msg); }, [onToast]);
 
@@ -34,6 +37,7 @@ export function useSpeechRecognition({ sessionId, source = 'mic', language = 'en
     if (!sessionIdRef.current) return;
     try {
       const data = await transcribeChunk(blob, sessionIdRef.current);
+      consecutiveFailuresRef.current = 0;
       if (data.text) {
         if (isSilenceHallucination(data.text)) {
           return;
@@ -77,7 +81,17 @@ export function useSpeechRecognition({ sessionId, source = 'mic', language = 'en
       // console.error carrying an Error object as a crash-looking "Console
       // Error" banner, which is misleading for something already handled.
       console.warn('Transcription chunk upload failed (will retry on the next chunk):', err);
-      if (err.status === 429) toast(`⚠️ ${(err.data && err.data.message) || 'Quota limit reached.'}`);
+      if (err.status === 429) {
+        toast(`⚠️ ${(err.data && err.data.message) || 'Quota limit reached.'}`);
+      } else {
+        consecutiveFailuresRef.current += 1;
+        // ~5s of back-to-back failures at the 1.6s chunk interval — a real
+        // outage, not one dropped chunk — surfaced once rather than repeated
+        // every 1.6s while it persists.
+        if (consecutiveFailuresRef.current === 3) {
+          toast('⚠️ Transcription is failing — check your connection.');
+        }
+      }
     }
   }, [toast]);
 

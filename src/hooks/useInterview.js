@@ -3,6 +3,7 @@ import { useRouter } from 'next/navigation';
 import { useSpeechRecognition } from './useSpeechRecognition';
 import { useAnswerStreaming } from './useAnswerStreaming';
 import { formatParakeetAnswer } from '../lib/answerFormatter';
+import { sanitizeHTML } from '../lib/sanitize';
 
 /**
  * The interview domain, composed from speech capture + answer streaming:
@@ -12,7 +13,7 @@ import { formatParakeetAnswer } from '../lib/answerFormatter';
  * open/close, the chat compose box) stays in the page/components that own
  * that UI — this hook only owns what the interview itself needs to run.
  */
-export function useInterview({ querySessionId, plan, queryAuto, screenshots = [], answerStyle = 'star', audioSource = 'mic' }) {
+export function useInterview({ querySessionId, plan, queryAuto, screenshots = [], answerStyle = 'star', audioSource = 'mic', onScreenshotsConsumed }) {
   const router = useRouter();
 
   const [session, setSession] = useState(null);
@@ -42,6 +43,16 @@ export function useInterview({ querySessionId, plan, queryAuto, screenshots = []
   // few closures per render is not a cost worth memoizing around here.
   const askQuestion = (question, opts = {}) => {
     const { images = [], style = 'star', transcript, action = 'answer' } = opts;
+    // A screenshot is a one-shot attachment to the question it rode in
+    // with — every caller of askQuestion (typed chat, quick prompts, the
+    // Answer button, a chip click, the global shortcut, and live
+    // auto-answer) reads whatever's currently staged and sends it here, so
+    // this is the one place that can reliably clear it afterward for all of
+    // them at once. Without this it silently kept attaching to every
+    // question asked afterward until the user noticed and removed it by hand.
+    if (images.length > 0 && onScreenshotsConsumed) {
+      onScreenshotsConsumed();
+    }
     return answering.generateAnswer(question, {
       images,
       style,
@@ -93,6 +104,7 @@ export function useInterview({ querySessionId, plan, queryAuto, screenshots = []
       }
       const res = await fetch('/api/sessions/' + querySessionId);
       if (!res.ok) {
+        triggerToast('⚠️ Could not load full session context — continuing with limited info.');
         setSession(fallbackSession(querySessionId));
         return;
       }
@@ -142,7 +154,7 @@ export function useInterview({ querySessionId, plan, queryAuto, screenshots = []
             const formatted = histData.answers.map((a) => ({
               id: a.id,
               question: a.question,
-              answerHtml: formatParakeetAnswer(a.reply),
+              answerHtml: sanitizeHTML(formatParakeetAnswer(a.reply)),
               style: a.mode || 'star',
               timestamp: a.created_at ? new Date(a.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
             }));
@@ -152,6 +164,7 @@ export function useInterview({ querySessionId, plan, queryAuto, screenshots = []
       } catch {}
     } catch (err) {
       console.warn('Fallback session activated:', err);
+      triggerToast('⚠️ Could not load full session context — continuing with limited info.');
       setSession(fallbackSession(querySessionId));
     }
     // speech.startRecording is stable across renders (useCallback in

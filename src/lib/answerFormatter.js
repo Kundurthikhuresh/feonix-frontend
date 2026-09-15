@@ -51,14 +51,24 @@ export function htmlToPlainText(html) {
     if (text) parts.push(`- ${text}`);
   });
 
-  container.querySelectorAll('.parakeet-para').forEach((p) => {
-    const text = clean(p.textContent);
-    if (text) parts.push(text);
-  });
-
-  container.querySelectorAll('.parakeet-code-block').forEach((code) => {
-    const text = code.textContent.trim();
-    if (text) parts.push(text);
+  const bodyEl = container.querySelector('.explanation-body') || container;
+  bodyEl.querySelectorAll('.parakeet-subheading, .parakeet-para, .parakeet-code-block, .parakeet-sub-bullet, .parakeet-sub-numbered').forEach((el) => {
+    if (el.classList.contains('parakeet-subheading')) {
+      const text = clean(el.textContent);
+      if (text) parts.push(`\n### ${text}`);
+    } else if (el.classList.contains('parakeet-sub-bullet')) {
+      const text = clean(el.textContent);
+      if (text) parts.push(`- ${text}`);
+    } else if (el.classList.contains('parakeet-sub-numbered')) {
+      const text = clean(el.textContent);
+      if (text) parts.push(text);
+    } else if (el.classList.contains('parakeet-code-block')) {
+      const text = el.textContent.trim();
+      if (text) parts.push(`\`\`\`\n${text}\n\`\`\``);
+    } else if (el.classList.contains('parakeet-para')) {
+      const text = clean(el.textContent);
+      if (text) parts.push(text);
+    }
   });
 
   if (parts.length) return parts.join('\n\n');
@@ -207,16 +217,85 @@ function formatBodyWithCodeBlocks(text) {
         `;
       }
 
-      // Format normal paragraphs
-      const paragraphs = part.split(/\n\n+/).filter((p) => p.trim());
-      return paragraphs
-        .map((p) => {
-          const lines = p.split('\n').map((l) => formatInlineMarkdown(l.trim())).filter(Boolean);
-          return `<p class="parakeet-para">${lines.join(' ')}</p>`;
-        })
-        .join('');
+      // Format text content with clean block parsing (headings, lists, paragraphs)
+      return renderMarkdownBlocks(part);
     })
     .join('');
+}
+
+/**
+ * Parses markdown blocks (headings, lists, paragraphs) preserving line structure.
+ */
+function renderMarkdownBlocks(text) {
+  if (!text) return '';
+  const lines = text.split('\n');
+  const blocks = [];
+  let currentList = null;
+  let currentParagraph = [];
+
+  const flushParagraph = () => {
+    if (currentParagraph.length > 0) {
+      blocks.push(`<p class="parakeet-para">${currentParagraph.join('<br />')}</p>`);
+      currentParagraph = [];
+    }
+  };
+
+  const flushList = () => {
+    if (currentList) {
+      const tag = currentList.type === 'ol' ? 'ol' : 'ul';
+      const itemClass = currentList.type === 'ol' ? 'parakeet-sub-numbered' : 'parakeet-sub-bullet';
+      const items = currentList.items
+        .map((it) => `<li class="${itemClass}">${formatInlineMarkdown(it)}</li>`)
+        .join('');
+      blocks.push(`<${tag} class="parakeet-sub-list">${items}</${tag}>`);
+      currentList = null;
+    }
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+
+    if (!line) {
+      flushParagraph();
+      flushList();
+      continue;
+    }
+
+    if (/^#{1,4}\s+/.test(line)) {
+      flushParagraph();
+      flushList();
+      const hText = line.replace(/^#{1,4}\s+/, '');
+      blocks.push(`<h4 class="parakeet-subheading">${formatInlineMarkdown(hText)}</h4>`);
+      continue;
+    }
+
+    if (/^[-*•]\s+/.test(line)) {
+      flushParagraph();
+      if (!currentList || currentList.type !== 'ul') {
+        flushList();
+        currentList = { type: 'ul', items: [] };
+      }
+      currentList.items.push(line.replace(/^[-*•]\s+/, ''));
+      continue;
+    }
+
+    if (/^\d+[.)]\s+/.test(line)) {
+      flushParagraph();
+      if (!currentList || currentList.type !== 'ol') {
+        flushList();
+        currentList = { type: 'ol', items: [] };
+      }
+      currentList.items.push(line);
+      continue;
+    }
+
+    flushList();
+    currentParagraph.push(formatInlineMarkdown(line));
+  }
+
+  flushParagraph();
+  flushList();
+  return blocks.join('');
 }
 
 function escapeHtml(str) {
