@@ -1181,13 +1181,9 @@ export default function Page() {
             themeMode={themeMode}
             toggleTheme={toggleTheme}
             onLoginClick={() => {
-              if (user) {
-                enterApp(user);
-              } else {
-                setAuthMode('login');
-                setAuthMsg({ text: '', type: '' });
-                setShowAuthModal(true);
-              }
+              setAuthMode('login');
+              setAuthMsg({ text: '', type: '' });
+              setShowAuthModal(true);
             }}
             onSignupClick={() => {
               if (user) {
