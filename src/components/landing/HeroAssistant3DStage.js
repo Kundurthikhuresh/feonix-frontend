@@ -8,7 +8,7 @@ export default function HeroAssistant3DStage({ onOpenAssistant }) {
   const [isHovered, setIsHovered] = useState(false);
   const containerRef = useRef(null);
 
-  // 3D Parallax Mouse Tilt Physics
+  // Smooth 3D Parallax Mouse Tilt Physics
   const handleMouseMove = (e) => {
     if (!containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
@@ -16,8 +16,8 @@ export default function HeroAssistant3DStage({ onOpenAssistant }) {
     const y = e.clientY - rect.top;
     const xc = rect.width / 2;
     const yc = rect.height / 2;
-    const rotateY = ((x - xc) / xc) * 12;
-    const rotateX = -((y - yc) / yc) * 12;
+    const rotateY = ((x - xc) / xc) * 8;
+    const rotateX = -((y - yc) / yc) * 8;
     setTilt({ x: rotateX, y: rotateY });
   };
 
@@ -34,30 +34,29 @@ export default function HeroAssistant3DStage({ onOpenAssistant }) {
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={handleMouseLeave}
     >
-      {/* 3D Robot AI Assistant (Clean, No Switcher) */}
+      {/* 3D Robot Pedestal Wrapper */}
       <div
-        className="hero-robot-wrapper"
+        className="hero-robot-pedestal-wrapper"
         onClick={onOpenAssistant}
-        title="Click to chat with Feonix 3D Voice Assistant"
+        title="Click to interact with Feonix 3D AI Assistant"
         style={{
-          transform: `perspective(1000px) rotateX(${tilt.x}deg) rotateY(${tilt.y}deg) scale3d(${isHovered ? 1.03 : 1}, ${isHovered ? 1.03 : 1}, 1)`,
+          transform: `perspective(1200px) rotateX(${tilt.x}deg) rotateY(${tilt.y}deg) scale3d(${isHovered ? 1.02 : 1}, ${isHovered ? 1.02 : 1}, 1)`,
         }}
       >
-        {/* Floating Energy Portal Ring */}
-        <div className="hero-robot-energy-portal" />
-        <div className="hero-robot-ambient-glow" />
+        {/* Soft Ambient Pedestal Energy Glow */}
+        <div className="hero-pedestal-glow" />
 
-        {/* Main 3D Robot Visual */}
-        <div className="hero-robot-card">
+        {/* Main 3D Robot & Hologram Visual */}
+        <div className="hero-robot-pedestal-card">
           <Image
-            src="/ai_robot_avatar_speaking.jpg"
-            alt="Feonix 3D AI Assistant Robot Speaking"
+            src="/hero_robot_pedestal.png"
+            alt="Feonix 3D AI Assistant Robot on Holographic Energy Stage"
             width={600}
             height={600}
             priority
             unoptimized={true}
-            className="hero-robot-img"
-            onError={(e) => { e.currentTarget.src = '/images/ai_robot_avatar_speaking.jpg'; }}
+            className="hero-robot-pedestal-img"
+            onError={(e) => { e.currentTarget.src = '/ai_robot_avatar_speaking.jpg'; }}
           />
         </div>
       </div>

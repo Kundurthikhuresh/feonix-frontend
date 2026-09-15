@@ -25,7 +25,7 @@ export default function InterviewCopilot3DSection({ onSimulate }) {
   }, [isSimulating]);
 
   return (
-    <section className="interview-copilot-3d-section" style={{ position: 'relative', padding: '100px 24px', background: '#050814', overflow: 'hidden' }}>
+    <section className="interview-copilot-3d-section" style={{ position: 'relative', padding: '68px 24px 72px 24px', background: '#050814', overflow: 'hidden' }}>
       
       {/* Radiant Glow Atmosphere */}
       <div
@@ -45,7 +45,7 @@ export default function InterviewCopilot3DSection({ onSimulate }) {
       <div style={{ maxWidth: '1240px', margin: '0 auto', position: 'relative', zIndex: 5 }}>
         
         {/* Section Header */}
-        <div style={{ textAlign: 'center', marginBottom: '56px' }}>
+        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
           <div
             style={{
               display: 'inline-flex',

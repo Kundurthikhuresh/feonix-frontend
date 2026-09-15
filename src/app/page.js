@@ -226,8 +226,6 @@ export default function Page() {
   const [newAuto, setNewAuto] = useState(true);
   const [newSaveTranscript, setNewSaveTranscript] = useState(true);
   const [createMsg, setCreateMsg] = useState('');
-  const [isCreatingSession, setIsCreatingSession] = useState(false);
-  const isCreatingSessionRef = useRef(false);
 
   // Live Copilot App States
   const [activeSession, setActiveSession] = useState(null);
@@ -783,7 +781,11 @@ export default function Page() {
   // that would have succeeded a few seconds later. 4 attempts at 4s each
   // comfortably covers that window (worst case ≈17s) while still failing
   // with a clear error if the backend is genuinely down, not just slow.
-  const postJSONWithRetry = async (path, body, attempts = 5, delayMs = 600) => {
+  // onRetry, if given, is called before each retry with the upcoming attempt
+  // number (always >= 2, since it only fires after a failed attempt) — lets
+  // a caller other than the login form show its own "still trying" message
+  // instead of the hardcoded one below, which is specific to auth's own UI.
+  const postJSONWithRetry = async (path, body, attempts = 5, delayMs = 600, onRetry) => {
     for (let attempt = 1; attempt <= attempts; attempt++) {
       const result = await postJSON(path, body, { timeoutMs: 15000 });
       const isTransient = !result.ok && (
@@ -791,7 +793,9 @@ export default function Page() {
         (result.status === 503 && result.data?.error === 'server_unavailable')
       );
       if (!isTransient || attempt === attempts) return result;
-      if (attempt >= 2) {
+      if (onRetry) {
+        onRetry(attempt + 1);
+      } else if (attempt >= 2) {
         setAuthMsg({ text: 'Initializing secure connection…', type: '' });
       }
       await new Promise((resolve) => setTimeout(resolve, delayMs));
@@ -845,51 +849,52 @@ export default function Page() {
   // ----------------------------------------------------
   const handleCreateSession = async (e) => {
     e.preventDefault();
-    if (isCreatingSessionRef.current) return;
-    isCreatingSessionRef.current = true;
-    setIsCreatingSession(true);
     setCreateMsg('Creating…');
 
-    try {
-      const body = {
-        company: sessionType === 'interview' ? newCompany : newTitle,
-        role: sessionType === 'interview' ? newRole : '',
-        job_description: sessionType === 'interview' ? newJd : newDesc,
-        context: newContext,
-        language: newLanguage,
-        agent: newAgent,
-        auto_answer: newAuto,
-        save_transcript: newSaveTranscript,
-        billing: billingChoice,
-      };
+    const body = {
+      company: sessionType === 'interview' ? newCompany : newTitle,
+      role: sessionType === 'interview' ? newRole : '',
+      job_description: sessionType === 'interview' ? newJd : newDesc,
+      // The backend's POST /api/sessions reads `context` and `agent` — this
+      // field previously reverted to `instructions`/`agent_id`, names it
+      // never reads, so anything typed into "Context & instructions" (or
+      // picked in the agent selector) was silently discarded again.
+      context: newContext,
+      language: newLanguage,
+      agent: newAgent,
+      auto_answer: newAuto,
+      save_transcript: newSaveTranscript,
+      billing: billingChoice,
+    };
 
-      // Direct postJSON with 30s timeout and no blind retry loops that duplicate session creation
-      const { ok, data } = await postJSON('/api/sessions', body, { timeoutMs: 30000 });
-      if (!ok) {
-        setCreateMsg(data.message || 'Could not create session.');
-        return;
-      }
-
-      setShowCreateSheet(false);
-      setCreateMsg('');
-      setNewCompany('');
-      setNewRole('');
-      setNewJd('');
-      setNewTitle('');
-      setNewDesc('');
-      setNewContext('');
-      if (data?.session) {
-        setSessions((prev) => [data.session, ...prev.filter((s) => s.id !== data.session.id)]);
-      }
-      await loadSessions();
-      await loadAccount();
-    } catch (err) {
-      console.error('Create session error:', err);
-      setCreateMsg('Could not create session. Please try again.');
-    } finally {
-      isCreatingSessionRef.current = false;
-      setIsCreatingSession(false);
+    // A plain postJSON() call here had only a 4s timeout and no retry, so
+    // the same transient slowness that postJSONWithRetry already absorbs
+    // for login (a request landing right after a backend/DB restart) showed
+    // up here as "Could not reach the server." instead of just creating the
+    // session a couple seconds later. postJSONWithRetry can take up to
+    // ~77s in the worst case (5 attempts, 15s timeout each) before giving
+    // up — without this callback the "Creating…" label just sat frozen the
+    // whole time with no sign anything was happening, indistinguishable
+    // from the app being stuck even when it was genuinely still retrying.
+    const { ok, data } = await postJSONWithRetry(
+      '/api/sessions',
+      body,
+      5,
+      600,
+      (attempt) => setCreateMsg(attempt >= 2 ? 'Still connecting… retrying' : 'Creating…')
+    );
+    if (!ok) {
+      setCreateMsg(data.message || 'Could not create session.');
+      return;
     }
+
+    setShowCreateSheet(false);
+    setCreateMsg('');
+    if (data?.session) {
+      setSessions((prev) => [data.session, ...prev.filter((s) => s.id !== data.session.id)]);
+    }
+    await loadSessions();
+    await loadAccount();
   };
 
   const handleStartSession = async (session) => {
@@ -1273,7 +1278,7 @@ export default function Page() {
           <CareerReadiness3DSection />
 
           {/* Candidate Testimonials 3D Carousel */}
-          <Testimonials3DSection />
+          <Testimonials3DSection themeMode={themeMode} />
 
           {/* NEW 9 — Before vs After Feonix */}
           <BeforeAfter3DSection />
@@ -1511,7 +1516,6 @@ export default function Page() {
             newSaveTranscript={newSaveTranscript}
             setNewSaveTranscript={setNewSaveTranscript}
             createMsg={createMsg}
-            isCreating={isCreatingSession}
             handleCreateSession={handleCreateSession}
             setShowCreateSheet={setShowCreateSheet}
           />

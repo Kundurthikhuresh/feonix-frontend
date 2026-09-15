@@ -13,7 +13,7 @@ const FLOATING_CHIPS = [
 
 export default function ProductShowcase3DSection({ onGetStarted, onExplore }) {
   return (
-    <section className="product-showcase-3d-section" style={{ position: 'relative', padding: '120px 24px', background: 'radial-gradient(ellipse at center, rgba(13,20,38,0.98) 0%, rgba(4,7,17,1) 100%)', overflow: 'hidden' }}>
+    <section className="product-showcase-3d-section" style={{ position: 'relative', padding: '72px 24px 76px 24px', background: 'radial-gradient(ellipse at center, rgba(13,20,38,0.98) 0%, rgba(4,7,17,1) 100%)', overflow: 'hidden' }}>
       
       {/* Radiant Glow Atmosphere */}
       <div
@@ -33,7 +33,7 @@ export default function ProductShowcase3DSection({ onGetStarted, onExplore }) {
       <div style={{ maxWidth: '1240px', margin: '0 auto', position: 'relative', zIndex: 5 }}>
         
         {/* Header */}
-        <div style={{ textAlign: 'center', marginBottom: '60px' }}>
+        <div style={{ textAlign: 'center', marginBottom: '36px' }}>
           <div
             style={{
               display: 'inline-flex',

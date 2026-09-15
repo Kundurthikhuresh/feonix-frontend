@@ -58,8 +58,8 @@ export default function DualModeSection() {
   }, [isPlaying]);
 
   return (
-    <section className="dual-mode-3d-section" id="duo" style={{ position: 'relative', padding: '90px 24px', background: 'radial-gradient(ellipse at center, rgba(15,23,42,0.7) 0%, rgba(8,11,18,0.98) 100%)' }}>
-      <div className="dual-showcase-container" style={{ maxWidth: '1520px', margin: '0 auto', display: 'grid', gridTemplateColumns: '1.3fr 1fr', gap: '48px', alignItems: 'center' }}>
+    <section className="dual-mode-3d-section" id="duo" style={{ position: 'relative', padding: '72px 24px', background: 'radial-gradient(ellipse at center, rgba(15,23,42,0.7) 0%, rgba(8,11,18,0.98) 100%)' }}>
+      <div className="dual-showcase-container" style={{ maxWidth: '1240px', margin: '0 auto', display: 'grid', gridTemplateColumns: '1.3fr 1fr', gap: '48px', alignItems: 'center' }}>
         
         {/* LEFT SIDE: Generated Live Video Demonstration Stage */}
         <div className="dual-showcase-left">
