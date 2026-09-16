@@ -144,6 +144,18 @@ function LaunchContent() {
     window.location.href = `/session-type?session=${encodeURIComponent(sessionId)}`;
   };
 
+  const handleBackToDashboard = () => {
+    if (typeof window !== 'undefined' && window.feonix && typeof window.feonix.goToDashboard === 'function') {
+      window.feonix.goToDashboard();
+      return;
+    }
+    if (typeof window !== 'undefined' && window.feonix && typeof window.feonix.back === 'function') {
+      window.feonix.back();
+      return;
+    }
+    window.location.href = '/?view=dash';
+  };
+
   return (
     <div className="launch">
       <div className="launch-card">
@@ -201,7 +213,7 @@ function LaunchContent() {
 
         <div style={{ marginTop: '20px', borderTop: '1px solid rgba(255, 255, 255, 0.08)', paddingTop: '16px', display: 'flex', justifyContent: 'center' }}>
           <button
-            onClick={() => { window.location.href = '/?view=dash'; }}
+            onClick={handleBackToDashboard}
             type="button"
             style={{
               display: 'inline-flex',

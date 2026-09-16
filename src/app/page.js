@@ -102,7 +102,7 @@ export default function Page() {
   const [currentView, setCurrentView] = useState(() => {
     if (typeof window !== 'undefined') {
       const v = new URLSearchParams(window.location.search).get('view');
-      if (v === 'app' || v === 'review') return v;
+      if (v === 'app' || v === 'review' || v === 'dash') return v;
     }
     return 'landing';
   }); // 'landing', 'dash', 'app', 'review'
@@ -388,16 +388,24 @@ export default function Page() {
       setShowAuthModal(true);
     }
 
-    if (isReload) {
+    if (initialView === 'dash') {
+      setCurrentView('dash');
+      if (typeof window !== 'undefined') {
+        if (!window.history.state || window.history.state.view !== 'dash') {
+          window.history.replaceState({ view: 'landing' }, '', '/');
+          window.history.pushState({ view: 'dash' }, '', '/?view=dash');
+        }
+      }
+    } else if (isReload) {
       if (typeof window !== 'undefined') {
         window.history.replaceState({ view: 'landing' }, '', '/');
       }
       setCurrentView('landing');
-    } else if (initialView && initialView !== 'dash') {
+    } else if (initialView) {
       window.history.replaceState({ view: initialView }, '');
       setCurrentView(initialView);
     } else if (typeof window !== 'undefined') {
-      if (!window.history.state || !window.history.state.view || window.history.state.view === 'dash') {
+      if (!window.history.state || !window.history.state.view) {
         window.history.replaceState({ view: 'landing' }, '', '/');
       }
     }
@@ -544,7 +552,7 @@ export default function Page() {
         if (typeof window !== 'undefined') {
           const urlParams = new URLSearchParams(window.location.search);
           const sessionId = urlParams.get('session');
-          const requestedView = urlParams.get('view');
+          const requestedView = urlParams.get('view') || (currentViewRef.current === 'dash' ? 'dash' : null);
 
           if (requestedView === 'dash') {
             if (stale()) return;
@@ -1393,7 +1401,34 @@ export default function Page() {
   // 2. Dashboard Page View
   if (currentView === 'dash') {
     if (!user) {
-      return null;
+      return (
+        <div style={{
+          minHeight: '100vh',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: '#0a0d14',
+          color: '#00f5ff',
+          fontFamily: 'sans-serif',
+          gap: '16px'
+        }}>
+          <div style={{
+            width: '32px',
+            height: '32px',
+            border: '3px solid rgba(0, 245, 255, 0.2)',
+            borderTopColor: '#00f5ff',
+            borderRadius: '50%',
+            animation: 'dashSpin 0.8s linear infinite'
+          }} />
+          <span style={{ fontSize: '13px', color: '#94a3b8', letterSpacing: '0.05em' }}>Loading Dashboard...</span>
+          <style jsx>{`
+            @keyframes dashSpin {
+              to { transform: rotate(360deg); }
+            }
+          `}</style>
+        </div>
+      );
     }
     return (
       <div id="dashView">
