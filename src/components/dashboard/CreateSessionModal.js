@@ -263,7 +263,22 @@ export default function CreateSessionModal({
         </div>
         {createMsg && (
           <div className="msg" style={{ marginTop: '12px' }}>
-            <div>{createMsg}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {isCreating && (
+                <span
+                  style={{
+                    display: 'inline-block',
+                    width: '12px',
+                    height: '12px',
+                    border: '2px solid rgba(255,255,255,0.25)',
+                    borderTopColor: '#06B6D4',
+                    borderRadius: '50%',
+                    animation: 'spin 0.8s linear infinite',
+                  }}
+                />
+              )}
+              <span>{createMsg}</span>
+            </div>
             {(createMsg.includes('Payment is required') || createMsg.includes('credits') || createMsg.includes('free trial')) && (
               <div style={{ marginTop: '8px' }}>
                 <a

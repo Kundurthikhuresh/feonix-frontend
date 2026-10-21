@@ -210,14 +210,17 @@ function registerIpcHandlers({ logger, settingsStore, getPendingHandoff, clearPe
         win.setAlwaysOnTop(Boolean(updated.alwaysOnTop), updated.alwaysOnTop ? 'screen-saver' : 'normal');
       }
     } else if (key === 'stealthMode') {
-      const win = getOverlayWindow() || getMainWindow();
-      if (win && !win.isDestroyed()) {
-        try {
-          win.setContentProtection(Boolean(updated.stealthMode));
-        } catch (err) {
-          logger.warn('setContentProtection failed:', err.message);
+      const isStealth = Boolean(updated.stealthMode);
+      [getOverlayWindow(), getMainWindow()].forEach((win) => {
+        if (win && !win.isDestroyed()) {
+          try {
+            win.setContentProtection(isStealth);
+            logger.info(`🛡️ setContentProtection set to ${isStealth}`);
+          } catch (err) {
+            logger.warn('setContentProtection failed:', err.message);
+          }
         }
-      }
+      });
     }
 
     return updated;
@@ -240,15 +243,16 @@ function registerIpcHandlers({ logger, settingsStore, getPendingHandoff, clearPe
   ipcMain.handle('feonix:set-stealth-mode', (_event, enabled) => {
     const isStealth = Boolean(enabled);
     settingsStore.set('stealthMode', isStealth);
-    const win = getOverlayWindow() || getMainWindow();
-    if (win && !win.isDestroyed()) {
-      try {
-        win.setContentProtection(isStealth);
-        logger.info(`🛡️ setContentProtection set to ${isStealth}`);
-      } catch (err) {
-        logger.warn('setContentProtection failed:', err.message);
+    [getOverlayWindow(), getMainWindow()].forEach((win) => {
+      if (win && !win.isDestroyed()) {
+        try {
+          win.setContentProtection(isStealth);
+          logger.info(`🛡️ setContentProtection set to ${isStealth}`);
+        } catch (err) {
+          logger.warn('setContentProtection failed:', err.message);
+        }
       }
-    }
+    });
     return isStealth;
   });
 

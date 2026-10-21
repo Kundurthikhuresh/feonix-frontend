@@ -48,13 +48,13 @@ export default function InterviewControls({
       {/* Single Private Mode button with On and Off buttons inside */}
       <div
         className={`pk-private-capsule ${isStealthOn ? 'pk-capsule-on' : 'pk-capsule-off'}`}
-        title={`Private Mode: ${isStealthOn ? 'ON (Visible ONLY to user / hidden from interviewer)' : 'OFF (Visible to BOTH sides)'}`}
+        title={`Private Mode: ${isStealthOn ? 'ON (Hidden from screenshots & screen shares)' : 'OFF (Visible in screenshots & screen shares)'}`}
       >
         <span
           className="pk-capsule-label"
           onClick={() => handleSetMode(!isStealthOn)}
           style={{ cursor: 'pointer' }}
-          title={isStealthOn ? 'Private Mode ON — visible only to user (Click to toggle)' : 'Private Mode OFF — visible to both sides (Click to toggle)'}
+          title={isStealthOn ? 'Private Mode ON — hidden from screenshots & screen shares (Click to toggle)' : 'Private Mode OFF — visible in screenshots & screen shares (Click to toggle)'}
         >
           <span className={`pk-stealth-dot ${isStealthOn ? 'pk-dot-green' : ''}`} />
           <span>Private Mode</span>
@@ -68,7 +68,7 @@ export default function InterviewControls({
               e.stopPropagation();
               handleSetMode(true);
             }}
-            title="Private Mode ON: Visible ONLY to user (hidden from opposite person / interviewer on screen share)"
+            title="Private Mode ON: Copilot is hidden from screenshots and screen shares"
           >
             On
           </button>
@@ -79,7 +79,7 @@ export default function InterviewControls({
               e.stopPropagation();
               handleSetMode(false);
             }}
-            title="Private Mode OFF: Visible to BOTH sides (interviewer / opposite person and user)"
+            title="Private Mode OFF: Copilot is visible in screenshots and screen shares"
           >
             Off
           </button>

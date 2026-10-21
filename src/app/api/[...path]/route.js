@@ -37,12 +37,11 @@ async function proxy(req, context) {
 
     // Answer streams (SSE) legitimately run long; anything else — auth
     // included — has no business taking more than a few seconds against a
-    // healthy backend. Without a bound here a backend that accepted the
-    // connection but then stalled (e.g. mid-restart) left this fetch hanging
-    // for up to maxDuration, which is what turned a login into a spinner
-    // that never resolved instead of a fast retry or a fast, clear error.
+    // healthy backend. AI question generations (e.g. /questions, /ask)
+    // require reasonable headroom so slower LLM calls don't timeout at 30s.
     const isStream = pathStr.startsWith('/api/answer');
-    const upstreamTimeoutMs = isStream ? 60000 : 15000;
+    const isAiGeneration = pathStr.includes('/questions') || pathStr.includes('/ask') || pathStr.includes('/generate') || pathStr.includes('/vision');
+    const upstreamTimeoutMs = isStream ? 300000 : (isAiGeneration ? 90000 : 30000);
 
     const init = {
       method: req.method,
@@ -85,7 +84,11 @@ async function proxy(req, context) {
         lowerKey === 'transfer-encoding' ||
         lowerKey === 'set-cookie' ||
         lowerKey === 'content-length' ||
-        lowerKey === 'content-encoding'
+        lowerKey === 'content-encoding' ||
+        lowerKey === 'connection' ||
+        lowerKey === 'keep-alive' ||
+        lowerKey === 'proxy-connection' ||
+        lowerKey === 'upgrade'
       ) {
         return;
       }
@@ -113,6 +116,9 @@ async function proxy(req, context) {
     }
 
     if (isStream || contentType.includes('text/event-stream')) {
+      outHeaders.set('content-type', 'text/event-stream; charset=utf-8');
+      outHeaders.set('cache-control', 'no-cache, no-transform');
+      outHeaders.set('x-accel-buffering', 'no');
       return new Response(upstream.body, {
         status: upstream.status,
         headers: outHeaders,
@@ -126,10 +132,11 @@ async function proxy(req, context) {
       headers: outHeaders,
     });
   } catch (err) {
-    console.error('PROXY ERROR:', err);
+    console.error('PROXY ERROR:', err.message, err.cause, err.stack);
     return new Response(JSON.stringify({
       error: 'server_unavailable',
-      message: err.message || 'Service is initializing. Please try again in a moment.'
+      message: err.message || 'Service is initializing. Please try again in a moment.',
+      cause: String(err.cause?.message || err.cause || '')
     }), {
       status: 503,
       headers: { 'Content-Type': 'application/json' }

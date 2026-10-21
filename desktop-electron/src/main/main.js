@@ -1,4 +1,4 @@
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, session } = require('electron');
 const path = require('path');
 const { Logger } = require('../logger');
 const { SettingsStore } = require('./settingsStore');
@@ -21,6 +21,10 @@ const SCHEME = process.env.DESKTOP_SCHEME || 'feonixai';
 // not just the name correction: it needs to be set before anything below
 // reads getPath('userData').
 app.setName(app.isPackaged ? 'FeonixAI' : 'FeonixAI-dev');
+
+app.commandLine.appendSwitch('enable-features', 'WebRTCPipeWireCapturer');
+app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
+app.commandLine.appendSwitch('use-fake-ui-for-media-stream');
 
 const logger = new Logger(path.join(app.getPath('userData'), 'logs'));
 const settingsStore = new SettingsStore(app.getPath('userData'));
@@ -100,7 +104,7 @@ function deliverHandoff(handoff) {
     bringToFront(mainWindow);
     mainWindow.webContents.send('feonix:handoff', handoff);
   } else {
-    createMainWindow(routePath);
+    createMainWindow(routePath, settingsStore);
   }
 }
 
@@ -143,6 +147,28 @@ if (!gotLock) {
   });
 
   app.whenReady().then(() => {
+    session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
+      const allowed = ['media', 'audio-capture', 'display-capture', 'mediaKeySystem', 'notifications'];
+      if (allowed.includes(permission)) {
+        return callback(true);
+      }
+      callback(false);
+    });
+
+    session.defaultSession.setPermissionCheckHandler((webContents, permission) => {
+      const allowed = ['media', 'audio-capture', 'display-capture', 'mediaKeySystem', 'notifications'];
+      if (allowed.includes(permission)) {
+        return true;
+      }
+      return false;
+    });
+
+    if (session.defaultSession.setDisplayMediaRequestHandler) {
+      session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
+        callback({ video: request.videoRequested ? true : undefined, audio: 'loopback' });
+      });
+    }
+
     registerIpcHandlers({
       logger,
       settingsStore,
@@ -164,7 +190,7 @@ if (!gotLock) {
     if (coldHandoff) {
       deliverHandoff(coldHandoff);
     } else {
-      createMainWindow('/session-type');
+      createMainWindow('/session-type', settingsStore);
     }
   });
 }
@@ -185,5 +211,5 @@ app.on('will-quit', () => {
 });
 
 app.on('activate', () => {
-  if (BrowserWindow.getAllWindows().length === 0) createMainWindow('/session-type');
+  if (BrowserWindow.getAllWindows().length === 0) createMainWindow('/session-type', settingsStore);
 });

@@ -76,12 +76,28 @@ const AUDIO_CONSTRAINTS = {
  * stream, which would otherwise silently transcribe nothing.
  */
 export async function getListenStream(source) {
+  const acquireMic = async () => {
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+      throw new Error('Microphone not supported on this device.');
+    }
+    try {
+      return await navigator.mediaDevices.getUserMedia(AUDIO_CONSTRAINTS);
+    } catch (err) {
+      // Fallback to basic audio constraints if advanced constraints fail (e.g. OverconstrainedError)
+      try {
+        return await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch {
+        throw err;
+      }
+    }
+  };
+
   if (source === 'tab' && typeof navigator !== 'undefined' && navigator.mediaDevices?.getDisplayMedia) {
     let stream;
     try {
       stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
     } catch {
-      return navigator.mediaDevices.getUserMedia(AUDIO_CONSTRAINTS);
+      return acquireMic();
     }
     if (stream.getAudioTracks().length === 0) {
       stream.getTracks().forEach((track) => track.stop());
@@ -91,7 +107,7 @@ export async function getListenStream(source) {
     }
     return stream;
   }
-  return navigator.mediaDevices.getUserMedia(AUDIO_CONSTRAINTS);
+  return acquireMic();
 }
 
 function pickSupportedMimeType() {
@@ -131,8 +147,14 @@ export function createChunkedRecorder(stream, { intervalMs = 1600, onChunk } = {
     try {
       recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
     } catch (err) {
-      recorder = new MediaRecorder(stream);
+      try {
+        recorder = new MediaRecorder(stream);
+      } catch (fallbackErr) {
+        console.error('Failed to create MediaRecorder:', fallbackErr);
+        return null;
+      }
     }
+    if (!recorder) return null;
     recorder.ondataavailable = (e) => {
       if (e.data && e.data.size > 0 && onChunk) onChunk(e.data);
     };
@@ -145,19 +167,32 @@ export function createChunkedRecorder(stream, { intervalMs = 1600, onChunk } = {
   return {
     start() {
       active = makeRecorder();
-      active.start();
+      if (!active) return;
+      try { active.start(); } catch (err) { console.error('Recorder start error:', err); }
+
       cycleTimer = setInterval(() => {
-        const next = makeRecorder();
-        next.start();
-        const previous = active;
-        active = next;
-        if (previous.state === 'recording') previous.stop();
+        try {
+          const next = makeRecorder();
+          if (next) {
+            next.start();
+            const previous = active;
+            active = next;
+            if (previous && previous.state === 'recording') {
+              previous.stop();
+            }
+          }
+        } catch (cycleErr) {
+          console.warn('Recorder cycle tick warning:', cycleErr);
+        }
       }, intervalMs);
     },
     stop() {
       if (cycleTimer) clearInterval(cycleTimer);
       cycleTimer = null;
-      if (active && active.state !== 'inactive') active.stop();
+      if (active && active.state !== 'inactive') {
+        try { active.stop(); } catch {}
+      }
+      active = null;
     },
   };
 }

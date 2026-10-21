@@ -116,6 +116,8 @@ export async function captureScreenSnapshot({ onBeforeFrame } = {}) {
     const hiddenAtMs = performance.now();
     await onBeforeFrame();
     await waitForFreshFrame(video, hiddenAtMs);
+  } else {
+    await waitForFreshFrame(video, performance.now());
   }
 
   const nativeWidth = video.videoWidth || 1920;

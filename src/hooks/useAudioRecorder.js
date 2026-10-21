@@ -14,10 +14,10 @@ export function useAudioRecorder(onChunkAvailable) {
       cycleTimerRef.current = null;
     }
     if (recorderRef.current && recorderRef.current.state !== 'inactive') {
-      recorderRef.current.stop();
+      try { recorderRef.current.stop(); } catch {}
     }
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current.getTracks().forEach((track) => track.stop());
     }
     streamRef.current = null;
     recorderRef.current = null;
@@ -26,34 +26,47 @@ export function useAudioRecorder(onChunkAvailable) {
   const startRecording = useCallback(async () => {
     setListening(true);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+        });
+      } catch {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      }
       streamRef.current = stream;
 
-      const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
-      recorderRef.current = mediaRecorder;
-
-      let chunks = [];
-      mediaRecorder.ondataavailable = (e) => {
-        if (e.data && e.data.size > 0) {
-          chunks.push(e.data);
+      const makeRecorder = () => {
+        let rec;
+        try {
+          rec = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+        } catch {
+          rec = new MediaRecorder(stream);
         }
+        rec.ondataavailable = async (e) => {
+          if (e.data && e.data.size > 0 && onChunkAvailable) {
+            await onChunkAvailable(e.data);
+          }
+        };
+        return rec;
       };
 
-      mediaRecorder.onstop = async () => {
-        if (chunks.length === 0) return;
-        const blob = new Blob(chunks, { type: 'audio/webm' });
-        chunks = [];
-        if (onChunkAvailable) {
-          await onChunkAvailable(blob);
-        }
-      };
-
-      mediaRecorder.start();
+      let active = makeRecorder();
+      recorderRef.current = active;
+      active.start();
 
       cycleTimerRef.current = setInterval(() => {
-        if (mediaRecorder.state === 'recording') {
-          mediaRecorder.stop();
-          mediaRecorder.start();
+        try {
+          const next = makeRecorder();
+          next.start();
+          const prev = active;
+          active = next;
+          recorderRef.current = next;
+          if (prev && prev.state === 'recording') {
+            prev.stop();
+          }
+        } catch (e) {
+          console.warn('Recorder tick warning:', e);
         }
       }, 2500);
 

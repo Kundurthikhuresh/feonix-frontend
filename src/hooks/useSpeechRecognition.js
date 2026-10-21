@@ -95,17 +95,37 @@ export function useSpeechRecognition({ sessionId, source = 'mic', language = 'en
     }
   }, [toast]);
 
-  const startRecording = useCallback(async (overrideSource) => {
-    if (!sessionIdRef.current) {
-      // Recording would otherwise "work" — the timer runs, the recorder
-      // fires — while every chunk is silently dropped, because
-      // uploadAudioChunk refuses to send audio without a loaded session.
-      toast('⚠️ Session did not load — go back and reopen this session.');
-      return;
+  const stopRecording = useCallback(async () => {
+    setListening(false);
+    if (elapsedTimerRef.current) {
+      clearInterval(elapsedTimerRef.current);
+      elapsedTimerRef.current = null;
     }
+    if (recorderRef.current) {
+      try { recorderRef.current.stop(); } catch {}
+    }
+    stopStreamTracks(streamRef.current);
+    streamRef.current = null;
+    recorderRef.current = null;
+  }, []);
+
+  const startRecording = useCallback(async (overrideSource) => {
     try {
+      // Clean up any stale recorder or tracks before acquiring a new one
+      await stopRecording();
+
       const stream = await getListenStream(overrideSource || source);
       streamRef.current = stream;
+
+      // Handle microphone track ending externally (e.g. unplugged or OS muted)
+      const audioTrack = stream.getAudioTracks()[0];
+      if (audioTrack) {
+        audioTrack.onended = () => {
+          stopRecording();
+          toast('⚠️ Microphone stream disconnected.');
+        };
+      }
+
       setListening(true);
       elapsedSecsRef.current = 0;
       setElapsedText('00:00');
@@ -117,26 +137,15 @@ export function useSpeechRecognition({ sessionId, source = 'mic', language = 'en
         setElapsedText(`${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
       }, 1000);
 
-      // Question detection can't happen before a chunk finishes recording —
-      // shortening this is the one lever that actually reduces that floor,
-      // trading some transcription accuracy for it: a shorter chunk is more
-      // likely to cut a question in half (the interviewer's sentence spans
-      // two chunks, so neither one alone reads as a complete question to
-      // looksLikeQuestion). 2.5s keeps most short interview questions intact
-      // in one chunk while cutting a full second off the old 3.5s floor.
+      // Question detection can't happen before a chunk finishes recording
       const recorder = createChunkedRecorder(stream, { intervalMs: 1600, onChunk: uploadAudioChunk });
       recorderRef.current = recorder;
       recorder.start();
     } catch (err) {
-      // getUserMedia's DOMException.name says exactly what happened — the
-      // old catch-all ("Audio access not supported or cancelled") collapsed
-      // "you clicked Block", "no mic exists", and "another app is holding
-      // the mic open" into one message with no way to tell which applied,
-      // even though each needs a completely different fix.
       if (err.code === 'NO_AUDIO_SHARED') {
         toast('⚠️ No audio was shared — tick "Share tab audio" in the picker, or switch to Microphone.');
       } else if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-        toast('⚠️ Microphone blocked — click the 🔒/🎤 icon in the address bar and allow it, then try again.');
+        toast('⚠️ Microphone access blocked — check Windows Settings > Privacy & security > Microphone.');
       } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
         toast('⚠️ No microphone found — check one is connected and enabled in Windows sound settings.');
       } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
@@ -146,18 +155,12 @@ export function useSpeechRecognition({ sessionId, source = 'mic', language = 'en
         toast(`⚠️ Audio access failed: ${err.message || err.name || 'unknown error'}`);
       }
       setListening(false);
-      clearInterval(elapsedTimerRef.current);
+      if (elapsedTimerRef.current) {
+        clearInterval(elapsedTimerRef.current);
+        elapsedTimerRef.current = null;
+      }
     }
-  }, [source, toast, uploadAudioChunk]);
-
-  const stopRecording = useCallback(async () => {
-    setListening(false);
-    clearInterval(elapsedTimerRef.current);
-    if (recorderRef.current) recorderRef.current.stop();
-    stopStreamTracks(streamRef.current);
-    streamRef.current = null;
-    recorderRef.current = null;
-  }, []);
+  }, [source, stopRecording, toast, uploadAudioChunk]);
 
   const toggleListening = useCallback(() => {
     if (listening) stopRecording();

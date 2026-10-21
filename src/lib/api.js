@@ -2,8 +2,7 @@
 // "Authenticating…" spinner hanging with nothing to show for it — plain
 // fetch() has no default timeout, so a connection the backend accepted but
 // never answered would otherwise hang until the browser gives up on its own,
-// which is well past what a login should ever take.
-const DEFAULT_TIMEOUT_MS = 15000;
+const DEFAULT_TIMEOUT_MS = 60000;
 
 export async function postJSON(path, body, { timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
   const controller = new AbortController();

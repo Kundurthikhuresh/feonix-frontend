@@ -186,27 +186,21 @@ function OverlayContent() {
 
   const handleToggleStealth = () => {
     const nextVal = settings.stealthMode === false;
-    updateSetting('stealthMode', nextVal);
-    setVisibility('open');
-    if (window.feonix && typeof window.feonix.show === 'function') {
-      window.feonix.show();
-    }
-    if (window.feonix && typeof window.feonix.bringToFront === 'function') {
-      window.feonix.bringToFront();
-    }
+    handleSetStealth(nextVal);
   };
 
   const handleSetStealth = (val) => {
     const isTurnOn = Boolean(val);
+    setSettings((prev) => ({ ...prev, stealthMode: isTurnOn }));
     updateSetting('stealthMode', isTurnOn);
     if (window.feonix && typeof window.feonix.setStealthMode === 'function') {
       window.feonix.setStealthMode(isTurnOn);
     }
     if (typeof triggerToast === 'function') {
       if (isTurnOn) {
-        triggerToast('🛡️ Private Mode ON: Copilot is visible ONLY to the user (hidden from interviewer / opposite person)');
+        triggerToast('🛡️ Private Mode ON: Copilot is hidden from screenshots & screen shares');
       } else {
-        triggerToast('👥 Private Mode OFF: Copilot is visible to BOTH sides (interviewer & user)');
+        triggerToast('👥 Private Mode OFF: Copilot is visible in screenshots & screen shares');
       }
     }
   };
@@ -268,14 +262,7 @@ function OverlayContent() {
   const shortcutHandlersRef = useRef({});
   useEffect(() => {
     shortcutHandlersRef.current = {
-      onAnswer: () => {
-        if (cueLine) {
-          askQuestion(cueLine, { images: screenshots, style: answerStyle });
-        } else {
-          setPromptHubOpen(true);
-          triggerToast('💡 Type a question in Chat to generate an answer');
-        }
-      },
+      onAnswer: () => handleAnswerClick(),
       onScreenshotMenu: () => setScreenshotMenuOpen((prev) => !prev),
       onChat: () => {
         setPromptHubOpen((prev) => !prev);
@@ -673,18 +660,12 @@ function OverlayContent() {
   const handleCaptureScreen = async () => {
     setScreenshotMenuOpen(false);
     const visibilityBeforeCapture = visibility;
+    const isPrivate = settings.stealthMode !== false;
     try {
       const dataUrl = await captureScreenSnapshot({
-        // This is a one-shot, local capture the user just triggered
-        // themselves to feed to the AI — not a live broadcast to anyone
-        // else. Hiding the HUD for the instant the frame is grabbed keeps
-        // its own buttons/chrome out of that image (the same way a native
-        // OS screenshot tool excludes its own toolbar), then it's restored
-        // right after. This never touches, and has no effect on, a
-        // separate live screen share to an interviewer over Zoom/Meet/
-        // Teams — that visibility question is answered elsewhere and is
-        // deliberately not something this touches.
-        onBeforeFrame: () => { setVisibility('hidden'); },
+        // When Private Mode is ON, hide the copilot HUD so it does not appear in the screenshot.
+        // When Private Mode is OFF, do NOT hide the copilot HUD so it is included in the screenshot.
+        onBeforeFrame: isPrivate ? () => { setVisibility('hidden'); } : undefined,
       });
       addScreenshots([dataUrl]);
       setPromptHubOpen(true);
@@ -698,17 +679,26 @@ function OverlayContent() {
         triggerToast('⚠️ Screen capture cancelled');
       }
     } finally {
-      setVisibility(visibilityBeforeCapture);
+      if (isPrivate) {
+        setVisibility(visibilityBeforeCapture);
+      }
     }
   };
 
   const handleAnswerClick = () => {
-    if (cueLine) {
-      askQuestion(cueLine, { images: screenshots, style: answerStyle });
+    const latestQuestionText = customPromptText.trim()
+      || cueLine
+      || transcriptChips.filter((c) => c.isQuestion).pop()?.text
+      || transcriptChips[transcriptChips.length - 1]?.text;
+
+    if (latestQuestionText) {
+      askQuestion(latestQuestionText, { images: screenshots, style: answerStyle });
+      setCustomPromptText('');
     } else if (screenshots.length > 0) {
       askQuestion('Analyze the attached screenshot and provide the complete solution.', { images: screenshots, style: answerStyle });
     } else {
       setPromptHubOpen(true);
+      composeInputRef.current?.focus();
       triggerToast('💡 Type a question in Chat to generate an answer');
     }
   };

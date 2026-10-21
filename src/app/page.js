@@ -226,6 +226,7 @@ export default function Page() {
   const [newAuto, setNewAuto] = useState(true);
   const [newSaveTranscript, setNewSaveTranscript] = useState(true);
   const [createMsg, setCreateMsg] = useState('');
+  const [isCreatingSession, setIsCreatingSession] = useState(false);
 
   // Live Copilot App States
   const [activeSession, setActiveSession] = useState(null);
@@ -795,7 +796,7 @@ export default function Page() {
   // instead of the hardcoded one below, which is specific to auth's own UI.
   const postJSONWithRetry = async (path, body, attempts = 5, delayMs = 600, onRetry) => {
     for (let attempt = 1; attempt <= attempts; attempt++) {
-      const result = await postJSON(path, body, { timeoutMs: 15000 });
+      const result = await postJSON(path, body, { timeoutMs: 30000 });
       const isTransient = !result.ok && (
         result.status === 0 ||
         (result.status === 503 && result.data?.error === 'server_unavailable')
@@ -857,52 +858,48 @@ export default function Page() {
   // ----------------------------------------------------
   const handleCreateSession = async (e) => {
     e.preventDefault();
+    if (isCreatingSession) return;
+    setIsCreatingSession(true);
     setCreateMsg('Creating…');
 
-    const body = {
-      company: sessionType === 'interview' ? newCompany : newTitle,
-      role: sessionType === 'interview' ? newRole : '',
-      job_description: sessionType === 'interview' ? newJd : newDesc,
-      // The backend's POST /api/sessions reads `context` and `agent` — this
-      // field previously reverted to `instructions`/`agent_id`, names it
-      // never reads, so anything typed into "Context & instructions" (or
-      // picked in the agent selector) was silently discarded again.
-      context: newContext,
-      language: newLanguage,
-      agent: newAgent,
-      auto_answer: newAuto,
-      save_transcript: newSaveTranscript,
-      billing: billingChoice,
-    };
+    try {
+      const body = {
+        company: sessionType === 'interview' ? newCompany : newTitle,
+        role: sessionType === 'interview' ? newRole : '',
+        job_description: sessionType === 'interview' ? newJd : newDesc,
+        context: newContext,
+        language: newLanguage,
+        agent: newAgent,
+        auto_answer: newAuto,
+        save_transcript: newSaveTranscript,
+        billing: billingChoice,
+      };
 
-    // A plain postJSON() call here had only a 4s timeout and no retry, so
-    // the same transient slowness that postJSONWithRetry already absorbs
-    // for login (a request landing right after a backend/DB restart) showed
-    // up here as "Could not reach the server." instead of just creating the
-    // session a couple seconds later. postJSONWithRetry can take up to
-    // ~77s in the worst case (5 attempts, 15s timeout each) before giving
-    // up — without this callback the "Creating…" label just sat frozen the
-    // whole time with no sign anything was happening, indistinguishable
-    // from the app being stuck even when it was genuinely still retrying.
-    const { ok, data } = await postJSONWithRetry(
-      '/api/sessions',
-      body,
-      5,
-      600,
-      (attempt) => setCreateMsg(attempt >= 2 ? 'Still connecting… retrying' : 'Creating…')
-    );
-    if (!ok) {
-      setCreateMsg(data.message || 'Could not create session.');
-      return;
-    }
+      const { ok, data } = await postJSONWithRetry(
+        '/api/sessions',
+        body,
+        5,
+        1000,
+        (attempt) => setCreateMsg(attempt >= 2 ? 'Still connecting… retrying' : 'Creating…')
+      );
+      if (!ok) {
+        setCreateMsg(data.message || 'Could not create session.');
+        return;
+      }
 
-    setShowCreateSheet(false);
-    setCreateMsg('');
-    if (data?.session) {
-      setSessions((prev) => [data.session, ...prev.filter((s) => s.id !== data.session.id)]);
+      setShowCreateSheet(false);
+      setCreateMsg('');
+      if (data?.session) {
+        setSessions((prev) => [data.session, ...prev.filter((s) => s.id !== data.session.id)]);
+      }
+      await loadSessions();
+      await loadAccount();
+    } catch (err) {
+      console.error('Failed to create session:', err);
+      setCreateMsg('Failed to create session. Please try again.');
+    } finally {
+      setIsCreatingSession(false);
     }
-    await loadSessions();
-    await loadAccount();
   };
 
   const handleStartSession = async (session) => {
@@ -993,26 +990,46 @@ export default function Page() {
 
   const handleManualAskSubmit = async (e) => {
     e.preventDefault();
-    if (!manualQuestion.trim()) return;
+    const qText = manualQuestion.trim();
+    if (!qText) return;
+
+    if (!activeSession || !activeSession.id) {
+      setLiveCueLine(qText);
+      setLiveQType('⚠️ Session Error');
+      setLiveAnswer('No active session found. Please start a session first.');
+      return;
+    }
 
     setTallyState('answering');
     setTallyLabel('Answering…');
+    setLiveCueLine(qText);
+    setLiveQType('Generating…');
+    setLiveAnswer('Generating high-impact answer…');
 
-    const { ok, data } = await postJSON(`/api/sessions/${activeSession.id}/questions`, { question: manualQuestion });
+    const { ok, data } = await postJSON(
+      `/api/sessions/${activeSession.id}/questions`,
+      { question: qText },
+      { timeoutMs: 90000 }
+    );
     setTallyState('listening');
     setTallyLabel('Listening');
     setManualQuestion('');
 
     if (ok && data.answer) {
       setLiveAnswer(data.answer);
-      setLiveCueLine(data.question);
+      setLiveCueLine(data.question || qText);
       setLiveQType(data.kind || 'Direct Question');
 
-      const tRes = await fetch(`/api/sessions/${activeSession.id}/transcript`);
-      if (tRes.ok) {
-        const tData = await tRes.json();
-        setLiveTranscripts(tData.transcripts || []);
-      }
+      try {
+        const tRes = await fetch(`/api/sessions/${activeSession.id}/transcript`);
+        if (tRes.ok) {
+          const tData = await tRes.json();
+          setLiveTranscripts(tData.transcripts || []);
+        }
+      } catch { }
+    } else {
+      setLiveQType('⚠️ Generation Failed');
+      setLiveAnswer(`Could not generate answer: ${data?.message || data?.error || 'Server error or request timed out.'}`);
     }
   };
 
@@ -1547,6 +1564,7 @@ export default function Page() {
             newSaveTranscript={newSaveTranscript}
             setNewSaveTranscript={setNewSaveTranscript}
             createMsg={createMsg}
+            isCreating={isCreatingSession}
             handleCreateSession={handleCreateSession}
             setShowCreateSheet={setShowCreateSheet}
           />
