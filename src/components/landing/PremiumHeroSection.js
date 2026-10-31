@@ -7,48 +7,86 @@ import {
   Pause,
   RotateCcw,
   CheckCircle2,
-  Zap,
-  Activity,
   Mic,
+  Monitor,
+  Move,
+  Minimize2,
+  Maximize2,
+  MoreVertical,
   Copy,
+  Check,
   ThumbsUp,
   ThumbsDown,
-  Code2,
-  Check,
-  Shield,
   Layers,
+  Code2,
   Radio,
+  MessageSquare,
+  ChevronLeft,
+  ChevronRight,
+  Delete,
+  Zap,
 } from 'lucide-react';
 import Hero3DVisual from './Hero3DVisual';
 
 const SCENARIOS = [
   {
-    id: 'rate_limiter',
-    tabLabel: 'System Design · Rate Limiter',
-    icon: Layers,
+    id: 'disagree_manager',
+    tabLabel: 'Behavioral · Disagree with Manager',
+    icon: MessageSquare,
     interviewerName: 'Sarah Chen',
     interviewerRole: 'Staff Infrastructure Lead @ Stripe',
     interviewerAvatar: 'SC',
     interviewerColor: '#38bdf8',
-    question: 'How would you design a distributed rate limiter for a public API that handles 100,000 QPS across multi-region edge gateways?',
-    tokens: ['How would you', 'design a distributed', 'rate limiter for a', 'public API at 100k QPS?'],
-    highlightWord: 'public API at 100k QPS?',
+    question: 'Walk me through a time you disagreed with your manager.',
+    tokens: ['Walk me through', 'a time you', 'disagreed with your', 'manager.'],
+    highlightWord: 'manager.',
     latency: '0.88s',
     confidence: '99.4%',
-    time: '14:22',
+    time: '18:08',
+    strategyHeadline: 'Frame it as a disagreement about evidence, not about authority.',
+    talkingPoints: [
+      {
+        label: 'Situation',
+        desc: 'we planned a rewrite I thought was premature.',
+      },
+      {
+        label: 'Action',
+        desc: 'I put together a benchmark demonstrating the bottleneck was an unindexed query, not the language runtime.',
+      },
+      {
+        label: 'Result',
+        desc: 'Saved 3 months of engineering refactoring and shipped the critical feature 2 weeks ahead of schedule.',
+      },
+    ],
+    codeSnippet: null,
+  },
+  {
+    id: 'rate_limiter',
+    tabLabel: 'System Design · Rate Limiter',
+    icon: Layers,
+    interviewerName: 'Alex Morgan',
+    interviewerRole: 'Principal Architect @ Amazon',
+    interviewerAvatar: 'AM',
+    interviewerColor: '#06b6d4',
+    question: 'How would you design a distributed rate limiter for a public API at 100k QPS?',
+    tokens: ['How would you', 'design a distributed', 'rate limiter for a', 'public API at 100k QPS?'],
+    highlightWord: 'public API at 100k QPS?',
+    latency: '0.92s',
+    confidence: '99.6%',
+    time: '24:15',
     strategyHeadline: 'Sliding Window Counter + Token Bucket per API Key in Redis Cluster',
     talkingPoints: [
       {
         label: 'Algorithm Selection',
-        desc: 'Token Bucket per API key. Refills at rate R tokens/sec up to burst capacity B. Atomically decremented via Lua script to prevent race conditions across parallel requests.',
+        desc: 'Token Bucket per API key. Refills at rate R tokens/sec up to burst capacity B via atomic Lua script.',
       },
       {
         label: 'Distributed Architecture',
-        desc: 'Redis Cluster sharded by hash(tenant_id). In-memory local cache at Envoy / Cloudflare Edge Gateway absorbs 80% read bursts without hitting centralized Redis.',
+        desc: 'Redis Cluster sharded by hash(tenant_id) with local memory edge cache at Envoy gateways.',
       },
       {
         label: 'Standard HTTP Headers',
-        desc: 'Automatically emits X-RateLimit-Limit, X-RateLimit-Remaining, and Retry-After on HTTP 429 Too Many Requests.',
+        desc: 'Emits X-RateLimit-Limit, X-RateLimit-Remaining, and Retry-After on HTTP 429 Too Many Requests.',
       },
     ],
     codeSnippet: `-- Atomic Token Bucket Decr in Redis Lua
@@ -62,7 +100,7 @@ end
 
 redis.call('INCRBY', key, 1)
 if current == 0 then
-  redis.call('EXPIRE', key, 1) -- 1-second rolling window
+  redis.call('EXPIRE', key, 1)
 end
 return 1 -- Allowed`,
   },
@@ -74,146 +112,81 @@ return 1 -- Allowed`,
     interviewerRole: 'Senior SWE Interviewer @ Google',
     interviewerAvatar: 'DZ',
     interviewerColor: '#a855f7',
-    question: 'Can you implement an LRU (Least Recently Used) Cache with strict O(1) time complexity for both get and put operations?',
+    question: 'Can you implement an LRU cache with strict O(1) complexity?',
     tokens: ['Can you', 'implement an', 'LRU cache with', 'strict O(1) complexity?'],
     highlightWord: 'strict O(1) complexity?',
-    latency: '0.92s',
+    latency: '0.85s',
     confidence: '99.8%',
-    time: '26:40',
+    time: '29:40',
     strategyHeadline: 'Doubly Linked List for O(1) node ordering + Hash Map for O(1) key lookups',
     talkingPoints: [
       {
         label: 'Data Structure Choice',
-        desc: 'Doubly Linked List maintains access recency (Head = Most Recent, Tail = Least Recent). Hash Map stores key -> Node pointer for instant O(1) node retrieval.',
+        desc: 'Doubly Linked List maintains recency order. Hash Map stores key -> Node pointer for instant retrieval.',
       },
       {
         label: 'Eviction Logic',
-        desc: 'When capacity reaches max on put(), remove the node immediately before the tail sentinel and purge its key from the hash map in O(1).',
+        desc: 'When capacity reaches max on put(), remove node before tail sentinel and purge its key from hash map.',
       },
       {
         label: 'Recency Update',
-        desc: 'On any get() or overwrite put(), detach node from its current position and splice directly behind the head sentinel in O(1) pointer updates.',
+        desc: 'On get() or overwrite put(), splice node directly behind head sentinel in O(1) pointer updates.',
       },
     ],
     codeSnippet: `class LRUCache {
   constructor(capacity) {
     this.cap = capacity;
-    this.map = new Map(); // Preserves insertion order
+    this.map = new Map();
   }
   get(key) {
     if (!this.map.has(key)) return -1;
     const val = this.map.get(key);
     this.map.delete(key);
-    this.map.set(key, val); // Move to most recent
+    this.map.set(key, val);
     return val;
   }
   put(key, value) {
     if (this.map.has(key)) this.map.delete(key);
     else if (this.map.size >= this.cap) {
-      this.map.delete(this.map.keys().next().value); // Evict LRU
+      this.map.delete(this.map.keys().next().value);
     }
     this.map.set(key, value);
   }
 }`,
   },
-  {
-    id: 'incident_response',
-    tabLabel: 'System Design · Circuit Breaker',
-    icon: Zap,
-    interviewerName: 'Marcus Vance',
-    interviewerRole: 'VP of Engineering @ Netflix',
-    interviewerAvatar: 'MV',
-    interviewerColor: '#f59e0b',
-    question: 'Describe how you handled a cascading microservice outage and what resilience patterns you put in place.',
-    tokens: ['Describe how you', 'handled cascading outages', 'and resilience patterns', 'under high load?'],
-    highlightWord: 'under high load?',
-    latency: '0.85s',
-    confidence: '99.6%',
-    time: '32:15',
-    strategyHeadline: 'Distributed Circuit Breaker with Exponential Backoff + Bulkhead Thread Isolation',
-    talkingPoints: [
-      {
-        label: 'Incident Identification',
-        desc: 'Downstream payment gateway latency spiked to 4.2s, exhausting upstream HTTP connection pools and causing cascading thread pool starvation across 14 services.',
-      },
-      {
-        label: 'Immediate Mitigation',
-        desc: 'Tripped the circuit breaker to Open state, returning cached payment confirmations and queuing asynchronous settlements into Apache Kafka for retry.',
-      },
-      {
-        label: 'Long-term Resilience',
-        desc: 'Configured Envoy sidecar circuit breakers with 50% error threshold over 10s, bulkhead concurrency limits of 200 concurrent calls, and adaptive exponential jitter.',
-      },
-    ],
-    codeSnippet: null,
-  },
-  {
-    id: 'db_sharding',
-    tabLabel: 'Architecture · DB Sharding',
-    icon: Radio,
-    interviewerName: 'Elena Rostova',
-    interviewerRole: 'Principal Systems Architect @ Uber',
-    interviewerAvatar: 'ER',
-    interviewerColor: '#06b6d4',
-    question: 'How would you scale a transactional PostgreSQL database beyond single-node write limits to support 500 million users?',
-    tokens: ['How would you', 'scale transactional DB writes', 'beyond single-node limits', 'for 500M users?'],
-    highlightWord: 'for 500M users?',
-    latency: '0.95s',
-    confidence: '99.1%',
-    time: '45:10',
-    strategyHeadline: 'Consistent Hashing Sharding Key + Read Replicas + Citus / Vitess Middleware',
-    talkingPoints: [
-      {
-        label: 'Sharding Strategy',
-        desc: 'Partition tables by tenant_id / user_id using Consistent Hashing on virtual rings to minimize data movement during node additions.',
-      },
-      {
-        label: 'Cross-Shard Operations',
-        desc: 'Avoid multi-shard distributed transactions. Denormalize user-centric query paths; use asynchronous event outbox patterns (Kafka) for cross-service eventual consistency.',
-      },
-      {
-        label: 'Read/Write Splitting',
-        desc: 'Direct transactional writes to primary shards while routing analytical and dashboard reads through asynchronous read replicas with warm caches.',
-      },
-    ],
-    codeSnippet: null,
-  },
 ];
 
 export default function PremiumHeroSection({ onSignupClick, onWatchDemo }) {
   const [activeScenario, setActiveScenario] = useState(SCENARIOS[0]);
-  const [activeView, setActiveView] = useState('talking_points'); // 'talking_points' | 'code'
   const [copied, setCopied] = useState(false);
 
-  // Live video/interactive streaming simulation states
-  // Phases: 'transcribing' | 'detected' | 'generating' | 'completed'
+  // Typewriter and streaming animation states
+  // Phases: 'transcribing' | 'detected' | 'streaming_answer' | 'completed'
   const [phase, setPhase] = useState('transcribing');
   const [visibleTokenCount, setVisibleTokenCount] = useState(1);
-  const [visiblePointsCount, setVisiblePointsCount] = useState(0);
+  const [activePointIndex, setActivePointIndex] = useState(0);
+  const [typedChars, setTypedChars] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
-  const [generationProgress, setGenerationProgress] = useState(0);
 
   const timerRef = useRef(null);
 
-  // Reset and restart simulation
+  // Restart live video sequence
   const restartSimulation = (scenario = activeScenario) => {
     if (timerRef.current) clearTimeout(timerRef.current);
     setActiveScenario(scenario);
-    setActiveView('talking_points');
     setPhase('transcribing');
     setVisibleTokenCount(1);
-    setVisiblePointsCount(0);
-    setGenerationProgress(0);
+    setActivePointIndex(0);
+    setTypedChars(0);
     setIsPlaying(true);
   };
 
-  // Skip / Fast-forward immediately to full answer
+  // Instant fast-forward to full answer
   const handleInstantAnswer = () => {
     if (timerRef.current) clearTimeout(timerRef.current);
     setVisibleTokenCount(activeScenario.tokens.length);
-    setVisiblePointsCount(activeScenario.talkingPoints.length);
+    setActivePointIndex(activeScenario.talkingPoints.length);
     setPhase('completed');
-    setGenerationProgress(100);
   };
 
   const handleCopy = () => {
@@ -221,7 +194,7 @@ export default function PremiumHeroSection({ onSignupClick, onWatchDemo }) {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // Video-like streaming sequence runner
+  // Video-like streaming sequence loop
   useEffect(() => {
     if (!isPlaying) return;
 
@@ -229,38 +202,43 @@ export default function PremiumHeroSection({ onSignupClick, onWatchDemo }) {
       if (visibleTokenCount < activeScenario.tokens.length) {
         timerRef.current = setTimeout(() => {
           setVisibleTokenCount((prev) => prev + 1);
-        }, 550);
+        }, 500);
       } else {
-        // Question is fully transcribed
+        // Question fully captured
         timerRef.current = setTimeout(() => {
           setPhase('detected');
         }, 300);
       }
     } else if (phase === 'detected') {
-      // Question Detected badge activates, trigger answer generation
-      timerRef.current = setTimeout(() => {
-        setPhase('generating');
-      }, 700);
-    } else if (phase === 'generating') {
-      // AI neural generation progress
+      // Question Detected pill lights up, trigger answer streaming
       timerRef.current = setTimeout(() => {
         setPhase('streaming_answer');
-        setVisiblePointsCount(1);
-      }, 500);
+        setActivePointIndex(0);
+        setTypedChars(0);
+      }, 600);
     } else if (phase === 'streaming_answer') {
-      if (visiblePointsCount < activeScenario.talkingPoints.length) {
-        timerRef.current = setTimeout(() => {
-          setVisiblePointsCount((prev) => prev + 1);
-        }, 600);
+      const currentPoint = activeScenario.talkingPoints[activePointIndex];
+      if (currentPoint) {
+        const fullText = `${currentPoint.label}: ${currentPoint.desc}`;
+        if (typedChars < fullText.length) {
+          // Type characters smoothly
+          timerRef.current = setTimeout(() => {
+            setTypedChars((prev) => Math.min(prev + 3, fullText.length));
+          }, 28);
+        } else {
+          // Current point finished typing, move to next point
+          timerRef.current = setTimeout(() => {
+            setActivePointIndex((prev) => prev + 1);
+            setTypedChars(0);
+          }, 350);
+        }
       } else {
-        timerRef.current = setTimeout(() => {
-          setPhase('completed');
-        }, 400);
+        // All points completed
+        setPhase('completed');
       }
     } else if (phase === 'completed') {
-      // Auto-loop after 9 seconds if still playing
+      // Loop after 10s of display
       timerRef.current = setTimeout(() => {
-        // Loop back to restart next scenario or current
         restartSimulation();
       }, 10000);
     }
@@ -268,7 +246,7 @@ export default function PremiumHeroSection({ onSignupClick, onWatchDemo }) {
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [phase, visibleTokenCount, visiblePointsCount, isPlaying, activeScenario]);
+  }, [phase, visibleTokenCount, activePointIndex, typedChars, isPlaying, activeScenario]);
 
   return (
     <section id="hero" className="px-hero" style={{ padding: '64px 0 84px 0', position: 'relative' }}>
@@ -333,6 +311,7 @@ export default function PremiumHeroSection({ onSignupClick, onWatchDemo }) {
 
         {/* ================================================================
             AUTHENTIC DESKTOP INTERVIEW ENVIRONMENT & STEALTH TELEPROMPTER
+            (Matches Image 1 Exact Layout, HUD Capsules & Streaming Behavior)
             ================================================================ */}
         <div style={{ maxWidth: '1060px', margin: '0 auto', textAlign: 'left', position: 'relative' }}>
           
@@ -346,13 +325,13 @@ export default function PremiumHeroSection({ onSignupClick, onWatchDemo }) {
               display: 'flex',
               alignItems: 'center',
               gap: '10px',
-              background: 'rgba(12, 17, 28, 0.94)',
-              border: `1px solid ${phase === 'detected' || phase === 'generating' ? '#38bdf8' : 'rgba(56, 189, 248, 0.3)'}`,
+              background: 'rgba(18, 20, 26, 0.95)',
+              border: `1px solid ${phase === 'detected' || phase === 'streaming_answer' ? '#38bdf8' : 'rgba(255, 255, 255, 0.14)'}`,
               borderRadius: '999px',
               padding: '6px 14px 6px 8px',
-              boxShadow: phase === 'generating'
-                ? '0 10px 30px rgba(6, 182, 212, 0.4), 0 0 25px rgba(56, 189, 248, 0.4)'
-                : '0 10px 30px rgba(0, 0, 0, 0.6), 0 0 20px rgba(6, 182, 212, 0.15)',
+              boxShadow: phase === 'streaming_answer'
+                ? '0 10px 30px rgba(6, 182, 212, 0.35), 0 0 20px rgba(56, 189, 248, 0.35)'
+                : '0 10px 30px rgba(0, 0, 0, 0.6)',
               backdropFilter: 'blur(16px)',
               transition: 'all 0.3s ease',
             }}
@@ -367,18 +346,18 @@ export default function PremiumHeroSection({ onSignupClick, onWatchDemo }) {
                     width: '6px',
                     height: '6px',
                     borderRadius: '50%',
-                    background: phase === 'generating' ? '#38bdf8' : '#10b981',
-                    boxShadow: phase === 'generating' ? '0 0 10px #38bdf8' : '0 0 8px #10b981',
-                    animation: phase === 'generating' ? 'pulse 0.8s infinite' : 'none',
+                    background: phase === 'streaming_answer' ? '#38bdf8' : '#10b981',
+                    boxShadow: phase === 'streaming_answer' ? '0 0 10px #38bdf8' : '0 0 8px #10b981',
+                    animation: phase === 'streaming_answer' ? 'pulse 0.8s infinite' : 'none',
                   }}
                 />
                 Feonix Neural Core
               </span>
-              <span style={{ fontSize: '9.5px', color: phase === 'generating' ? '#38bdf8' : '#94a3b8', fontFamily: 'monospace' }}>
-                {phase === 'transcribing' && 'Transcribing Voice • Whisper-1'}
+              <span style={{ fontSize: '9.5px', color: phase === 'streaming_answer' ? '#38bdf8' : '#94a3b8', fontFamily: 'monospace' }}>
+                {phase === 'transcribing' && 'Streaming Whisper-1 • 0.88s'}
                 {phase === 'detected' && 'Question Detected • Synthesizing'}
-                {phase === 'generating' && `Streaming Answer • ${activeScenario.latency}`}
-                {(phase === 'streaming_answer' || phase === 'completed') && `Streaming Whisper-1 • ${activeScenario.latency}`}
+                {phase === 'streaming_answer' && `Generating answer in ${activeScenario.latency}...`}
+                {phase === 'completed' && `Streaming Whisper-1 • ${activeScenario.latency}`}
               </span>
             </div>
           </div>
@@ -394,7 +373,7 @@ export default function PremiumHeroSection({ onSignupClick, onWatchDemo }) {
               position: 'relative',
             }}
           >
-            {/* macOS Window Title Bar with Simulation Playback Controls */}
+            {/* macOS Window Title Bar */}
             <div
               style={{
                 display: 'flex',
@@ -415,11 +394,10 @@ export default function PremiumHeroSection({ onSignupClick, onWatchDemo }) {
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                {/* Simulation Replay / Interactive Control */}
                 <button
                   type="button"
                   onClick={() => restartSimulation()}
-                  title="Replay Question and Answer Streaming Animation"
+                  title="Replay Video Simulation"
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -449,7 +427,7 @@ export default function PremiumHeroSection({ onSignupClick, onWatchDemo }) {
               </div>
             </div>
 
-            {/* Video Call Backdrop with Live Streaming Teleprompter HUD */}
+            {/* Video Call Backdrop with Floating Parakeet HUD (Exact replica of Image 1) */}
             <div
               style={{
                 position: 'relative',
@@ -458,10 +436,10 @@ export default function PremiumHeroSection({ onSignupClick, onWatchDemo }) {
                 minHeight: '480px',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '16px',
+                gap: '14px',
               }}
             >
-              {/* Subtle background meeting grid texture */}
+              {/* Meeting grid subtle texture */}
               <div
                 style={{
                   position: 'absolute',
@@ -472,386 +450,435 @@ export default function PremiumHeroSection({ onSignupClick, onWatchDemo }) {
                 }}
               />
 
-              {/* THE UNIFIED FEONIX AI STEALTH TELEPROMPTER WIDGET */}
+              {/* ============================================================
+                  1. TOP FLOATING TOOLBAR CAPSULE (Exact Image 1 layout)
+                  ============================================================ */}
               <div
                 style={{
-                  width: '100%',
+                  background: 'rgba(34, 37, 44, 0.96)',
+                  backdropFilter: 'blur(24px)',
+                  border: '1px solid rgba(255, 255, 255, 0.14)',
+                  borderRadius: '12px',
+                  padding: '6px 14px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  boxShadow: '0 8px 24px rgba(0, 0, 0, 0.5)',
                   position: 'relative',
                   zIndex: 2,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '10px',
                 }}
               >
-                {/* 1. Top HUD Control Capsule */}
-                <div
-                  style={{
-                    background: 'rgba(20, 27, 44, 0.95)',
-                    backdropFilter: 'blur(24px)',
-                    border: '1px solid rgba(255, 255, 255, 0.14)',
-                    borderRadius: '12px',
-                    padding: '8px 16px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.5)',
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.35)', padding: '3px 9px', borderRadius: '999px' }}>
-                      <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#ef4444', animation: 'pulse 1.4s infinite' }} />
-                      <span style={{ fontSize: '11px', fontWeight: 800, color: '#f87171', letterSpacing: '0.04em' }}>LIVE SESSION ACTIVE</span>
-                    </div>
+                {/* Left controls */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {/* Screen Share Exclusion Indicator */}
+                  <div
+                    title="Screen Share Stealth Exclusion Active"
+                    style={{
+                      position: 'relative',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '8px',
+                      background: 'rgba(255, 255, 255, 0.06)',
+                      color: '#cbd5e1',
+                    }}
+                  >
+                    <Monitor size={15} />
+                    <span style={{ position: 'absolute', top: '5px', right: '5px', width: '6px', height: '6px', borderRadius: '50%', background: '#ef4444' }} />
+                  </div>
 
-                    <div style={{ height: '14px', width: '1px', background: 'rgba(255, 255, 255, 0.12)' }} />
+                  {/* Microphone Active Indicator */}
+                  <div
+                    title="Microphone Streaming"
+                    style={{
+                      position: 'relative',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '8px',
+                      background: 'rgba(255, 255, 255, 0.06)',
+                      color: '#cbd5e1',
+                    }}
+                  >
+                    <Mic size={15} />
+                    <span style={{ position: 'absolute', top: '5px', right: '5px', width: '6px', height: '6px', borderRadius: '50%', background: '#ef4444' }} />
+                  </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: `${activeScenario.interviewerColor}22`, border: `1px solid ${activeScenario.interviewerColor}60`, display: 'grid', placeItems: 'center', fontSize: '11px', fontWeight: 800, color: activeScenario.interviewerColor }}>
-                        {activeScenario.interviewerAvatar}
-                      </div>
-                      <div>
-                        <div style={{ fontSize: '12px', fontWeight: 700, color: '#f8fafc' }}>
-                          {activeScenario.interviewerName}
-                        </div>
-                        <div style={{ fontSize: '10.5px', color: '#94a3b8' }}>
-                          {activeScenario.interviewerRole}
-                        </div>
-                      </div>
-                    </div>
+                  {/* Answer ⌘⏎ Button */}
+                  <button
+                    type="button"
+                    onClick={handleInstantAnswer}
+                    title="Generate Answer Instantly"
+                    style={{
+                      background: phase === 'detected' || phase === 'streaming_answer'
+                        ? 'rgba(56, 189, 248, 0.25)'
+                        : 'rgba(255, 255, 255, 0.08)',
+                      border: `1px solid ${phase === 'detected' ? '#38bdf8' : 'rgba(255, 255, 255, 0.16)'}`,
+                      color: '#ffffff',
+                      padding: '5px 12px',
+                      borderRadius: '8px',
+                      fontSize: '12.5px',
+                      fontWeight: 600,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      cursor: 'pointer',
+                      boxShadow: phase === 'detected' ? '0 0 14px rgba(56, 189, 248, 0.5)' : 'none',
+                      transition: 'all 0.2s ease',
+                    }}
+                  >
+                    <span>Answer</span>
+                    <span style={{ fontSize: '11px', color: '#94a3b8', background: 'rgba(255, 255, 255, 0.1)', padding: '1px 4px', borderRadius: '4px' }}>⌘↵</span>
+                  </button>
+
+                  {/* Screenshot ⌘⇧⏎ Button */}
+                  <button
+                    type="button"
+                    style={{
+                      background: 'rgba(255, 255, 255, 0.08)',
+                      border: '1px solid rgba(255, 255, 255, 0.14)',
+                      color: '#e2e8f0',
+                      padding: '5px 12px',
+                      borderRadius: '8px',
+                      fontSize: '12.5px',
+                      fontWeight: 600,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      cursor: 'default',
+                    }}
+                  >
+                    <span>Screenshot</span>
+                    <span style={{ fontSize: '11px', color: '#94a3b8', background: 'rgba(255, 255, 255, 0.1)', padding: '1px 4px', borderRadius: '4px' }}>⌘⇧↵</span>
+                  </button>
+
+                  {/* Chat ⌘⇧D Button */}
+                  <button
+                    type="button"
+                    style={{
+                      background: 'rgba(255, 255, 255, 0.08)',
+                      border: '1px solid rgba(255, 255, 255, 0.14)',
+                      color: '#e2e8f0',
+                      padding: '5px 12px',
+                      borderRadius: '8px',
+                      fontSize: '12.5px',
+                      fontWeight: 600,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      cursor: 'default',
+                    }}
+                  >
+                    <span>Chat</span>
+                    <span style={{ fontSize: '11px', color: '#94a3b8', background: 'rgba(255, 255, 255, 0.1)', padding: '1px 4px', borderRadius: '4px' }}>⌘⇧D</span>
+                  </button>
+                </div>
+
+                {/* Right controls */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ width: '30px', height: '30px', borderRadius: '6px', display: 'grid', placeItems: 'center', color: '#94a3b8', cursor: 'grab' }}>
+                    <Move size={14} />
+                  </div>
+                  <div style={{ width: '30px', height: '30px', borderRadius: '6px', display: 'grid', placeItems: 'center', color: '#94a3b8', cursor: 'pointer' }}>
+                    <Minimize2 size={14} />
+                  </div>
+                  <div style={{ width: '30px', height: '30px', borderRadius: '6px', display: 'grid', placeItems: 'center', color: '#94a3b8', cursor: 'pointer' }}>
+                    <MoreVertical size={14} />
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => restartSimulation()}
+                    style={{
+                      background: '#ef4444',
+                      border: 'none',
+                      color: '#ffffff',
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      padding: '6px 14px',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 8px rgba(239, 68, 68, 0.4)',
+                    }}
+                  >
+                    End
+                  </button>
+                </div>
+              </div>
+
+              {/* ============================================================
+                  2. TRANSCRIPTION SPEECH STREAM BAR (Exact Image 1 layout)
+                  ============================================================ */}
+              <div
+                style={{
+                  background: 'rgba(34, 37, 44, 0.96)',
+                  backdropFilter: 'blur(24px)',
+                  border: '1px solid rgba(255, 255, 255, 0.14)',
+                  borderRadius: '12px',
+                  padding: '6px 14px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  boxShadow: '0 8px 24px rgba(0, 0, 0, 0.5)',
+                  minHeight: '46px',
+                  position: 'relative',
+                  zIndex: 2,
+                }}
+              >
+                {/* Audio wave & Token Pills */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  {/* Bouncing Audio Waveform Equalizer */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '3px', padding: '0 4px' }}>
+                    <span style={{ width: '3px', height: '14px', background: '#22c55e', borderRadius: '2px', animation: phase === 'transcribing' ? 'wavePulse 0.6s infinite ease-in-out' : 'none' }} />
+                    <span style={{ width: '3px', height: '20px', background: '#22c55e', borderRadius: '2px', animation: phase === 'transcribing' ? 'wavePulse 0.8s infinite ease-in-out 0.15s' : 'none' }} />
+                    <span style={{ width: '3px', height: '12px', background: '#22c55e', borderRadius: '2px', animation: phase === 'transcribing' ? 'wavePulse 0.7s infinite ease-in-out 0.3s' : 'none' }} />
+                  </div>
+
+                  {/* Speech Tokens appearing in real time */}
+                  {activeScenario.tokens.slice(0, visibleTokenCount).map((tok, i) => (
+                    <span
+                      key={i}
+                      style={{
+                        background: 'rgba(255, 255, 255, 0.08)',
+                        border: '1px solid rgba(255, 255, 255, 0.14)',
+                        color: '#f8fafc',
+                        padding: '4px 10px',
+                        borderRadius: '6px',
+                        fontSize: '12.5px',
+                        fontWeight: 500,
+                        animation: 'fadeIn 0.25s ease-out',
+                      }}
+                    >
+                      {tok}
+                    </span>
+                  ))}
+
+                  {phase === 'transcribing' && visibleTokenCount < activeScenario.tokens.length && (
+                    <span style={{ width: '6px', height: '14px', background: '#38bdf8', borderRadius: '1px', animation: 'blink 0.8s infinite' }} />
+                  )}
+                </div>
+
+                {/* Right controls */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={() => restartSimulation()}
+                    style={{
+                      background: 'rgba(255, 255, 255, 0.08)',
+                      border: '1px solid rgba(255, 255, 255, 0.14)',
+                      color: '#cbd5e1',
+                      padding: '4px 10px',
+                      borderRadius: '6px',
+                      fontSize: '11.5px',
+                      fontWeight: 600,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <span>Clear</span>
+                    <span style={{ fontSize: '10px', color: '#94a3b8' }}>⌘⇧⌫</span>
+                  </button>
+
+                  <div style={{ width: '28px', height: '28px', borderRadius: '6px', display: 'grid', placeItems: 'center', color: '#94a3b8', cursor: 'pointer' }}>
+                    <Maximize2 size={13} />
+                  </div>
+                </div>
+              </div>
+
+              {/* ============================================================
+                  3. MAIN TELEPROMPTER FLOATING ANSWER WINDOW (Exact Image 1 layout)
+                  ============================================================ */}
+              <div
+                style={{
+                  background: 'rgba(28, 31, 38, 0.98)',
+                  backdropFilter: 'blur(30px)',
+                  border: '1px solid rgba(255, 255, 255, 0.16)',
+                  borderRadius: '16px',
+                  padding: '18px 24px',
+                  boxShadow: '0 20px 60px -10px rgba(0, 0, 0, 0.85)',
+                  minHeight: '260px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '14px',
+                  position: 'relative',
+                  zIndex: 2,
+                }}
+              >
+                {/* Header bar: Navigation Arrows & Clear */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '10px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <button
+                      type="button"
+                      style={{
+                        background: 'rgba(255, 255, 255, 0.06)',
+                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                        color: '#cbd5e1',
+                        padding: '3px 8px',
+                        borderRadius: '6px',
+                        fontSize: '11.5px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '3px',
+                      }}
+                    >
+                      <ChevronLeft size={13} />
+                      <span style={{ fontSize: '10px', color: '#94a3b8' }}>⌘←</span>
+                    </button>
+                    <button
+                      type="button"
+                      style={{
+                        background: 'rgba(255, 255, 255, 0.06)',
+                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                        color: '#cbd5e1',
+                        padding: '3px 8px',
+                        borderRadius: '6px',
+                        fontSize: '11.5px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '3px',
+                      }}
+                    >
+                      <span style={{ fontSize: '10px', color: '#94a3b8' }}>⌘→</span>
+                      <ChevronRight size={13} />
+                    </button>
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    {/* Action Hotkeys */}
-                    <button
-                      type="button"
-                      onClick={handleInstantAnswer}
-                      title="Click to generate full answer instantly"
-                      style={{
-                        background: phase === 'detected' || phase === 'generating'
-                          ? 'linear-gradient(135deg, #0284c7, #06b6d4)'
-                          : 'rgba(6, 182, 212, 0.2)',
-                        border: '1px solid rgba(6, 182, 212, 0.6)',
-                        color: '#ffffff',
-                        padding: '4px 11px',
-                        borderRadius: '6px',
-                        fontSize: '11.5px',
-                        fontWeight: 700,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                        cursor: 'pointer',
-                        boxShadow: phase === 'detected' ? '0 0 14px rgba(6, 182, 212, 0.6)' : 'none',
-                        transition: 'all 0.2s ease',
-                      }}
-                    >
-                      <span>Answer</span>
-                      <kbd style={{ fontFamily: 'sans-serif', fontSize: '10px', background: 'rgba(255, 255, 255, 0.2)', padding: '1px 4px', borderRadius: '3px', color: '#ffffff' }}>⌘↵</kbd>
-                    </button>
-
-                    <button
-                      type="button"
-                      style={{
-                        background: 'rgba(255, 255, 255, 0.05)',
-                        border: '1px solid rgba(255, 255, 255, 0.1)',
-                        color: '#cbd5e1',
-                        padding: '4px 10px',
-                        borderRadius: '6px',
-                        fontSize: '11.5px',
-                        fontWeight: 600,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                        cursor: 'default',
-                      }}
-                    >
-                      <span>Screenshot</span>
-                      <kbd style={{ fontFamily: 'sans-serif', fontSize: '10px', background: 'rgba(255, 255, 255, 0.08)', padding: '1px 4px', borderRadius: '3px' }}>⌘⇧↵</kbd>
-                    </button>
-
-                    <button
-                      type="button"
-                      style={{
-                        background: 'rgba(255, 255, 255, 0.05)',
-                        border: '1px solid rgba(255, 255, 255, 0.1)',
-                        color: '#cbd5e1',
-                        padding: '4px 10px',
-                        borderRadius: '6px',
-                        fontSize: '11.5px',
-                        fontWeight: 600,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                        cursor: 'default',
-                      }}
-                    >
-                      <span>Chat</span>
-                      <kbd style={{ fontFamily: 'sans-serif', fontSize: '10px', background: 'rgba(255, 255, 255, 0.08)', padding: '1px 4px', borderRadius: '3px' }}>⌘⇧D</kbd>
-                    </button>
-
-                    <div style={{ height: '14px', width: '1px', background: 'rgba(255, 255, 255, 0.12)', margin: '0 2px' }} />
-
                     <button
                       type="button"
                       onClick={() => restartSimulation()}
                       style={{
-                        background: '#dc2626',
-                        border: 'none',
-                        color: '#ffffff',
-                        fontSize: '11px',
-                        fontWeight: 700,
-                        padding: '4px 10px',
+                        background: 'rgba(255, 255, 255, 0.08)',
+                        border: '1px solid rgba(255, 255, 255, 0.14)',
+                        color: '#cbd5e1',
+                        padding: '3px 9px',
                         borderRadius: '6px',
+                        fontSize: '11.5px',
+                        fontWeight: 600,
                         cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
                       }}
                     >
-                      End
+                      <span>Clear</span>
+                      <span style={{ fontSize: '10px', color: '#94a3b8' }}>⌘⌫</span>
                     </button>
+                    <div style={{ width: '28px', height: '28px', borderRadius: '6px', display: 'grid', placeItems: 'center', color: '#94a3b8', cursor: 'pointer' }}>
+                      <Maximize2 size={13} />
+                    </div>
                   </div>
                 </div>
 
-                {/* 2. Real-Time Interviewer Transcription Token Stream Bar */}
-                <div
-                  style={{
-                    background: 'rgba(18, 24, 38, 0.94)',
-                    backdropFilter: 'blur(20px)',
-                    border: '1px solid rgba(255, 255, 255, 0.12)',
-                    borderRadius: '10px',
-                    padding: '9px 14px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.3)',
-                    gap: '12px',
-                    minHeight: '44px',
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: '11px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <Mic size={13} style={{ color: phase === 'transcribing' ? '#38bdf8' : '#94a3b8', animation: phase === 'transcribing' ? 'pulse 1s infinite' : 'none' }} />
-                      INTERVIEWER SPEECH:
-                    </span>
+                {/* Question line with copy icon */}
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '10px' }}>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', fontSize: '14.5px', color: '#f8fafc', lineHeight: 1.5 }}>
+                    <span style={{ fontSize: '15px' }}>💬</span>
+                    <div>
+                      <strong style={{ color: '#ffffff', fontWeight: 700 }}>Question: </strong>
+                      <span>{activeScenario.question}</span>
+                    </div>
+                  </div>
 
-                    {/* Tokens appearing progressively as the interviewer speaks */}
-                    {activeScenario.tokens.slice(0, visibleTokenCount).map((token, i) => {
-                      const isHigh = token === activeScenario.highlightWord;
+                  <button
+                    type="button"
+                    onClick={handleCopy}
+                    title="Copy Answer"
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: copied ? '#10b981' : '#94a3b8',
+                      cursor: 'pointer',
+                      padding: '4px',
+                      display: 'flex',
+                      alignItems: 'center',
+                    }}
+                  >
+                    {copied ? <Check size={14} /> : <Copy size={14} />}
+                  </button>
+                </div>
+
+                {/* Answer Summary Callout (⭐ Answer: ...) */}
+                {(phase === 'streaming_answer' || phase === 'completed' || phase === 'detected') && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'baseline',
+                      gap: '8px',
+                      fontSize: '14.5px',
+                      color: '#ffffff',
+                      lineHeight: 1.5,
+                      animation: 'fadeIn 0.3s ease-out',
+                    }}
+                  >
+                    <span style={{ fontSize: '15px', color: '#f59e0b' }}>⭐</span>
+                    <div>
+                      <strong style={{ color: '#ffffff', fontWeight: 700 }}>Answer: </strong>
+                      <span>{activeScenario.strategyHeadline}</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* STAR Structured Points streaming letter-by-letter / line-by-line */}
+                {(phase === 'streaming_answer' || phase === 'completed') && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '4px' }}>
+                    {activeScenario.talkingPoints.map((point, index) => {
+                      if (index > activePointIndex) return null;
+
+                      const isCurrentlyTyping = index === activePointIndex && phase === 'streaming_answer';
+                      const fullLine = `${point.label}: ${point.desc}`;
+                      const displayedLine = isCurrentlyTyping
+                        ? fullLine.slice(0, typedChars)
+                        : fullLine;
+
                       return (
-                        <span
-                          key={i}
+                        <div
+                          key={index}
                           style={{
-                            background: isHigh ? 'rgba(34, 197, 94, 0.22)' : 'rgba(255, 255, 255, 0.08)',
-                            border: `1px solid ${isHigh ? 'rgba(34, 197, 94, 0.6)' : 'rgba(255, 255, 255, 0.12)'}`,
-                            color: isHigh ? '#4ade80' : '#f1f5f9',
-                            padding: '3px 10px',
-                            borderRadius: '6px',
-                            fontSize: '12.5px',
-                            fontWeight: isHigh ? 700 : 500,
-                            boxShadow: isHigh ? '0 0 12px rgba(74, 222, 128, 0.35)' : 'none',
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            gap: '8px',
+                            fontSize: '13.5px',
+                            color: '#e2e8f0',
+                            lineHeight: 1.6,
                             animation: 'fadeIn 0.25s ease-out',
-                            transition: 'all 0.2s ease',
                           }}
                         >
-                          {token}
-                        </span>
+                          <span style={{ color: '#cbd5e1', fontWeight: 800 }}>•</span>
+                          <div>
+                            <span>{displayedLine}</span>
+                            {isCurrentlyTyping && (
+                              <span style={{ width: '2px', height: '14px', background: '#38bdf8', display: 'inline-block', verticalAlign: 'middle', marginLeft: '3px', animation: 'blink 0.8s infinite' }} />
+                            )}
+                          </div>
+                        </div>
                       );
                     })}
-
-                    {phase === 'transcribing' && visibleTokenCount < activeScenario.tokens.length && (
-                      <span style={{ width: '8px', height: '14px', background: '#38bdf8', display: 'inline-block', borderRadius: '1px', animation: 'blink 0.8s infinite' }} />
-                    )}
                   </div>
+                )}
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-                    {phase !== 'transcribing' && (
-                      <span
-                        style={{
-                          fontSize: '11px',
-                          color: '#10b981',
-                          background: 'rgba(16, 185, 129, 0.16)',
-                          border: '1px solid rgba(16, 185, 129, 0.45)',
-                          padding: '3px 10px',
-                          borderRadius: '6px',
-                          fontWeight: 700,
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '5px',
-                          boxShadow: '0 0 14px rgba(16, 185, 129, 0.3)',
-                          animation: 'fadeIn 0.3s ease-out',
-                        }}
-                      >
-                        <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981' }} />
-                        ● Question Detected ({activeScenario.confidence})
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* 3. Main Glass Teleprompter Answer Card */}
-                <div
-                  style={{
-                    background: 'rgba(16, 22, 36, 0.96)',
-                    backdropFilter: 'blur(28px)',
-                    border: `1.5px solid ${phase === 'generating' ? 'rgba(56, 189, 248, 0.7)' : 'rgba(56, 189, 248, 0.35)'}`,
-                    borderRadius: '16px',
-                    padding: '20px 24px',
-                    boxShadow: phase === 'generating'
-                      ? '0 20px 60px -10px rgba(6, 182, 212, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.2)'
-                      : '0 20px 50px -10px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '14px',
-                    minHeight: '230px',
-                    transition: 'all 0.3s ease',
-                  }}
-                >
-                  {/* Card Sub-Header Actions */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '12px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <button
-                        type="button"
-                        onClick={() => setActiveView('talking_points')}
-                        style={{
-                          background: activeView === 'talking_points' ? 'rgba(56, 189, 248, 0.2)' : 'rgba(255, 255, 255, 0.04)',
-                          border: `1px solid ${activeView === 'talking_points' ? 'rgba(56, 189, 248, 0.5)' : 'rgba(255, 255, 255, 0.08)'}`,
-                          color: activeView === 'talking_points' ? '#38bdf8' : '#94a3b8',
-                          fontSize: '12px',
-                          fontWeight: 700,
-                          padding: '4px 12px',
-                          borderRadius: '6px',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '5px',
-                        }}
-                      >
-                        <span>STAR Talking Points</span>
-                      </button>
-
-                      {activeScenario.codeSnippet && (
-                        <button
-                          type="button"
-                          onClick={() => setActiveView('code')}
-                          style={{
-                            background: activeView === 'code' ? 'rgba(56, 189, 248, 0.2)' : 'rgba(255, 255, 255, 0.04)',
-                            border: `1px solid ${activeView === 'code' ? 'rgba(56, 189, 248, 0.5)' : 'rgba(255, 255, 255, 0.08)'}`,
-                            color: activeView === 'code' ? '#38bdf8' : '#94a3b8',
-                            fontSize: '12px',
-                            fontWeight: 700,
-                            padding: '4px 12px',
-                            borderRadius: '6px',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '5px',
-                          }}
-                        >
-                          <Code2 size={13} />
-                          <span>Runnable Code</span>
-                        </button>
-                      )}
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <button
-                        onClick={handleCopy}
-                        type="button"
-                        style={{ background: 'transparent', border: 'none', color: copied ? '#10b981' : '#94a3b8', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px', fontWeight: 600 }}
-                      >
-                        {copied ? <Check size={13} /> : <Copy size={13} />}
-                        <span>{copied ? 'Copied' : 'Copy'}</span>
-                      </button>
+                {/* Bottom Footer Info: Answer · 18:08 👍 👎 */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid rgba(255, 255, 255, 0.06)', paddingTop: '10px', marginTop: 'auto', fontSize: '12px', color: '#64748b' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span>Answer</span>
+                    <span>·</span>
+                    <span>{activeScenario.time}</span>
+                    <div style={{ display: 'flex', gap: '6px', marginLeft: '6px' }}>
+                      <ThumbsUp size={13} style={{ cursor: 'pointer', color: '#94a3b8' }} />
+                      <ThumbsDown size={13} style={{ cursor: 'pointer', color: '#94a3b8' }} />
                     </div>
                   </div>
 
-                  {/* AI Generating Scanning State */}
-                  {phase === 'generating' && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', padding: '16px 0', alignItems: 'center', justifyContent: 'center' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#38bdf8', fontSize: '13px', fontWeight: 700 }}>
-                        <Sparkles size={16} style={{ animation: 'spin 1.5s linear infinite' }} />
-                        <span>Feonix Neural Core streaming optimal response in {activeScenario.latency}...</span>
-                      </div>
-                      <div style={{ width: '80%', height: '4px', background: 'rgba(255,255,255,0.08)', borderRadius: '4px', overflow: 'hidden' }}>
-                        <div style={{ width: '60%', height: '100%', background: 'linear-gradient(90deg, #06b6d4, #38bdf8)', borderRadius: '4px', animation: 'progressIndeterminate 1s infinite linear' }} />
-                      </div>
-                    </div>
-                  )}
-
-                  {/* When question is detected or streaming: show answers */}
-                  {(phase === 'streaming_answer' || phase === 'completed' || phase === 'detected') && (
-                    <>
-                      {/* Primary Answer Strategy Callout */}
-                      <div
-                        style={{
-                          background: 'rgba(56, 189, 248, 0.08)',
-                          border: '1px solid rgba(56, 189, 248, 0.25)',
-                          borderRadius: '10px',
-                          padding: '10px 14px',
-                          display: 'flex',
-                          alignItems: 'baseline',
-                          gap: '8px',
-                          animation: 'fadeIn 0.3s ease-out',
-                        }}
-                      >
-                        <span style={{ fontSize: '14px', color: '#f59e0b', flexShrink: 0 }}>⭐</span>
-                        <div>
-                          <span style={{ fontSize: '11px', fontWeight: 800, color: '#38bdf8', textTransform: 'uppercase', letterSpacing: '0.04em', marginRight: '6px' }}>
-                            Executive Summary:
-                          </span>
-                          <span style={{ fontSize: '13.5px', fontWeight: 700, color: '#ffffff' }}>
-                            {activeScenario.strategyHeadline}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* View: Structured Talking Points vs Code Solution */}
-                      {activeView === 'talking_points' ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                          {activeScenario.talkingPoints.slice(0, visiblePointsCount).map((pt, i) => (
-                            <div
-                              key={i}
-                              style={{
-                                display: 'flex',
-                                alignItems: 'flex-start',
-                                gap: '10px',
-                                fontSize: '13px',
-                                lineHeight: 1.6,
-                                animation: 'fadeIn 0.3s ease-out',
-                              }}
-                            >
-                              <span style={{ color: '#06b6d4', fontWeight: 800, marginTop: '2px' }}>•</span>
-                              <div>
-                                <strong style={{ color: '#f8fafc', fontWeight: 700 }}>{pt.label}: </strong>
-                                <span style={{ color: '#cbd5e1' }}>{pt.desc}</span>
-                                {i === visiblePointsCount - 1 && phase !== 'completed' && (
-                                  <span style={{ display: 'inline-block', width: '2px', height: '14px', background: '#38bdf8', verticalAlign: 'middle', marginLeft: '3px', animation: 'blink 1s infinite' }} />
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div style={{ background: '#070b13', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '10px', padding: '14px 16px', fontFamily: 'monospace', fontSize: '12px', color: '#38bdf8', overflowX: 'auto' }}>
-                          <pre style={{ margin: 0 }}>{activeScenario.codeSnippet}</pre>
-                        </div>
-                      )}
-                    </>
-                  )}
-
-                  {/* Teleprompter Footer Bar */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid rgba(255, 255, 255, 0.06)', paddingTop: '12px', fontSize: '11.5px', color: '#64748b' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                      <span>Answer Latency: <strong style={{ color: '#10b981' }}>{activeScenario.latency}</strong></span>
-                      <span>•</span>
-                      <span>STAR Certified</span>
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <div style={{ display: 'flex', gap: '6px' }}>
-                        <ThumbsUp size={13} style={{ cursor: 'pointer', color: '#94a3b8' }} />
-                        <ThumbsDown size={13} style={{ cursor: 'pointer', color: '#94a3b8' }} />
-                      </div>
-                      <span style={{ color: '#94a3b8' }}>·</span>
-                      <span style={{ color: '#38bdf8', fontWeight: 600 }}>100% Invisible to Zoom Screen Share</span>
-                    </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ color: '#10b981', fontWeight: 600 }}>● 100% Invisible to Zoom Screen Share</span>
                   </div>
                 </div>
               </div>
@@ -925,7 +952,7 @@ export default function PremiumHeroSection({ onSignupClick, onWatchDemo }) {
                   <span>{isPlaying ? 'Pause' : 'Play'}</span>
                 </button>
                 <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981' }} />
-                <span>Simulating real-time question detection & answer streaming</span>
+                <span>Simulating real-time question detection & typewriter answer streaming</span>
               </div>
             </div>
           </div>
