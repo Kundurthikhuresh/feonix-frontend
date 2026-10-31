@@ -2,9 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
-import { postJSON } from '../../../lib/api';
-import AdminPane from '../../../components/dashboard/AdminPane';
-import AuthModal from '../../../components/auth/AuthModal';
+import { postJSON } from '../../lib/api';
+import AdminPane from '../../components/dashboard/AdminPane';
+import AuthModal from '../../components/auth/AuthModal';
 
 export default function AdminPage() {
   const routeParams = useParams();
@@ -203,4 +203,3 @@ export default function AdminPage() {
     </div>
   );
 }
-
