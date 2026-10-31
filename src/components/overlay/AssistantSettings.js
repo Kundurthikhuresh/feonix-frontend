@@ -38,8 +38,9 @@ const SIZE_OPTIONS = [
   { value: 'xlarge', label: 'Extra Large (1540px)' },
 ];
 const AUDIO_SOURCE_OPTIONS = [
-  { value: 'mic', label: 'Microphone' },
-  { value: 'tab', label: 'Tab / System audio (for video calls)' },
+  { value: 'both', label: 'Both voices' },
+  { value: 'mic', label: 'My microphone' },
+  { value: 'tab', label: 'Interviewer audio' },
 ];
 
 /**
@@ -209,7 +210,12 @@ export default function AssistantSettings({
           {AUDIO_SOURCE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
       </div>
-      {settings.audioSource !== 'tab' && (
+      {settings.audioSource !== 'tab' && desktopAvailable && (
+        <div className="pk-drop-hint" style={{ marginBottom: 6 }}>
+          On Windows desktop, Both captures system audio and your microphone. Use Tab / System audio for the call audio only.
+        </div>
+      )}
+      {settings.audioSource !== 'tab' && !desktopAvailable && (
         <div className="pk-drop-hint" style={{ marginBottom: 6 }}>
           On a video call through speakers (not headphones), the mic can pick up echo-cancelled-out
           audio and miss the interviewer's voice. If detection feels unreliable, switch this to

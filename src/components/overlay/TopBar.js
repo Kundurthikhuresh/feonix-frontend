@@ -6,7 +6,7 @@ import InterviewControls from './InterviewControls';
 export default function TopBar({
   onDragStart, dragging,
   listening, elapsedText, onToggleListening,
-  thinking, onAnswerClick,
+  thinking, isAnswering, onAnswerClick,
   screenshots, screenshotMenuOpen, onToggleScreenshotMenu, onUploadClick, onCaptureScreen, onSolveScreenshotNow, onRemoveScreenshot,
   promptHubOpen, onToggleChat,
   isExpanded, onToggleExpand,
@@ -21,6 +21,8 @@ export default function TopBar({
   onEndSession,
   remainingText,
 }) {
+  const activeAnswering = Boolean(thinking || isAnswering);
+
   return (
     <>
       <div className="pk-drag-rail" onMouseDown={onDragStart} title="Click & drag to move the HUD anywhere on screen">
@@ -29,16 +31,22 @@ export default function TopBar({
 
       <div className="pk-topbar" onMouseDown={onDragStart} style={{ cursor: dragging ? 'grabbing' : 'grab' }}>
         <div className="pk-topbar-left">
-          <RecordingIndicator listening={listening} elapsedText={elapsedText} onToggle={onToggleListening} />
+          <RecordingIndicator
+            listening={listening}
+            elapsedText={elapsedText}
+            onToggle={onToggleListening}
+            thinking={thinking}
+            isAnswering={isAnswering}
+          />
 
           <button
-            className={`pk-action-btn pk-action-primary ${thinking ? 'pk-btn-loading' : ''}`}
+            className={`pk-action-btn pk-action-primary ${activeAnswering ? 'pk-btn-loading' : ''}`}
             onClick={onAnswerClick}
             type="button"
             title="Generate AI answer for the detected question (⌘↵)"
           >
-            {thinking ? (
-              <><span className="pk-btn-spinner" /> <span>Generating…</span></>
+            {activeAnswering ? (
+              <><span className="pk-btn-spinner" /> <span>Fetching…</span></>
             ) : (
               <>
                 <span className="pk-sparkle-icon">✨</span>

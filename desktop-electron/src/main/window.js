@@ -86,9 +86,9 @@ function createMainWindow(routePath, settingsStore) {
 
   hardenWindow(mainWindow);
   try {
-    const stealth = settingsStore ? (settingsStore.get('stealthMode') !== false) : true;
-    mainWindow.setContentProtection(stealth);
-    console.log(`🛡️ Screen share stealth set to ${stealth} on mainWindow`);
+const mainStealth = settingsStore ? (settingsStore.get('stealthMode') === true) : false;
+    mainWindow.setContentProtection(mainStealth);
+    console.log(`🛡️ Screen share stealth set to ${mainStealth} on mainWindow`);
   } catch (err) {
     console.warn('Could not set content protection on mainWindow:', err.message);
   }
@@ -109,7 +109,7 @@ function createOverlayWindow(routePath, settingsStore) {
     overlayWindow.loadURL(`${WEB_URL}${routePath}`);
     bringToFront(overlayWindow, alwaysOnTop);
     try {
-      const stealth = settingsStore ? (settingsStore.get('stealthMode') !== false) : true;
+      const stealth = settingsStore ? (settingsStore.get('stealthMode') === true) : false;
       overlayWindow.setContentProtection(stealth);
     } catch { }
     return overlayWindow;
@@ -121,14 +121,20 @@ function createOverlayWindow(routePath, settingsStore) {
     // minimize/Hide/settings/End on the right) — it fit only by clipping
     // whichever button ran past the edge, End Interview most often, since
     // .pk-shell clips overflow rather than shrinking it.
-    width: 1140,
-    height: 390,
+    width: 900,
+    height: 640,
     minWidth: 400,
     minHeight: 180,
     frame: false,
+    titleBarStyle: process.platform === 'darwin' ? 'hidden' : undefined,
+    trafficLightPosition: process.platform === 'darwin' ? { x: -100, y: -100 } : undefined,
     transparent: true,
     alwaysOnTop,
-    resizable: true,
+    // Not user-resizable (a transparent window has no resize edges anyway):
+    // with it on, dragging the native drag area to a screen edge let Windows
+    // snap/maximize the window, and the bottom-anchored HUD jumped to the
+    // bottom of the screen. setBounds() still resizes it programmatically.
+    resizable: false,
     skipTaskbar: false,
     hasShadow: false,
     webPreferences: {
@@ -142,6 +148,13 @@ function createOverlayWindow(routePath, settingsStore) {
   });
 
   hardenWindow(overlayWindow);
+  // Only the copilot's own Expand button may maximize this window.
+  overlayWindow.on('maximize', () => {
+    if (!overlayWindow.feonixAllowMaximize) overlayWindow.unmaximize();
+  });
+  overlayWindow.on('unmaximize', () => {
+    overlayWindow.feonixAllowMaximize = false;
+  });
   if (alwaysOnTop) {
     if (process.platform === 'darwin') {
       overlayWindow.setAlwaysOnTop(true, 'screen-saver');
@@ -161,7 +174,7 @@ function createOverlayWindow(routePath, settingsStore) {
   // 7. GoTo Meeting (screen/application sharing)
   // 8. Whereby (screen/window/tab sharing)
   // 9. Google Meet, 10. Zoom, 11. Microsoft Teams, OBS, and OS screen recorders.
-  const stealthEnabled = settingsStore ? (settingsStore.get('stealthMode') !== false) : true;
+  const stealthEnabled = settingsStore ? (settingsStore.get('stealthMode') === true) : false;
   try {
     overlayWindow.setContentProtection(stealthEnabled);
     console.log(`🛡️ Screen share stealth set to ${stealthEnabled}: overlayWindow.setContentProtection(${stealthEnabled})`);
@@ -188,7 +201,7 @@ function createOverlayWindow(routePath, settingsStore) {
     const currentAlwaysOnTop = settingsStore ? Boolean(settingsStore.get('alwaysOnTop')) : alwaysOnTop;
     bringToFront(overlayWindow, currentAlwaysOnTop);
     try {
-      const currentStealth = settingsStore ? (settingsStore.get('stealthMode') !== false) : true;
+      const currentStealth = settingsStore ? (settingsStore.get('stealthMode') === true) : false;
       overlayWindow.setContentProtection(currentStealth);
     } catch { }
     overlayWindow.webContents.focus();

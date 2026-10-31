@@ -7,7 +7,14 @@ export default function ParakeetPricingView({
   onSelectPlan,
   loadingPlan = null,
   currentPlan = null,
+  activePublicPromos = [],
+  appliedCoupon = null,
+  onApplyCoupon = null,
+  onRemoveCoupon = null,
+  couponValidating = false,
+  couponError = '',
 }) {
+  const [inputCode, setInputCode] = useState('');
   // Subscription Card State
   const [subPeriod, setSubPeriod] = useState('monthly'); // 'weekly' | 'monthly' | 'yearly'
   const [subViewMode, setSubViewMode] = useState('hourly'); // 'total' | 'monthly' | 'hourly'
@@ -245,7 +252,11 @@ export default function ParakeetPricingView({
             onClick={handleSubClick}
             disabled={loadingPlan === activeSub.id}
           >
-            {loadingPlan === activeSub.id ? 'Opening Checkout…' : activeSub.btnText}
+            {loadingPlan === activeSub.id
+              ? 'Opening Checkout…'
+              : appliedCoupon
+              ? `${activeSub.btnText} (Coupon ${appliedCoupon.code} Applied)`
+              : activeSub.btnText}
           </button>
           <p className="pk-action-subnote">No lock-in. Cancel anytime.</p>
         </div>
@@ -347,7 +358,11 @@ export default function ParakeetPricingView({
             onClick={() => handleCreditClick()}
             disabled={loadingPlan === activePack.id}
           >
-            {loadingPlan === activePack.id ? 'Opening Checkout…' : activePack.btnText}
+            {loadingPlan === activePack.id
+              ? 'Opening Checkout…'
+              : appliedCoupon
+              ? `${activePack.btnText} ${appliedCoupon.bonus_credits > 0 ? `(+ ${appliedCoupon.bonus_credits} Bonus Credits!)` : `(Coupon ${appliedCoupon.code})`}`
+              : activePack.btnText}
           </button>
           <div className="pk-action-single-credit">
             or, just need 1 credit?{' '}
@@ -363,6 +378,79 @@ export default function ParakeetPricingView({
             </button>
           </div>
         </div>
+      </div>
+
+      {/* ================= COUPON CODE & PROMOTIONAL DISCOUNT BOX ================= */}
+      <div className="pk-coupon-card">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+          <span style={{ fontSize: '13px', fontWeight: 700, color: '#c4b5fd', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            🏷️ Have a Coupon or Promotional Code?
+          </span>
+          {appliedCoupon && (
+            <span style={{ fontSize: '12px', color: '#4ade80', fontWeight: 600 }}>
+              Discount Active
+            </span>
+          )}
+        </div>
+
+        <form
+          className="pk-coupon-row"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (onApplyCoupon && inputCode.trim()) {
+              onApplyCoupon(inputCode.trim(), activeSub.id);
+            }
+          }}
+        >
+          <input
+            type="text"
+            className="pk-coupon-input"
+            placeholder="ENTER COUPON CODE (E.G. FEONIX50)"
+            value={inputCode}
+            onChange={(e) => setInputCode(e.target.value.toUpperCase())}
+            disabled={couponValidating}
+          />
+          <button
+            type="submit"
+            className="pk-coupon-btn"
+            disabled={couponValidating || !inputCode.trim()}
+          >
+            {couponValidating ? 'Checking…' : 'Apply Coupon'}
+          </button>
+        </form>
+
+        {appliedCoupon && (
+          <div className="pk-coupon-success">
+            <div>
+              <strong>✓ Coupon {appliedCoupon.code} Applied: </strong>
+              <span>{appliedCoupon.name || 'Promotional Deal'}</span>
+              {appliedCoupon.discount_amount > 0 && (
+                <span> • Saved ₹{appliedCoupon.discount_amount}</span>
+              )}
+              {appliedCoupon.bonus_credits > 0 && (
+                <span style={{ color: '#c084fc', fontWeight: 700 }}>
+                  {' '}• 🎁 +{appliedCoupon.bonus_credits} Bonus Credits included!
+                </span>
+              )}
+            </div>
+            <button
+              type="button"
+              className="pk-coupon-remove-btn"
+              onClick={() => {
+                if (onRemoveCoupon) onRemoveCoupon();
+                setInputCode('');
+              }}
+            >
+              Remove
+            </button>
+          </div>
+        )}
+
+        {couponError && (
+          <div className="pk-coupon-error">
+            ⚠️ {couponError}
+          </div>
+        )}
       </div>
 
       {/* ================= BOTTOM TRUST HIGHLIGHTS ================= */}

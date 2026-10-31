@@ -138,7 +138,19 @@ export default function CopilotAppView({
 
       <main className="stage">
         <section className="answer-pane">
-          {liveCueLine ? (
+          {tallyState === 'answering' && !liveAnswer ? (
+            <div className="empty-state answering-state" style={{ color: '#4ade80', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '160px' }}>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', fontSize: '15px', fontWeight: '600' }}>
+                <span className="pk-btn-spinner" />
+                <span>Fetching answer for detected question…</span>
+              </div>
+              {liveCueLine && (
+                <div className="cue-line" style={{ marginTop: '14px', maxWidth: '85%', textAlign: 'center', opacity: 0.9 }}>
+                  "{liveCueLine}"
+                </div>
+              )}
+            </div>
+          ) : liveCueLine ? (
             <>
               <div className="cue-line">{liveCueLine}</div>
               <div className="qtype">{liveQType}</div>

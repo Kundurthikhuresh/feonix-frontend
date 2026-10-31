@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { isSilenceHallucination, NON_QUESTION_PLEASANTRIES, OUTRO_OR_GREETING_ANYWHERE } from '../../services/speechService';
 
 // How close to the bottom (in px of unscrolled content) still counts as
 // "at the bottom" for auto-scroll purposes — matches how most chat UIs
@@ -17,12 +18,14 @@ const NEAR_BOTTOM_PX = 80;
  * message gets its own Copy button regardless of age.
  */
 export default function AnswerPanel({
-  visible, messages = [], isExpanded, elapsedText, hasError,
+  visible, messages = [], answersHistory = [], currentAnswerIndex = 0,
+  isExpanded, elapsedText, hasError,
+  onPrevious, onNext, onClear, onToggleExpand,
   onCopyMessage, onThumbUp, onThumbDown,
   onRegenerate, onShorten, onExpand, onRetry,
 }) {
   const containerRef = useRef(null);
-  const isNearBottomRef = useRef(true);
+  const isNearTopRef = useRef(true);
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
   // Full-size view of an attached screenshot. Rendered in-page rather than
   // via window.open() — the Electron main process's setWindowOpenHandler
@@ -49,44 +52,158 @@ export default function AnswerPanel({
     if (copiedTimeoutRef.current) clearTimeout(copiedTimeoutRef.current);
   }, []);
 
-  const isNearBottom = () => {
+  const isNearTop = () => {
     const el = containerRef.current;
     if (!el) return true;
-    return el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM_PX;
+    return el.scrollTop < 60;
   };
 
   const handleScroll = () => {
-    const near = isNearBottom();
-    isNearBottomRef.current = near;
-    setShowJumpToLatest(!near && messages.length > 0);
+    const el = containerRef.current;
+    if (!el) return;
+    const nearTop = isNearTop();
+    isNearTopRef.current = nearTop;
+    setShowJumpToLatest(!nearTop);
   };
 
-  // Runs on every new message AND on every in-place streaming update to the
-  // latest one (both replace the `messages` array reference) — auto-scroll
-  // only follows along if the user hadn't scrolled away to read something
-  // earlier, otherwise their scroll position is left exactly where it was.
+  // 1. Convert live messages from current session into chronological live turns
+  const liveTurns = [];
+  if (messages && messages.length > 0) {
+    for (let i = 0; i < messages.length; i++) {
+      if (messages[i].role === 'user') {
+        const userMsg = messages[i];
+        const qText = userMsg.content || '';
+        // Strictly filter out silence artifacts, greetings, and YouTube outro phrases
+        if (
+          isSilenceHallucination(qText) ||
+          NON_QUESTION_PLEASANTRIES.test(qText) ||
+          OUTRO_OR_GREETING_ANYWHERE.test(qText)
+        ) {
+          if (i + 1 < messages.length && messages[i + 1].role === 'assistant') {
+            i++; // skip corresponding assistant placeholder
+          }
+          continue;
+        }
+        let assistantMsg = null;
+        if (i + 1 < messages.length && messages[i + 1].role === 'assistant') {
+          assistantMsg = messages[i + 1];
+          i++; // pair consumed
+        }
+        liveTurns.push({
+          id: userMsg.id || `turn-${liveTurns.length}`,
+          questionId: userMsg.id,
+          answerId: assistantMsg?.id || `ans-${userMsg.id}`,
+          question: userMsg.content || '',
+          images: userMsg.images || [],
+          answerHtml: assistantMsg?.html || '',
+          isStreaming: Boolean(assistantMsg?.streaming),
+          isError: Boolean(assistantMsg?.error || (i >= messages.length - 1 && hasError)),
+          timestamp: userMsg.createdAt ? new Date(userMsg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : (elapsedText || 'Live'),
+        });
+      } else if (messages[i].role === 'assistant') {
+        const assistantMsg = messages[i];
+        liveTurns.push({
+          id: assistantMsg.id || `turn-${liveTurns.length}`,
+          questionId: null,
+          answerId: assistantMsg.id,
+          question: '',
+          images: [],
+          answerHtml: assistantMsg.html || '',
+          isStreaming: Boolean(assistantMsg.streaming),
+          isError: Boolean(assistantMsg.error),
+          timestamp: assistantMsg.createdAt ? new Date(assistantMsg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : (elapsedText || 'Live'),
+        });
+      }
+    }
+  }
+
+  // Enrich any live turn that hasn't received HTML yet with matched answer from answersHistory if available
+  if (answersHistory && answersHistory.length > 0) {
+    liveTurns.forEach((turn) => {
+      if (!turn.answerHtml && turn.question) {
+        const qNorm = turn.question.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+        const match = answersHistory.find((a) => (a.question || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '') === qNorm);
+        if (match && match.answerHtml) {
+          turn.answerHtml = match.answerHtml;
+          turn.isStreaming = false;
+        }
+      }
+    });
+  }
+
+  // 2. Load historical turns from answersHistory (avoiding duplicates with live turns)
+  const liveQuestionNorms = new Set(
+    liveTurns
+      .map((t) => (t.question || '').trim().toLowerCase().replace(/[^a-z0-9]/g, ''))
+      .filter(Boolean)
+  );
+
+  const historyTurnsOldestFirst = [];
+  if (answersHistory && answersHistory.length > 0) {
+    const historyOnly = answersHistory.filter((item) => {
+      const qText = item.question || '';
+      if (
+        isSilenceHallucination(qText) ||
+        NON_QUESTION_PLEASANTRIES.test(qText) ||
+        OUTRO_OR_GREETING_ANYWHERE.test(qText)
+      ) {
+        return false;
+      }
+      const qNorm = (item.question || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+      return !qNorm || !liveQuestionNorms.has(qNorm);
+    });
+
+    const reversed = [...historyOnly].reverse();
+    reversed.forEach((item, idx) => {
+      historyTurnsOldestFirst.push({
+        id: item.id || `hist-${idx}`,
+        questionId: `hist-q-${item.id || idx}`,
+        answerId: `hist-a-${item.id || idx}`,
+        question: item.question || '',
+        images: [],
+        answerHtml: item.answerHtml || '',
+        isStreaming: false,
+        isError: false,
+        timestamp: item.timestamp || '',
+      });
+    });
+  }
+
+  // 3. Chronological list of all questions (oldest to newest)
+  const chronologicalTurns = [...historyTurnsOldestFirst, ...liveTurns];
+  chronologicalTurns.forEach((turn, idx) => {
+    turn.qNumber = idx + 1;
+  });
+
+  // 4. Reverse for feed: Recently asked questions at the TOP, previous questions below
+  const turns = [...chronologicalTurns].reverse();
+
+  // Runs on every new message or history update — auto-anchors at top (scrollTop = 0)
+  // unless user intentionally scrolled down to read older history
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-    if (isNearBottomRef.current) {
-      el.scrollTop = el.scrollHeight;
-    } else if (messages.length > 0) {
-      setShowJumpToLatest(true);
-    }
-  }, [messages]);
+    requestAnimationFrame(() => {
+      if (el) {
+        if (isNearTopRef.current) {
+          el.scrollTop = 0;
+        } else if (turns.length > 1) {
+          setShowJumpToLatest(true);
+        }
+      }
+    });
+  }, [messages, answersHistory, turns.length]);
 
   const jumpToLatest = () => {
     const el = containerRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-    isNearBottomRef.current = true;
+    if (el) {
+      el.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+    isNearTopRef.current = true;
     setShowJumpToLatest(false);
   };
 
-  // Per-code-block Copy button — the button lives inside HTML generated by
-  // answerFormatter.js and injected via dangerouslySetInnerHTML, so it can't
-  // carry its own React onClick. Event delegation on the scroll container
-  // catches clicks on any of them, present or added later while streaming,
-  // without needing to re-wire anything as new code blocks stream in.
+  // Per-code-block Copy button via event delegation
   const handleConversationClick = (e) => {
     const btn = e.target.closest('.parakeet-code-copy-btn');
     if (!btn) return;
@@ -101,40 +218,86 @@ export default function AnswerPanel({
 
   if (!visible) return null;
 
-  let lastAssistantId = null;
-  for (let i = messages.length - 1; i >= 0; i--) {
-    if (messages[i].role === 'assistant') {
-      lastAssistantId = messages[i].id;
-      break;
-    }
-  }
-
   return (
     <div className="pk-answer-card-wrap">
       <div
-        className={`pk-answer-card pk-conversation ${isExpanded ? 'pk-expanded' : ''}`}
-        style={{ maxHeight: isExpanded ? 'calc(100vh - 210px)' : '440px' }}
+        className={`pk-answer-card pk-conversation pk-answer-reference ${isExpanded ? 'pk-expanded' : ''}`}
+        style={{ maxHeight: isExpanded ? 'calc(100vh - 210px)' : '460px' }}
         ref={containerRef}
         onScroll={handleScroll}
         onClick={handleConversationClick}
       >
-        {messages.length === 0 ? (
+        <div className="pk-answer-toolbar">
+          <div className="pk-answer-history-controls" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '11px', color: '#a1a1aa', fontWeight: 600 }}>
+              {turns.length > 0 ? `Q&A History (${turns.length} ${turns.length === 1 ? 'question' : 'questions'})` : 'Q&A Feed'}
+            </span>
+            {turns.length > 1 && (
+              <span style={{ fontSize: '10px', color: '#71717a' }}>↓ Scroll down for previous answers</span>
+            )}
+          </div>
+          <div className="pk-answer-toolbar-actions">
+            {onClear && (
+              <button
+                type="button"
+                className="pk-answer-clear-btn"
+                onClick={onClear}
+                title="Clear all questions and answers (Backspace)"
+                aria-label="Clear all questions and answers"
+              >
+                Clear <kbd>⌫</kbd>
+              </button>
+            )}
+            <button type="button" onClick={onToggleExpand} title={isExpanded ? 'Restore panel size' : 'Expand panel'} aria-label={isExpanded ? 'Restore panel size' : 'Expand panel'}>
+              {isExpanded ? '↙' : '↗'}
+            </button>
+          </div>
+        </div>
+
+        {turns.length === 0 ? (
           <div className="pk-placeholder">
             ✨ <strong>FeonixAI Copilot Ready</strong>
             <br />
             <span>Start speaking, capture a coding problem, or type a question below to begin.</span>
           </div>
         ) : (
-          messages.map((m) => (
-            m.role === 'user' ? (
-              <div className="pk-user-turn" key={m.id}>
-                {m.images && m.images.length > 0 && (
-                  <div className="pk-msg-screenshots">
-                    {m.images.map((src, i) => (
+          turns.map((turn, index) => {
+            const isLatestTurn = index === 0;
+            const qNum = turn.qNumber || (turns.length - index);
+            return (
+              <div
+                className={`pk-answer-turn ${turn.isStreaming ? 'pk-answer-turn-active' : ''}`}
+                key={turn.id || index}
+                id={`turn-${turn.id || index}`}
+              >
+                {/* User Question Block */}
+                {turn.question && (
+                  <div className="pk-reference-question">
+                    <span className={`pk-turn-badge ${isLatestTurn ? 'pk-turn-badge-latest' : ''}`}>
+                      Q{qNum}{isLatestTurn ? ' • Latest' : ''}
+                    </span>
+                    <span className="pk-reference-icon">💬</span>
+                    <strong>Question:</strong>
+                    <span style={{ flex: 1, minWidth: 0, wordBreak: 'break-word' }}>{turn.question}</span>
+                    <button
+                      className="pk-reference-copy"
+                      type="button"
+                      title="Copy question"
+                      onClick={() => handleCopyClick(`q-${turn.id || index}`, turn.question)}
+                    >
+                      {copiedId === `q-${turn.id || index}` ? '✓' : '⧉'}
+                    </button>
+                  </div>
+                )}
+
+                {/* Attached Screenshot Thumbnails */}
+                {turn.images?.length > 0 && (
+                  <div className="pk-msg-screenshots" style={{ marginTop: '8px' }}>
+                    {turn.images.map((src, imgIdx) => (
                       <img
-                        key={i}
+                        key={imgIdx}
                         src={src}
-                        alt={`Attached screenshot ${i + 1}`}
+                        alt={`Attached screenshot ${imgIdx + 1}`}
                         className="pk-msg-screenshot-thumb"
                         onClick={() => setZoomedImage(src)}
                         title="Click to view full size"
@@ -142,79 +305,111 @@ export default function AnswerPanel({
                     ))}
                   </div>
                 )}
-                <div className="pk-question-line">
-                  <span className="pk-ql-icon">💬</span>
-                  <span className="pk-ql-badge">You</span>
-                  <span className="pk-ql-text pk-ql-multiline">{m.content}</span>
-                  <button
-                    className="pk-copy-btn"
-                    title="Copy question"
-                    type="button"
-                    onClick={() => handleCopyClick(m.id, m.content)}
-                  >
-                    {copiedId === m.id ? '✓' : '⧉'}
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="pk-msg-assistant" key={m.id}>
-                {m.streaming && !m.html && (
-                  <div className="pk-thinking">
-                    <span className="pk-thinking-pulse" />
-                    <span className="pk-thinking-text">Crafting optimal answer…</span>
+
+                {/* AI Answer Block */}
+                <div className="pk-reference-answer">
+                  <div className="pk-reference-answer-title">
+                    <span>⭐</span>
+                    <strong>Answer:</strong>
                   </div>
-                )}
-                {m.html && (
-                  <div className="pk-answer-body" dangerouslySetInnerHTML={{ __html: m.html }} />
-                )}
-                {m.html && (
-                  m.id === lastAssistantId ? (
-                    !m.streaming && (
-                      <div className="pk-answer-foot">
-                        <span className="pk-foot-label">
-                          <span className="pk-foot-dot" />
-                          Answer ready · {elapsedText || 'Live'}
-                        </span>
-                        <div className="pk-foot-actions">
-                          {hasError || m.error ? (
-                            <button className="pk-thumb pk-thumb-retry" onClick={onRetry} type="button" title="Retry">↻ Retry</button>
-                          ) : (
-                            <>
-                              <button className="pk-thumb" onClick={onShorten} type="button" title="Make answer shorter and punchier">⇲ Shorten</button>
-                              <button className="pk-thumb" onClick={onExpand} type="button" title="Expand with more technical depth">⇱ Deepen</button>
-                              <button className="pk-thumb" onClick={onRegenerate} type="button" title="Generate alternative answer">↻ Regenerate</button>
-                              <button className="pk-thumb" onClick={() => handleCopyClick(m.id, m.html, true)} type="button" title="Copy response to clipboard">
-                                {copiedId === m.id ? '✓ Copied' : '⧉ Copy'}
-                              </button>
-                              <button className="pk-thumb" onClick={onThumbUp} type="button" title="Good answer">👍</button>
-                              <button className="pk-thumb" onClick={onThumbDown} type="button" title="Needs improvement">👎</button>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    )
-                  ) : (
-                    <div className="pk-answer-foot pk-answer-foot-minor">
+
+                  {turn.isStreaming && !turn.answerHtml && (
+                    <div className="pk-thinking">
+                      <span className="pk-thinking-pulse" />
+                      <span className="pk-thinking-text">Crafting optimal answer…</span>
+                    </div>
+                  )}
+
+                  {turn.isStreaming && turn.answerHtml && (
+                    <div className="pk-thinking-live-badge">
+                      <span className="pk-btn-spinner" />
+                      <span>Streaming live answer…</span>
+                    </div>
+                  )}
+
+                  {turn.isError && !turn.answerHtml && (
+                    <div className="pk-answer-error">
+                      <span>Unable to fetch answer. Please try again.</span>
+                      {isLatestTurn && (
+                        <button className="pk-thumb pk-thumb-retry" onClick={onRetry} type="button">
+                          ↻ Retry
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {!turn.isStreaming && !turn.answerHtml && !turn.isError && (
+                    <div className="pk-thinking">
+                      <span className="pk-thinking-pulse" />
+                      <span className="pk-thinking-text">Crafting optimal answer…</span>
+                    </div>
+                  )}
+
+                  {turn.answerHtml && (
+                    <div
+                      className="pk-answer-body"
+                      dangerouslySetInnerHTML={{ __html: turn.answerHtml }}
+                    />
+                  )}
+
+                  {turn.isError && isLatestTurn && (
+                    <div style={{ marginTop: '10px' }}>
                       <button
-                        className="pk-thumb"
                         type="button"
-                        title="Copy response to clipboard"
-                        onClick={() => handleCopyClick(m.id, m.html, true)}
+                        onClick={onRetry}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          padding: '6px 14px',
+                          borderRadius: '8px',
+                          background: 'rgba(239, 68, 68, 0.15)',
+                          border: '1px solid rgba(239, 68, 68, 0.35)',
+                          color: '#fca5a5',
+                          cursor: 'pointer',
+                          fontSize: '12px',
+                          fontWeight: 600,
+                        }}
                       >
-                        {copiedId === m.id ? '✓ Copied' : '⧉ Copy'}
+                        ↻ Retry Question
                       </button>
                     </div>
-                  )
+                  )}
+                </div>
+
+                {/* Action Footer for this Turn */}
+                {turn.answerHtml && !turn.isStreaming && (
+                  <div className="pk-reference-footer">
+                    <span>Answer {qNum} · {turn.timestamp || elapsedText || 'Session'}</span>
+                    <div className="pk-reference-actions">
+                      <button
+                        type="button"
+                        title="Copy answer"
+                        onClick={() => handleCopyClick(`a-${turn.id || index}`, turn.answerHtml, true)}
+                      >
+                        {copiedId === `a-${turn.id || index}` ? '✓' : '⧉'}
+                      </button>
+                      <button type="button" title="Good answer" onClick={onThumbUp}>👍</button>
+                      <button type="button" title="Needs improvement" onClick={onThumbDown}>👎</button>
+                      {isLatestTurn && (
+                        <>
+                          <button type="button" title="Shorten answer" onClick={onShorten}>⇲</button>
+                          <button type="button" title="Deepen answer" onClick={onExpand}>⇱</button>
+                          <button type="button" title="Regenerate answer" onClick={onRegenerate}>↻</button>
+                        </>
+                      )}
+                    </div>
+                  </div>
                 )}
               </div>
-            )
-          ))
+            );
+          })
         )}
       </div>
 
       {showJumpToLatest && (
-        <button className="pk-jump-latest" type="button" onClick={jumpToLatest}>
-          ↓ Jump to latest
+        <button className="pk-jump-latest" type="button" onClick={jumpToLatest} title="Jump to recently asked question at the top">
+          ↑ Jump to latest ({`Q${turns[0]?.qNumber || turns.length}`})
         </button>
       )}
 

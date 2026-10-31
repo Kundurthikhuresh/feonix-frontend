@@ -17,7 +17,6 @@ function SessionTypeContent() {
   const [message, setMessage] = useState({ text: '', isError: false, busy: false });
   const [toastMsg, setToastMsg] = useState('');
   const [showToast, setShowToast] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [buttonsDisabled, setButtonsDisabled] = useState(false);
 
   // Initialize and load configurations
@@ -168,7 +167,9 @@ function SessionTypeContent() {
       if (res.ok) {
         const data = await res.json();
         const acc = data.account || {};
-        const creds = acc.credits !== undefined ? acc.credits : 5;
+        const creds = acc.credits !== undefined && acc.credits !== null && Number(acc.credits) > 0
+          ? Number(acc.credits).toFixed(1)
+          : (acc.trials_remaining ?? 5);
         setCreditsText(`${creds} ${creds === 1 ? 'Credit' : 'Credits'}`);
         return;
       }
@@ -338,10 +339,6 @@ function SessionTypeContent() {
               <span className="credits-dot"></span>
               <span>{creditsText}</span>
             </div>
-
-            <div className="tool-actions">
-              <button className="icon-btn" onClick={() => setSettingsOpen(true)} title="Settings" type="button">⚙</button>
-            </div>
           </div>
 
           {/* Body Content */}
@@ -407,24 +404,12 @@ function SessionTypeContent() {
             </div>
           </div>
 
-          {/* Sliding Drawer Panel */}
-          <div className={`settings-panel ${settingsOpen ? 'open' : ''}`}>
-            <div className="settings-head">
-              <h2>Settings</h2>
-              <button className="icon-btn" onClick={() => setSettingsOpen(false)} type="button">✕</button>
-            </div>
-            <div className="setting-item">
-              <span className="setting-label">Automatic Answering</span>
-              <button className={`priv-toggle ${autoAnswer ? 'is-on' : 'is-off'}`} onClick={handleToggleAutoAnswer} type="button">
-                {autoAnswer ? 'Auto: ON' : 'Auto: OFF'}
-              </button>
-            </div>
-          </div>
-
           {/* Toast Notification */}
-          <div className={`toast ${showToast ? 'show' : ''}`}>
-            {toastMsg}
-          </div>
+          {showToast && (
+            <div className="toast-popup">
+              {toastMsg}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -433,7 +418,7 @@ function SessionTypeContent() {
 
 export default function SessionTypePage() {
   return (
-    <Suspense fallback={<div style={{ color: '#fff', padding: '20px' }}>Loading session options...</div>}>
+    <Suspense fallback={<div className="session-picker-container" style={{ background: '#08090d', color: '#888', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Loading…</div>}>
       <SessionTypeContent />
     </Suspense>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from 'react';
+import { use, useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { postJSON } from '../lib/api';
 import { formatTimeSeconds } from '../lib/utils';
@@ -52,6 +52,7 @@ import AskFeonix3DSection from '../components/landing/AskFeonix3DSection';
 import CareerJourney3DSection from '../components/landing/CareerJourney3DSection';
 import ProductShowcase3DSection from '../components/landing/ProductShowcase3DSection';
 
+import Simple3DLandingPage from '../components/landing/Simple3DLandingPage';
 import dynamic from 'next/dynamic';
 
 const AIAssistantModal = dynamic(() => import('../components/assistant/AIAssistantModal'), {
@@ -94,8 +95,35 @@ const SIM_SAMPLES = [
   }
 ];
 
-export default function Page() {
+// The last dashboard this browser showed (user, account figures, sessions), so
+// "Back to Dashboard" can paint it at once while the sign-in check — seconds
+// on a slow database — runs behind it and refreshes everything. Cleared on
+// logout and whenever the check finds no signed-in user.
+const DASH_CACHE_KEY = 'feonix:dash-cache';
+
+function readDashCache() {
+  try { return JSON.parse(localStorage.getItem(DASH_CACHE_KEY)) || null; } catch { return null; }
+}
+
+function writeDashCache(patch) {
+  try {
+    const current = readDashCache() || {};
+    // A different account signing in must not inherit the previous one's data.
+    const base = patch.user && current.user && current.user.id !== patch.user.id ? {} : current;
+    localStorage.setItem(DASH_CACHE_KEY, JSON.stringify({ ...base, ...patch }));
+  } catch { /* storage blocked or full: the dashboard just loads normally */ }
+}
+
+function clearDashCache() {
+  try { localStorage.removeItem(DASH_CACHE_KEY); } catch { /* ignore */ }
+}
+
+export default function Page({ searchParams }) {
   const router = useRouter();
+  // Read on the server as well as in the browser, so a ?view=dash link gets
+  // the "Loading dashboard…" screen in its very first HTML rather than the
+  // landing page.
+  const initialQuery = use(searchParams) || {};
 
   // Navigation & Page State
   const [user, setUser] = useState(null);
@@ -107,6 +135,13 @@ export default function Page() {
     return 'landing';
   }); // 'landing', 'dash', 'app', 'review'
   const [authChecked, setAuthChecked] = useState(true);
+  // True while a ?view=dash (or admin) link waits for the sign-in check. That
+  // check can take seconds, and showing the landing page meanwhile looked like
+  // "Back to Dashboard" had sent the user to the landing page. Derived from the
+  // query the server also sees, so server and browser render the same thing.
+  const [openingDash, setOpeningDash] = useState(
+    initialQuery.view === 'dash' || initialQuery.view === 'admin' || initialQuery.pane === 'admin'
+  );
   const [activeFaq, setActiveFaq] = useState(null);
   const [showAssistantModal, setShowAssistantModal] = useState(false);
   const [showDemoVideoModal, setShowDemoVideoModal] = useState(false);
@@ -175,22 +210,47 @@ export default function Page() {
   // Auth Modal State
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authMode, setAuthMode] = useState('login'); // 'login', 'register', 'forgot'
+  const [authRole, setAuthRole] = useState('user'); // 'user', 'admin'
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [authSignupCode, setAuthSignupCode] = useState('');
+  const [authAdminCode, setAuthAdminCode] = useState('');
   const [authMsg, setAuthMsg] = useState({ text: '', type: '' });
   const [authLoading, setAuthLoading] = useState(false);
 
   // Quota & Catalogue States
   const [catalogue, setCatalogue] = useState(null);
   const [account, setAccount] = useState(null);
-  const [creditsLeft, setCreditsLeft] = useState('—');
-  const [usedCredits, setUsedCredits] = useState('—');
-  const [trialsLeft, setTrialsLeft] = useState('—');
+  const [creditsLeft, setCreditsLeft] = useState('0.0');
+  const [usedCredits, setUsedCredits] = useState('0.0');
+  const [trialsLeft, setTrialsLeft] = useState(5);
 
   // Dashboard Panel State
   const [activePane, setActivePane] = useState('sessions'); // 'sessions', 'resumes', 'documents', 'admin'
   const [sessions, setSessions] = useState([]);
+
+  // A dashboard link with a remembered dashboard paints it straight away,
+  // before the browser shows anything; the sign-in check then refreshes it
+  // (or clears it and shows sign-in if the user is no longer signed in).
+  useLayoutEffect(() => {
+    if (!openingDash) return;
+    const cached = readDashCache();
+    if (!cached || !cached.user) return;
+    setUser(cached.user);
+    const cachedIsAdmin = Boolean(cached.user.is_admin || cached.user.role === 'owner');
+    setActivePane(cachedIsAdmin ? 'admin' : 'sessions');
+    if (Array.isArray(cached.sessions)) setSessions(cached.sessions);
+    const acc = cached.account;
+    if (acc) {
+      setAccount(acc);
+      if (acc.credits !== undefined && acc.credits !== null) setCreditsLeft(Number(acc.credits).toFixed(1));
+      if (acc.credits_used !== undefined && acc.credits_used !== null) setUsedCredits(Number(acc.credits_used).toFixed(1));
+      if (acc.trials_remaining !== undefined && acc.trials_remaining !== null) setTrialsLeft(acc.trials_remaining);
+    }
+    setCurrentView('dash');
+    setOpeningDash(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [resumes, setResumes] = useState([]);
   const [documents, setDocuments] = useState([]);
   const [sessionFilter, setSessionFilter] = useState('all');
@@ -295,12 +355,20 @@ export default function Page() {
         const data = await res.json();
         if (data.transcripts) {
           setLiveTranscripts(data.transcripts);
+          const lastLine = data.transcripts[data.transcripts.length - 1];
+          if (lastLine && lastLine.is_question) {
+            setLiveCueLine(lastLine.text);
+            setTallyState('answering');
+            setTallyLabel('Answering…');
+          }
         }
         if (data.answers && data.answers.length > 0) {
           const latestAnswer = data.answers[data.answers.length - 1];
           setLiveAnswer(latestAnswer.answer);
           setLiveCueLine(latestAnswer.question);
           setLiveQType(latestAnswer.kind || 'Interview Question');
+          setTallyState('listening');
+          setTallyLabel('Listening');
         }
       }
     } catch (err) {
@@ -385,16 +453,21 @@ export default function Page() {
     // ?auth=login opens it immediately instead.
     const initialAuth = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('auth') : null;
     if (initialAuth === 'login' || initialAuth === 'register') {
+      const initialRole = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('role') : null;
+      setAuthRole(initialRole === 'user' ? 'user' : 'admin');
       setAuthMode(initialAuth);
       setShowAuthModal(true);
     }
 
-    if (initialView === 'dash') {
-      setCurrentView('dash');
+const initialPane = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('pane') : null;
+
+    if (initialView === 'dash' || initialPane === 'admin' || initialView === 'admin') {
+      setCurrentView(initialView === 'admin' ? 'admin' : 'dash');
+      if (initialPane) setActivePane(initialPane);
       if (typeof window !== 'undefined') {
-        if (!window.history.state || window.history.state.view !== 'dash') {
+        if (!window.history.state || window.history.state.view !== (initialView || 'dash')) {
           window.history.replaceState({ view: 'landing' }, '', '/');
-          window.history.pushState({ view: 'dash' }, '', '/?view=dash');
+          window.history.pushState({ view: initialView || 'dash' }, '', `/?view=${initialView || 'dash'}${initialPane ? `&pane=${initialPane}` : ''}`);
         }
       }
     } else if (isReload) {
@@ -405,15 +478,21 @@ export default function Page() {
     } else if (initialView) {
       window.history.replaceState({ view: initialView }, '');
       setCurrentView(initialView);
-    } else if (typeof window !== 'undefined') {
-      if (!window.history.state || !window.history.state.view) {
-        window.history.replaceState({ view: 'landing' }, '', '/');
-      }
+    }
     }
 
     const handlePopState = (e) => {
       const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
       const queryView = urlParams ? urlParams.get('view') : null;
+
+      // A review is opened in place (never pushed), so any review entry reached
+      // with Back is a stale one from before — go to the landing page instead
+      // of reopening a review that was already closed.
+      if ((e.state && e.state.view === 'review') || (!e.state?.view && queryView === 'review')) {
+        window.history.replaceState({ view: 'landing' }, '', '/');
+        setCurrentView('landing');
+        return;
+      }
 
       if (e.state && e.state.view) {
         if (e.state.view === 'dash' && !userRef.current) {
@@ -447,7 +526,9 @@ export default function Page() {
 
     const runId = ++bootRunIdRef.current;
     const bootAbort = new AbortController();
-    checkUserSession(runId, bootAbort.signal);
+    checkUserSession(runId, bootAbort.signal).finally(() => {
+      if (runId === bootRunIdRef.current) setOpeningDash(false);
+    });
 
     let count = 11 * 3600 + 19 * 60 + 36;
     const bannerTimer = setInterval(() => {
@@ -533,6 +614,13 @@ export default function Page() {
         const data = await res.json();
         if (stale()) return;
         setUser(data.user);
+        writeDashCache({ user: data.user });
+        if (data.user?.trials_remaining !== undefined && data.user?.trials_remaining !== null) {
+          setTrialsLeft(data.user.trials_remaining);
+        }
+        if (data.user?.credits !== undefined && data.user?.credits !== null) {
+          setCreditsLeft(Number(data.user.credits).toFixed(1));
+        }
         setAuthChecked(true);
 
         // Account/session/document data is needed by every authenticated
@@ -542,7 +630,12 @@ export default function Page() {
         // stuck at their placeholder '—' until an actual page reload hit
         // the other branch. Loading it once here, before branching, means
         // every landing spot has real data from the start.
-        setActivePane('sessions');
+        // Always route admins to the admin panel on page load/refresh
+        if (data.user?.is_admin || data.user?.role === 'owner') {
+          setActivePane('admin');
+        } else {
+          setActivePane('sessions');
+        }
         loadCatalogue();
         loadAccount();
         loadSessions();
@@ -553,7 +646,17 @@ export default function Page() {
         if (typeof window !== 'undefined') {
           const urlParams = new URLSearchParams(window.location.search);
           const sessionId = urlParams.get('session');
-          const requestedView = urlParams.get('view') || (currentViewRef.current === 'dash' ? 'dash' : null);
+const requestedView = urlParams.get('view') || (currentViewRef.current === 'dash' ? 'dash' : null);
+          const requestedPane = urlParams.get('pane');
+
+          if (requestedPane === 'admin' || requestedView === 'admin') {
+            if (data.user?.is_admin || data.user?.role === 'owner') {
+              if (stale()) return;
+              setActivePane('admin');
+              setCurrentView('dash');
+              return;
+            }
+          }
 
           if (requestedView === 'dash') {
             if (stale()) return;
@@ -601,22 +704,49 @@ export default function Page() {
       // superseded run, which is expected and not a real error)
     }
     if (stale()) return;
+    const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+    const isWantedAdmin = Boolean(urlParams && (
+      urlParams.get('pane') === 'admin' ||
+      urlParams.get('view') === 'admin'
+    ));
+    const wantedDash = Boolean(urlParams && (
+      urlParams.get('view') === 'dash' ||
+      isWantedAdmin
+    ));
+    clearDashCache();
     setUser(null);
     changeView('landing', true);
     setAuthChecked(true);
     if (typeof window !== 'undefined') {
-      const urlParams = new URLSearchParams(window.location.search);
-      if (urlParams.get('view') === 'dash') {
-        setShowAuthModal(true);
+      if (wantedDash) {
+        setAuthRole(isWantedAdmin ? 'admin' : 'user');
         setAuthMode('login');
+        setShowAuthModal(true);
       }
     }
   };
 
-  const enterApp = async (loggedInUser, replaceHistory = false) => {
+  const enterApp = async (loggedInUser, requestedRole = null, replaceHistory = false) => {
     setUser(loggedInUser);
+    if (loggedInUser) writeDashCache({ user: loggedInUser });
+    if (loggedInUser?.trials_remaining !== undefined && loggedInUser?.trials_remaining !== null) {
+      setTrialsLeft(loggedInUser.trials_remaining);
+    } else {
+      setTrialsLeft(5);
+    }
+    if (loggedInUser?.credits !== undefined && loggedInUser?.credits !== null) {
+      setCreditsLeft(Number(loggedInUser.credits).toFixed(1));
+    }
+    const isAdmin = Boolean(loggedInUser?.is_admin || loggedInUser?.role === 'owner');
+
+    if (isAdmin) {
+      // Admins always land on the Admin Panel.
+      setActivePane('admin');
+    } else {
+      // Normal user: strictly restricted to user dashboard; cannot access admin pane
+      setActivePane('sessions');
+    }
     changeView('dash', replaceHistory);
-    setActivePane('sessions');
 
     // Load lists
     loadCatalogue();
@@ -664,7 +794,8 @@ export default function Page() {
         setAccount(acc);
         setCreditsLeft(acc.credits !== undefined && acc.credits !== null ? Number(acc.credits).toFixed(1) : '0.0');
         setUsedCredits(acc.credits_used !== undefined && acc.credits_used !== null ? Number(acc.credits_used).toFixed(1) : '0.0');
-        setTrialsLeft(acc.trials_remaining !== undefined && acc.trials_remaining !== null ? acc.trials_remaining : 0);
+        setTrialsLeft(acc.trials_remaining !== undefined && acc.trials_remaining !== null ? acc.trials_remaining : 5);
+        writeDashCache({ account: acc });
       }
     } catch (err) {
       console.error('Error loading account:', err);
@@ -677,6 +808,7 @@ export default function Page() {
       if (res.ok) {
         const data = await res.json();
         setSessions(data.sessions || []);
+        writeDashCache({ sessions: data.sessions || [] });
       }
     } catch (err) {
       console.error('Error loading sessions:', err);
@@ -737,16 +869,21 @@ export default function Page() {
 
   const handleDeleteSession = async (id) => {
     if (!window.confirm('Are you sure you want to delete this session?')) return;
+    // Remove the card right away; the server call runs behind it and the card
+    // comes back only if the delete actually fails.
+    const previous = sessions;
+    setSessions((list) => list.filter((s) => s.id !== id));
     try {
       const res = await fetch(`/api/sessions/${id}`, { method: 'DELETE' });
-      if (res.ok || res.status === 204) {
-        loadSessions();
+      if (res.ok || res.status === 204 || res.status === 404) {
         loadAccount();
         return;
       }
+      setSessions(previous);
       const data = await res.json().catch(() => ({}));
       window.alert(data.message || 'Could not delete this session. Please try again.');
     } catch (err) {
+      setSessions(previous);
       console.error('Error deleting session:', err);
       window.alert('Connection error — could not delete this session.');
     }
@@ -826,7 +963,13 @@ export default function Page() {
       return;
     }
 
-    const body = { email: authEmail, password: authPassword };
+    if (authRole === 'admin' && authMode === 'register') {
+      setAuthLoading(false);
+      setAuthMsg({ text: 'Admin accounts cannot be registered publicly.', type: 'err' });
+      return;
+    }
+
+    const body = { email: authEmail, password: authPassword, role: authRole === 'admin' ? 'admin' : 'user' };
     if (authMode === 'register' && authSignupCode) {
       body.signup_code = authSignupCode;
     }
@@ -839,15 +982,36 @@ export default function Page() {
       return;
     }
 
+    setAuthEmail('');
     setAuthPassword('');
+    setAuthAdminCode('');
     setShowAuthModal(false);
-    enterApp(data.user);
+
+    if (data?.account) {
+      const acc = data.account;
+      setAccount(acc);
+      if (acc.trials_remaining !== undefined && acc.trials_remaining !== null) {
+        setTrialsLeft(acc.trials_remaining);
+      }
+      if (acc.credits !== undefined && acc.credits !== null) {
+        setCreditsLeft(Number(acc.credits).toFixed(1));
+      }
+      if (acc.credits_used !== undefined && acc.credits_used !== null) {
+        setUsedCredits(Number(acc.credits_used).toFixed(1));
+      }
+    }
+
+    enterApp(data.user, authRole);
   };
 
   const handleLogout = async () => {
     await stopRecording();
     await fetch('/api/auth/logout', { method: 'POST' });
+    clearDashCache();
     setUser(null);
+    setTrialsLeft(5);
+    setCreditsLeft('0.0');
+    setUsedCredits('0.0');
     changeView('landing');
     setAuthEmail('');
     setAuthPassword('');
@@ -1008,7 +1172,7 @@ export default function Page() {
 
     const { ok, data } = await postJSON(
       `/api/sessions/${activeSession.id}/questions`,
-      { question: qText },
+{ question: qText },
       { timeoutMs: 90000 }
     );
     setTallyState('listening');
@@ -1020,7 +1184,7 @@ export default function Page() {
       setLiveCueLine(data.question || qText);
       setLiveQType(data.kind || 'Direct Question');
 
-      try {
+try {
         const tRes = await fetch(`/api/sessions/${activeSession.id}/transcript`);
         if (tRes.ok) {
           const tData = await tRes.json();
@@ -1030,6 +1194,7 @@ export default function Page() {
     } else {
       setLiveQType('⚠️ Generation Failed');
       setLiveAnswer(`Could not generate answer: ${data?.message || data?.error || 'Server error or request timed out.'}`);
+      setLiveCueLine(qText);
     }
   };
 
@@ -1047,9 +1212,14 @@ export default function Page() {
   // ----------------------------------------------------
   // Session Review Panel Logic
   // ----------------------------------------------------
-  const handleOpenReview = async (sessionId) => {
-    changeView('review');
-    setReviewPane('notes');
+  const handleOpenReview = async (sessionId, initialPane) => {
+    // Replace, not push: the review is a panel over the dashboard, so the
+    // browser Back button from the dashboard should go to the landing page,
+    // not back into a review that was already closed.
+    changeView('review', true);
+    if (initialPane) {
+      setReviewPane(initialPane);
+    }
     setReviewSessionId(sessionId);
     setReviewMessages([]);
     setReviewAskInput('');
@@ -1058,7 +1228,24 @@ export default function Page() {
       const res = await fetch(`/api/sessions/${sessionId}`);
       if (res.ok) {
         const data = await res.json();
-        setReviewData(data.session);
+        const fullSession = {
+          ...data.session,
+          transcripts: data.transcript || [],
+          answers: data.answers || [],
+        };
+        setReviewData(fullSession);
+
+        // Auto-fetch or generate notes if not present
+        if (!fullSession.notes) {
+          fetch(`/api/sessions/${sessionId}/notes`, { method: 'POST' })
+            .then(r => r.json())
+            .then(notesData => {
+              if (notesData?.notes) {
+                setReviewData(prev => (prev && prev.id === fullSession.id) ? { ...prev, notes: notesData.notes } : prev);
+              }
+            })
+            .catch(err => console.warn('Could not auto-generate notes:', err));
+        }
       }
     } catch (err) {
       console.error('Failed to load session review details:', err);
@@ -1082,6 +1269,18 @@ export default function Page() {
       setReviewMessages(prev => [...prev, { role: 'assistant', content: 'Could not fetch a response.' }]);
     }
   };
+
+  // Auto-load session details when navigating to review view directly
+  useEffect(() => {
+    if (currentView === 'review' && !reviewData && sessions.length > 0) {
+      const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+      const targetSessionId = urlParams?.get('session') || sessions[0]?.id;
+      const targetPane = urlParams?.get('pane') || reviewPane || 'ask';
+      if (targetSessionId) {
+        handleOpenReview(targetSessionId, targetPane);
+      }
+    }
+  }, [currentView, reviewData, sessions]);
 
   // ----------------------------------------------------
   // Admin Operations (Credits and Passwords)
@@ -1192,218 +1391,93 @@ export default function Page() {
   // Rendering Views
   // ----------------------------------------------------
 
+  if (openingDash && currentView === 'landing') {
+    return (
+      <div style={{ minHeight: '100vh', background: 'var(--bg, #2b2b2b)' }} />
+    );
+  }
+
   // 1. Futuristic 3D Marketing Landing Page View
   if (currentView === 'landing') {
     return (
       <div id="landingView" className="landing-3d-root">
-        {/* Dynamic 3D Particle Starfield & Neural Field */}
-        <ParticleBackground />
-
-        <div className="landing-3d-content">
-          {/* Glassmorphism Navbar with Theme Switcher */}
-          <Navbar3D
-            user={user}
-            themeMode={themeMode}
-            toggleTheme={toggleTheme}
-            onLoginClick={() => {
-              setAuthMode('login');
+        <Simple3DLandingPage
+          user={user}
+          themeMode={themeMode}
+          toggleTheme={toggleTheme}
+          onLoginClick={(role) => {
+            setAuthRole(role === 'admin' ? 'admin' : 'user');
+            setAuthMode('login');
+            setAuthMsg({ text: '', type: '' });
+            setShowAuthModal(true);
+          }}
+          onSignupClick={() => {
+            if (user) {
+              enterApp(user);
+            } else {
+              setAuthMode('register');
               setAuthMsg({ text: '', type: '' });
               setShowAuthModal(true);
-            }}
-            onSignupClick={() => {
-              if (user) {
-                enterApp(user);
-              } else {
-                setAuthMode('register');
-                setAuthMsg({ text: '', type: '' });
-                setShowAuthModal(true);
-              }
-            }}
-          />
+            }
+          }}
+          onGetStarted={() => {
+            if (user) {
+              enterApp(user);
+            } else {
+              setAuthMode('register');
+              setAuthMsg({ text: '', type: '' });
+              setShowAuthModal(true);
+            }
+          }}
+          onSelectPlan={(plan) => {
+            if (user) {
+              enterApp(user);
+            } else {
+              setAuthMode('register');
+              setAuthMsg({ text: '', type: '' });
+              setShowAuthModal(true);
+            }
+          }}
+          onWatchDemo={() => setShowDemoVideoModal(true)}
+        />
 
-          {/* Hero Section with Interactive 3D AI Core Canvas */}
-          <Hero3DSection
-            onGetStarted={() => {
-              if (user) {
-                enterApp(user);
-              } else {
-                setAuthMode('register');
-                setAuthMsg({ text: '', type: '' });
-                setShowAuthModal(true);
-              }
-            }}
-            onExplore={() => {
-              setShowAssistantModal(true);
-            }}
-            onWatchDemo={() => {
-              setShowDemoVideoModal(true);
-            }}
-          />
+        {/* 3D AI Voice Assistant Modal */}
+        <AIAssistantModal
+          isOpen={showAssistantModal}
+          onClose={() => setShowAssistantModal(false)}
+        />
 
-          {/* 3D Holographic Statistics Counter Cards */}
-          <Stats3DSection />
-
-          {/* Futuristic 3D Interactive Features with Mouse Tilt Physics */}
-          <Features3DSection />
-
-          {/* NEW 1 — AI Career Intelligence */}
-          <CareerIntelligence3DSection />
-
-          {/* 3-Step Futuristic Workflow Timeline */}
-          <HowItWorks3DSection />
-
-          {/* NEW 2 — Resume to Interview Pipeline */}
-          <ResumePipeline3DSection />
-
-          {/* Parallel AI Duo Mode (Copilot + Coach) */}
-          <DualModeSection />
-
-          {/* NEW 3 — Real-Time Interview Copilot */}
-          <InterviewCopilot3DSection
-            onSimulate={() => {
-              if (user) {
-                enterApp(user);
-              } else {
-                setAuthMode('register');
-                setAuthMsg({ text: '', type: '' });
-                setShowAuthModal(true);
-              }
-            }}
-          />
-
-          {/* Interactive 3D Neural Network AI Core Showcase */}
-          <AIShowcase3DSection />
-
-          {/* Real-time Interactive 3D Copilot Teleprompter Simulator */}
-          <InteractiveSimulator3D />
-
-          {/* NEW 4 — AI Processing Pipeline */}
-          <AIProcessing3DSection />
-
-          {/* Interactive 3D Integrations & Ecosystem Matrix */}
-          <Integrations3DSection />
-
-          {/* NEW 5 — Technical Knowledge Graph */}
-          <KnowledgeGraph3DSection />
-
-          {/* NEW 6 — Interview Modes */}
-          <InterviewModes3DSection />
-
-          {/* NEW 7 — AI HUD */}
-          <AIHUD3DSection />
-
-          {/* Enterprise Security Quantum Vault 3D Section */}
-          <Security3DSection />
-
-          {/* NEW 8 — Career Readiness */}
-          <CareerReadiness3DSection />
-
-          {/* Candidate Testimonials 3D Carousel */}
-          <Testimonials3DSection themeMode={themeMode} />
-
-          {/* NEW 9 — Before vs After Feonix */}
-          <BeforeAfter3DSection />
-
-          {/* Live Video Showcase & Demo Section */}
-          <VideoShowcase3DSection
-            onWatchDemo={() => {
-              setShowDemoVideoModal(true);
-            }}
-          />
-
-          {/* NEW 10 — Feonix AI Ecosystem */}
-          <FeonixEcosystem3DSection />
-
-          {/* NEW 11 — Ask Feonix Interactive Demo */}
-          <AskFeonix3DSection />
-
-          {/* NEW 12 — Career Journey */}
-          <CareerJourney3DSection />
-
-          {/* Futuristic 3D Glassmorphism Pricing Tier Cards */}
-          <Pricing3DSection
-            onSelectPlan={(plan) => {
-              if (user) {
-                enterApp(user);
-              } else {
-                setAuthMode('register');
-                setAuthMsg({ text: '', type: '' });
-                setShowAuthModal(true);
-              }
-            }}
-          />
-
-          {/* Knowledge Base & FAQ Accordion */}
-          <FAQ3DSection />
-
-          {/* NEW 13 — Final Product Showcase */}
-          <ProductShowcase3DSection
-            onGetStarted={() => {
-              if (user) {
-                enterApp(user);
-              } else {
-                setAuthMode('register');
-                setAuthMsg({ text: '', type: '' });
-                setShowAuthModal(true);
-              }
-            }}
-            onExplore={() => {
-              setShowAssistantModal(true);
-            }}
-          />
-
-          {/* High-Impact 3D AI Energy Orb CTA Section */}
-          <CTA3DSection
-            onStartBuilding={() => {
-              if (user) {
-                enterApp(user);
-              } else {
-                setAuthMode('register');
-                setAuthMsg({ text: '', type: '' });
-                setShowAuthModal(true);
-              }
-            }}
-          />
-
-          {/* Futuristic Glassmorphic Footer */}
-          <Footer3D />
-
-
-
-          {/* 3D AI Voice Assistant Modal */}
-          <AIAssistantModal
-            isOpen={showAssistantModal}
-            onClose={() => setShowAssistantModal(false)}
-          />
-
-          {/* 90-Second Feature Demo Video Modal */}
-          <DemoVideo90sModal
-            isOpen={showDemoVideoModal}
-            onClose={() => setShowDemoVideoModal(false)}
-            onGetStarted={() => {
-              setShowDemoVideoModal(false);
-              if (user) {
-                enterApp(user);
-              } else {
-                setAuthMode('register');
-                setAuthMsg({ text: '', type: '' });
-                setShowAuthModal(true);
-              }
-            }}
-          />
-        </div>
+        {/* 90-Second Feature Demo Video Modal */}
+        <DemoVideo90sModal
+          isOpen={showDemoVideoModal}
+          onClose={() => setShowDemoVideoModal(false)}
+          onGetStarted={() => {
+            setShowDemoVideoModal(false);
+            if (user) {
+              enterApp(user);
+            } else {
+              setAuthMode('register');
+              setAuthMsg({ text: '', type: '' });
+              setShowAuthModal(true);
+            }
+          }}
+        />
 
         {/* Auth Modal Overlay */}
         {showAuthModal && (
           <AuthModal
             authMode={authMode}
             setAuthMode={setAuthMode}
+            authRole={authRole}
+            setAuthRole={setAuthRole}
             authEmail={authEmail}
             setAuthEmail={setAuthEmail}
             authPassword={authPassword}
             setAuthPassword={setAuthPassword}
             authSignupCode={authSignupCode}
             setAuthSignupCode={setAuthSignupCode}
+            authAdminCode={authAdminCode}
+            setAuthAdminCode={setAuthAdminCode}
             authLoading={authLoading}
             authMsg={authMsg}
             setAuthMsg={setAuthMsg}
@@ -1447,11 +1521,27 @@ export default function Page() {
         </div>
       );
     }
+
+    const isAdmin = Boolean(user.is_admin || user.role === 'owner');
+    // Admins only ever see the Admin Panel; a non-admin can never reach it.
+    const effectivePane = isAdmin ? 'admin' : (activePane === 'admin' ? 'sessions' : activePane);
+
+    if (isAdmin) {
+      return (
+        <AdminPane
+          user={user}
+          themeMode={themeMode}
+          toggleTheme={toggleTheme}
+          handleLogout={handleLogout}
+        />
+      );
+    }
+
     return (
       <div id="dashView">
         <Sidebar
           user={user}
-          activePane={activePane}
+          activePane={effectivePane}
           setActivePane={setActivePane}
           themeMode={themeMode}
           toggleTheme={toggleTheme}
@@ -1461,7 +1551,7 @@ export default function Page() {
           onGoLanding={() => changeView('landing')}
         />
 
-        {activePane === 'sessions' && (
+        {effectivePane === 'sessions' && (
           <SessionsPane
             sessions={sessions}
             sessionFilter={sessionFilter}
@@ -1478,9 +1568,9 @@ export default function Page() {
           />
         )}
 
-        {(activePane === 'resumes' || activePane === 'documents') && (
+        {(effectivePane === 'resumes' || effectivePane === 'documents') && (
           <LibraryPane
-            activePane={activePane}
+            activePane={effectivePane}
             resumes={resumes}
             documents={documents}
             libSearch={libSearch}
@@ -1489,47 +1579,6 @@ export default function Page() {
             handleUploadDocument={handleUploadDocument}
             handleActivateDocument={handleActivateDocument}
             handleDeleteDocument={handleDeleteDocument}
-          />
-        )}
-
-        {activePane === 'admin' && (
-          <AdminPane
-            adminUsers={adminUsers}
-            setShowAdminUserSheet={setShowAdminUserSheet}
-            openAdminAccount={openAdminAccount}
-            openPasswordReset={openPasswordReset}
-            showAdminUserSheet={showAdminUserSheet}
-            adminUserEmail={adminUserEmail}
-            setAdminUserEmail={setAdminUserEmail}
-            adminUserPassword={adminUserPassword}
-            setAdminUserPassword={setAdminUserPassword}
-            adminUserMsg={adminUserMsg}
-            handleCreateUser={handleCreateUser}
-            showAdminAccountSheet={showAdminAccountSheet}
-            setShowAdminAccountSheet={setShowAdminAccountSheet}
-            selectedAdminUserEmail={selectedAdminUserEmail}
-            adminUserCredits={adminUserCredits}
-            adminUserUsed={adminUserUsed}
-            adminUserTrials={adminUserTrials}
-            aaAction={aaAction}
-            setAaAction={setAaAction}
-            aaAmount={aaAmount}
-            setAaAmount={setAaAmount}
-            aaReason={aaReason}
-            setAaReason={setAaReason}
-            aaMsg={aaMsg}
-            handleApplyBalanceAdjustment={handleApplyBalanceAdjustment}
-            creditHistory={creditHistory}
-            trialHistory={trialHistory}
-            showPasswordSheet={showPasswordSheet}
-            setShowPasswordSheet={setShowPasswordSheet}
-            pwTargetEmail={pwTargetEmail}
-            pwNew={pwNew}
-            setPwNew={setPwNew}
-            pwConfirm={pwConfirm}
-            setPwConfirm={setPwConfirm}
-            pwMsg={pwMsg}
-            handlePasswordResetSubmit={handlePasswordResetSubmit}
           />
         )}
 
@@ -1605,16 +1654,50 @@ export default function Page() {
   // 4. Post Call Review View
   if (currentView === 'review') {
     return (
-      <ReviewSessionView
-        reviewPane={reviewPane}
-        setReviewPane={setReviewPane}
-        reviewData={reviewData}
-        reviewMessages={reviewMessages}
-        reviewAskInput={reviewAskInput}
-        setReviewAskInput={setReviewAskInput}
-        handleReviewAskSubmit={handleReviewAskSubmit}
-        setCurrentView={changeView}
-      />
+      <div id="dashView" className="has-review-modal">
+        {user && (
+          <>
+            <Sidebar
+              user={user}
+              activePane="sessions"
+              setActivePane={setActivePane}
+              themeMode={themeMode}
+              toggleTheme={toggleTheme}
+              handleLogout={handleLogout}
+              trialsLeft={trialsLeft}
+              creditsLeft={creditsLeft}
+              onGoLanding={() => changeView('landing')}
+            />
+            <SessionsPane
+              sessions={sessions}
+              sessionFilter={sessionFilter}
+              setSessionFilter={setSessionFilter}
+              sessionSearch={sessionSearch}
+              setSessionSearch={setSessionSearch}
+              creditsLeft={creditsLeft}
+              usedCredits={usedCredits}
+              trialsLeft={trialsLeft}
+              setShowCreateSheet={setShowCreateSheet}
+              handleOpenReview={handleOpenReview}
+              handleDeleteSession={handleDeleteSession}
+              onStartSession={handleStartSession}
+            />
+          </>
+        )}
+        <ReviewSessionView
+          reviewPane={reviewPane}
+          setReviewPane={setReviewPane}
+          reviewData={reviewData}
+          setReviewData={setReviewData}
+          reviewSessionId={reviewSessionId}
+          reviewMessages={reviewMessages}
+          clearReviewMessages={() => setReviewMessages([])}
+          reviewAskInput={reviewAskInput}
+          setReviewAskInput={setReviewAskInput}
+          handleReviewAskSubmit={handleReviewAskSubmit}
+          setCurrentView={(view) => changeView(view, true)}
+        />
+      </div>
     );
   }
 

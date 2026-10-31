@@ -1,4 +1,4 @@
-const { app, BrowserWindow, session } = require('electron');
+const { app, BrowserWindow, desktopCapturer, session } = require('electron');
 const path = require('path');
 const { Logger } = require('../logger');
 const { SettingsStore } = require('./settingsStore');
@@ -147,27 +147,56 @@ if (!gotLock) {
   });
 
   app.whenReady().then(() => {
-    session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
-      const allowed = ['media', 'audio-capture', 'display-capture', 'mediaKeySystem', 'notifications'];
-      if (allowed.includes(permission)) {
-        return callback(true);
-      }
-      callback(false);
-    });
+try {
+      if (session && session.defaultSession) {
+        session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
+          if (permission === 'media' || permission === 'audio-capture' || permission === 'desktop-capture') {
+            return callback(true);
+          }
+          callback(true);
+        });
+        if (typeof session.defaultSession.setPermissionCheckHandler === 'function') {
+          session.defaultSession.setPermissionCheckHandler(() => true);
+        }
+        if (typeof session.defaultSession.setDisplayMediaRequestHandler === 'function') {
+          const trustedOrigin = new URL(WEB_URL).origin;
+          const originOf = (request) => {
+            for (const candidate of [request.securityOrigin, request.frame && request.frame.url]) {
+              try { if (candidate) return new URL(candidate).origin; } catch {}
+            }
+            return '';
+          };
+          const refuse = (callback) => { try { callback({}); } catch {} };
 
-    session.defaultSession.setPermissionCheckHandler((webContents, permission) => {
-      const allowed = ['media', 'audio-capture', 'display-capture', 'mediaKeySystem', 'notifications'];
-      if (allowed.includes(permission)) {
-        return true;
-      }
-      return false;
-    });
+          session.defaultSession.setDisplayMediaRequestHandler(async (request, callback) => {
+            const origin = originOf(request);
+            if (origin !== trustedOrigin) {
+              logger.warn('Screen capture refused for untrusted origin:', origin || '(none)');
+              refuse(callback);
+              return;
+            }
 
-    if (session.defaultSession.setDisplayMediaRequestHandler) {
-      session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
-        callback({ video: request.videoRequested ? true : undefined, audio: 'loopback' });
-      });
-    }
+            try {
+              const sources = await desktopCapturer.getSources({ types: ['screen'] });
+              const primarySource = sources[0];
+              if (!primarySource) {
+                logger.warn('Screen capture: no screen source available');
+                refuse(callback);
+                return;
+              }
+
+              callback({
+                video: primarySource,
+                ...(request.audioRequested ? { audio: process.platform === 'win32' ? 'loopback' : true } : {}),
+              });
+            } catch (error) {
+              logger.warn('Screen capture failed:', error.message);
+              refuse(callback);
+            }
+          });
+        }
+      }
+    } catch {}
 
     registerIpcHandlers({
       logger,

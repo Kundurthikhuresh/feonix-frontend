@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, session } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, session, screen } = require('electron');
 const { DEV_TOOLS_ALLOWED, WEB_URL, getMainWindow, getOverlayWindow, createOverlayWindow, createMainWindow, bringToFront } = require('./window');
 const { createTray, destroyTray, setListeningState } = require('./tray');
 const { registerShortcuts } = require('./shortcuts');
@@ -68,7 +68,7 @@ function registerIpcHandlers({ logger, settingsStore, getPendingHandoff, clearPe
       mainWindow.show();
       mainWindow.focus();
     } else {
-      createMainWindow('/?view=dash');
+      createMainWindow('/?view=dash', settingsStore);
     }
 
     const overlayWindow = getOverlayWindow();
@@ -102,7 +102,7 @@ function registerIpcHandlers({ logger, settingsStore, getPendingHandoff, clearPe
     const alwaysOnTop = settingsStore ? Boolean(settingsStore.get('alwaysOnTop')) : true;
     bringToFront(win, alwaysOnTop);
     try {
-      const stealth = settingsStore ? (settingsStore.get('stealthMode') !== false) : true;
+      const stealth = settingsStore ? (settingsStore.get('stealthMode') === true) : false;
       win.setContentProtection(stealth);
     } catch { }
   });
@@ -119,7 +119,21 @@ function registerIpcHandlers({ logger, settingsStore, getPendingHandoff, clearPe
     if (!win || !Number.isFinite(width) || !Number.isFinite(height)) return;
     const w = Math.round(Math.max(MIN_WINDOW_DIM, Math.min(MAX_WINDOW_DIM, width)));
     const h = Math.round(Math.max(MIN_WINDOW_DIM, Math.min(MAX_WINDOW_DIM, height)));
-    win.setSize(w, h);
+    const bounds = win.getBounds();
+    const diffW = w - bounds.width;
+    // The dock sits at the bottom of the window, so the bottom edge is what the
+    // user placed: keep it fixed and grow/shrink upward. The top used to be
+    // clamped to the screen, which shoved a dock dragged near the top of the
+    // screen back down on every resize (an answer appearing, a menu opening).
+    // Only correct when the dock itself would leave the work area.
+    const area = screen.getDisplayMatching(bounds).workArea;
+    const DOCK_ZONE = 140;
+    let bottom = bounds.y + bounds.height;
+    bottom = Math.min(bottom, area.y + area.height);
+    bottom = Math.max(bottom, area.y + DOCK_ZONE);
+    const newY = bottom - h;
+    const newX = Math.max(area.x - Math.round(w / 2), bounds.x - Math.round(diffW / 2));
+    win.setBounds({ x: newX, y: newY, width: w, height: h });
     if (w > 300 && h > 100) {
       if (win.isMinimized()) win.restore();
       win.show();
@@ -134,6 +148,9 @@ function registerIpcHandlers({ logger, settingsStore, getPendingHandoff, clearPe
     if (win.isMaximized()) {
       win.unmaximize();
     } else {
+      // Marks this maximize as requested; window.js undoes any other one
+      // (Windows snap / double-click on the drag area).
+      win.feonixAllowMaximize = true;
       win.maximize();
     }
   });
@@ -151,6 +168,37 @@ function registerIpcHandlers({ logger, settingsStore, getPendingHandoff, clearPe
   // screen" looked like it wasn't moving at all. The gesture tracking stays
   // in the renderer (it already knows down/move/up and click-vs-drag); this
   // just forwards the per-frame delta to actually relocate the OS window.
+  // Window drag: follow the OS cursor at the grab offset instead of applying
+  // renderer movementX/Y deltas. Deltas drifted away from the cursor — they
+  // are scaled differently from window coordinates under Windows display
+  // scaling, and are lost whenever a fast move leaves the window.
+  let drag = null;
+  const stopDrag = () => {
+    if (drag) clearInterval(drag.timer);
+    drag = null;
+  };
+  ipcMain.on('feonix:drag-start', (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (!win) return;
+    stopDrag();
+    const cursor = screen.getCursorScreenPoint();
+    const b = win.getBounds();
+    const offset = { x: cursor.x - b.x, y: cursor.y - b.y };
+    const startedAt = Date.now();
+    drag = {
+      timer: setInterval(() => {
+        // Safety net in case the release is never reported.
+        if (win.isDestroyed() || Date.now() - startedAt > 120000) return stopDrag();
+        const p = screen.getCursorScreenPoint();
+        const { width, height } = win.getBounds();
+        // setBounds with the size pinned: plain setPosition can grow the
+        // window a few px per call on Windows with display scaling.
+        win.setBounds({ x: p.x - offset.x, y: p.y - offset.y, width, height });
+      }, 16),
+    };
+  });
+  ipcMain.on('feonix:drag-end', stopDrag);
+
   ipcMain.on('feonix:move-by', (event, dx, dy) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     if (!win || !Number.isFinite(dx) || !Number.isFinite(dy)) return;
@@ -211,48 +259,42 @@ function registerIpcHandlers({ logger, settingsStore, getPendingHandoff, clearPe
       }
     } else if (key === 'stealthMode') {
       const isStealth = Boolean(updated.stealthMode);
-      [getOverlayWindow(), getMainWindow()].forEach((win) => {
+BrowserWindow.getAllWindows().forEach((win) => {
         if (win && !win.isDestroyed()) {
           try {
             win.setContentProtection(isStealth);
-            logger.info(`🛡️ setContentProtection set to ${isStealth}`);
+            if (process.platform === 'win32') {
+              win.setBounds(win.getBounds());
+              if (win.webContents && !win.webContents.isDestroyed()) {
+                win.webContents.invalidate();
+              }
+            }
           } catch (err) {
             logger.warn('setContentProtection failed:', err.message);
           }
         }
       });
-    }
-
-    return updated;
-  });
-
-  // Pushed from the renderer whenever speech.listening changes, regardless
-  // of whether it was toggled from the panel or from the tray itself — the
-  // tray's own "Start/Stop Listening" label needs to reflect reality no
-  // matter where recording was actually turned on.
-  ipcMain.on('feonix:set-listening-state', (_event, value) => {
-    setListeningState(value);
-  });
-
-  ipcMain.handle('feonix:pending-handoff', () => {
-    const handoff = getPendingHandoff();
-    clearPendingHandoff();
-    return handoff;
-  });
-
-  ipcMain.handle('feonix:set-stealth-mode', (_event, enabled) => {
-    const isStealth = Boolean(enabled);
-    settingsStore.set('stealthMode', isStealth);
-    [getOverlayWindow(), getMainWindow()].forEach((win) => {
+      logger.info(`🛡️ setContentProtection set to ${isStealth} across all windows`); catch (err) {
+            logger.warn('setContentProtection failed:', err.message);
+          }
+        }
+      });
+BrowserWindow.getAllWindows().forEach((win) => {
       if (win && !win.isDestroyed()) {
         try {
           win.setContentProtection(isStealth);
-          logger.info(`🛡️ setContentProtection set to ${isStealth}`);
+          if (process.platform === 'win32') {
+            win.setBounds(win.getBounds());
+            if (win.webContents && !win.webContents.isDestroyed()) {
+              win.webContents.invalidate();
+            }
+          }
         } catch (err) {
           logger.warn('setContentProtection failed:', err.message);
         }
       }
     });
+    logger.info(`🛡️ setContentProtection set to ${isStealth} across all windows`);
     return isStealth;
   });
 

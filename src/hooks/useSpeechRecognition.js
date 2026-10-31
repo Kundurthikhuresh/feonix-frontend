@@ -1,149 +1,422 @@
 import { useState, useRef, useCallback } from 'react';
 import {
-  getListenStream, createChunkedRecorder, stopStreamTracks, transcribeChunk, looksLikeQuestion,
-  isSilenceHallucination, deduplicateRepeatedPhrases,
+  getListenChannels, createChunkedRecorder, stopStreamTracks, transcribeChunk,
+  isSilenceHallucination, deduplicateRepeatedPhrases, looksLikeQuestion,
 } from '../services/speechService';
+import { createUtteranceAssembler, createQuestionDeduper } from '../lib/questionDetector';
+import { createOrderedResults } from '../lib/orderedResults';
+
+// Transcript label sent to the answer API. "Candidate:" is what the backend's
+// "already said" logic keys on, so the local mic must use exactly that.
+const SPEAKER_LABELS = { interviewer: 'Interviewer', you: 'Candidate', unknown: 'Speaker' };
+const MAX_CONVERSATION_LINES = 40;
+// Chunks are 1.8s but a transcription can take longer; allow two in flight per
+// channel instead of dropping audio, and apply results in recorded order. Kept
+// at 2 so two channels plus two answer streams fit the browser's 6-connection
+// per-origin limit — beyond it, uploads silently queue behind answer streams.
+const MAX_IN_FLIGHT_PER_CHANNEL = 2;
+// Turn-taking. A chunk ends after half a second of quiet, which is shorter
+// than a normal thinking pause mid-question, so the first half of a question
+// ("Tell me about… your last project") used to be answered on its own. Text
+// is now held until the speaker has really finished: a question ending in "?"
+// goes as soon as they are not talking; anything else waits TURN_END_MS more
+// for them to continue. MAX_HOLD_MS stops a noisy mic holding forever.
+const TURN_END_MS = 550;
+const TURN_RECHECK_MS = 250;
+const MAX_HOLD_MS = 6000;
+
+// Both sides' questions are answered. From the candidate's own mic only real
+// questions count — their statements are usually them speaking an answer.
+function onlyQuestionsFrom(speaker, questions) {
+  return speaker === 'you' ? questions.filter((q) => looksLikeQuestion(q)) : questions;
+}
+
+function newChannelState(applyInOrder) {
+  return {
+    assembler: createUtteranceAssembler(),
+    ordered: createOrderedResults(applyInOrder),
+    inFlight: 0,
+    recorder: null,
+    turnTimer: null,
+    heldSince: 0,
+  };
+}
+
+function clearTurnTimer(st) {
+  if (st.turnTimer) clearTimeout(st.turnTimer);
+  st.turnTimer = null;
+}
+
+let questionSeq = 0;
 
 /**
- * Listens on tab/mic audio, transcribes it in rolling 3.5s chunks, and keeps
- * a running transcript. Calls onQuestionDetected(text) whenever a chunk looks
- * like a question — the caller decides what to do with that (auto-answer is
- * a policy choice that belongs to useInterview, not to speech capture itself).
+ * Listens on mic and/or meeting audio, transcribes each source separately in
+ * rolling chunks, and keeps a speaker-labelled conversation log. Calls
+ * onQuestionDetected(text) when the interviewer (or an unattributed single
+ * source) asks something; the candidate's own speech is context only.
  */
-export function useSpeechRecognition({ sessionId, source = 'mic', language = 'en', onQuestionDetected, onToast } = {}) {
+export function useSpeechRecognition({ sessionId, source = 'both', language = 'en', onQuestionDetected, onToast } = {}) {
   const [listening, setListening] = useState(false);
   const [elapsedText, setElapsedText] = useState('00:00');
   const [transcriptChips, setTranscriptChips] = useState([]);
+  // Most recent words actually transcribed (question or not), so the user can
+  // see at a glance whether their voice is being picked up at all.
+  const [lastHeard, setLastHeard] = useState('');
+  const [captureWarning, setCaptureWarning] = useState('');
+  const [transcriptionError, setTranscriptionError] = useState('');
 
-  const streamRef = useRef(null);
-  const recorderRef = useRef(null);
+  const channelsRef = useRef([]);
+  const channelsSourceRef = useRef(null);
+  const recordersRef = useRef([]);
+  const channelStateRef = useRef(new Map());
+  const conversationRef = useRef([]);
+  const startingRef = useRef(false);
+  const recordingRef = useRef(false);
   const elapsedTimerRef = useRef(null);
   const elapsedSecsRef = useRef(0);
-  // Read at call time, not at hook-setup time — sessionId can arrive after a
-  // session finishes loading, well after this hook first mounts.
   const sessionIdRef = useRef(sessionId);
   sessionIdRef.current = sessionId;
   const languageRef = useRef(language);
   languageRef.current = language;
   const onQuestionDetectedRef = useRef(onQuestionDetected);
   onQuestionDetectedRef.current = onQuestionDetected;
-  // Counts consecutive chunk-upload failures so a real outage surfaces once,
-  // instead of either staying silent forever or toasting every 1.6s.
   const consecutiveFailuresRef = useRef(0);
+
+  const applyResultRef = useRef(() => {});
+  const deduperRef = useRef(null);
+  if (!deduperRef.current) deduperRef.current = createQuestionDeduper();
+  const nativeRecRef = useRef(null);
+  const isRecognitionActiveRef = useRef(false);
+  const restartNativeTimerRef = useRef(null);
 
   const toast = useCallback((msg) => { if (onToast) onToast(msg); }, [onToast]);
 
-  const uploadAudioChunk = useCallback(async (blob) => {
-    if (!sessionIdRef.current) return;
-    try {
-      const data = await transcribeChunk(blob, sessionIdRef.current);
-      consecutiveFailuresRef.current = 0;
-      if (data.text) {
-        if (isSilenceHallucination(data.text)) {
-          return;
-        }
+  const stateFor = (speaker) => {
+    let st = channelStateRef.current.get(speaker);
+    if (!st) {
+      st = newChannelState((result) => applyResultRef.current(speaker, result));
+      channelStateRef.current.set(speaker, st);
+    }
+    return st;
+  };
 
-        const lang = String(languageRef.current || 'en').toLowerCase();
-        if (lang === 'en' || lang === 'english') {
-          // Reject foreign script noise hallucinations (Japanese, Chinese, Korean, Cyrillic, Arabic) in English sessions
-          if (/[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff66-\uff9f\uac00-\ud7af\u0400-\u04ff\u0600-\u06ff]/.test(data.text)) {
-            return;
-          }
-          if (data.text.startsWith('¿') || data.text.startsWith('¡')) {
-            return;
-          }
-        }
+  const appendConversation = useCallback((speaker, text) => {
+    setLastHeard(text.slice(-160));
+    const log = conversationRef.current;
+    const last = log[log.length - 1];
+    if (last && last.speaker === speaker) {
+      last.text = `${last.text} ${text}`.slice(-600);
+    } else {
+      log.push({ speaker, text });
+      if (log.length > MAX_CONVERSATION_LINES) log.splice(0, log.length - MAX_CONVERSATION_LINES);
+    }
+  }, []);
 
-        const cleanText = deduplicateRepeatedPhrases(data.text);
-        if (!cleanText || cleanText.length < 2 || isSilenceHallucination(cleanText)) return;
+  const getConversationTranscript = useCallback(() => (
+    conversationRef.current.map((l) => `${SPEAKER_LABELS[l.speaker] || 'Speaker'}: ${l.text}`).join('\n')
+  ), []);
 
-        const isQuestion = looksLikeQuestion(cleanText);
-
-        // Deduplicate consecutive identical/redundant chips
-        setTranscriptChips((prev) => {
-          const last = prev[prev.length - 1];
-          if (last) {
-            const lastNorm = last.text.toLowerCase().replace(/[^a-z0-9]/g, '');
-            const currNorm = cleanText.toLowerCase().replace(/[^a-z0-9]/g, '');
-            if (lastNorm === currNorm || (currNorm.length > 5 && lastNorm.includes(currNorm))) {
-              return prev;
-            }
-          }
-          return [...prev, { text: cleanText, isQuestion }];
-        });
-
-        if (isQuestion && onQuestionDetectedRef.current) onQuestionDetectedRef.current(cleanText);
+  // Each distinct question gets its own id and is handed on once; a repeat of
+  // one already answered in the last 30s is skipped (its answer is on screen).
+  const dispatchQuestions = useCallback((questions, speaker) => {
+    for (const q of questions) {
+      if (deduperRef.current.isDuplicate(q)) {
+        console.info('[copilot] question skipped as repeat', { session: sessionIdRef.current, speaker, chars: q.length });
+        continue;
       }
+      deduperRef.current.remember(q);
+      questionSeq += 1;
+      const questionId = `q-${Date.now()}-${questionSeq}`;
+      console.info('[copilot] question detected', { session: sessionIdRef.current, questionId, speaker, chars: q.length });
+      setTranscriptChips((prevChips) => [...prevChips.slice(-25), { text: q, isQuestion: true, speaker, id: questionId }]);
+      if (onQuestionDetectedRef.current) onQuestionDetectedRef.current(q, { questionId, speaker });
+    }
+  }, []);
+
+  // The speaker has gone quiet (silent/empty chunk): whatever is still held in
+  // their buffer is now complete.
+  const flushPendingQuestion = useCallback((speaker) => {
+    const st = stateFor(speaker);
+    clearTurnTimer(st);
+    st.heldSince = 0;
+    dispatchQuestions(onlyQuestionsFrom(speaker, st.assembler.flush()), speaker);
+  }, [dispatchQuestions]);
+
+  // Still talking: voice in the chunk being recorded now, or audio already
+  // sent that has not come back yet (it may hold the rest of the question).
+  const isStillSpeaking = (st) => Boolean((st.recorder && st.recorder.isSpeaking()) || st.inFlight > 0);
+
+  // Answers what is held once the speaker has finished their turn.
+  const scheduleTurnEnd = useCallback((speaker, delay) => {
+    const st = stateFor(speaker);
+    clearTurnTimer(st);
+    if (!st.heldSince) st.heldSince = Date.now();
+    st.turnTimer = setTimeout(function check() {
+      st.turnTimer = null;
+      if (!recordingRef.current) return;
+      if (isStillSpeaking(st) && Date.now() - st.heldSince < MAX_HOLD_MS) {
+        st.turnTimer = setTimeout(check, TURN_RECHECK_MS);
+        return;
+      }
+      flushPendingQuestion(speaker);
+    }, delay);
+  }, [flushPendingQuestion]);
+
+  const processSpeechText = useCallback((rawText, isFinal, speaker, record = isFinal) => {
+    if (!rawText || typeof rawText !== 'string') return;
+    const lang = String(languageRef.current || 'en').toLowerCase();
+    if (lang === 'en' || lang === 'english') {
+      if (/[぀-ヿ㐀-䶿一-鿿豈-﫿ｦ-ﾟ가-힯Ѐ-ӿ؀-ۿ]/.test(rawText)) {
+        return;
+      }
+      if (rawText.startsWith('¿') || rawText.startsWith('¡')) {
+        return;
+      }
+    }
+
+    const cleanText = deduplicateRepeatedPhrases(rawText);
+    if (!cleanText || cleanText.length < 2 || isSilenceHallucination(cleanText)) return;
+
+    if (record) appendConversation(speaker, cleanText);
+
+    // Only a finished turn is answered, so a half-question is never sent on
+    // its own: the text is held while the speaker is still talking, and a
+    // statement-style question waits a moment in case more follows.
+    // Filtering of greetings/filler happens per sentence in the assembler, so
+    // "Hi, how are you?" still yields its question.
+    const st = stateFor(speaker);
+    clearTurnTimer(st);
+    const endsWithQuestion = /\?\s*["')\]]?\s*$/.test(cleanText);
+    const speaking = isStillSpeaking(st);
+    const hold = speaking || !isFinal || !endsWithQuestion;
+    const questions = st.assembler.add(cleanText, isFinal, { hold });
+    if (hold) {
+      if (st.assembler.pending()) scheduleTurnEnd(speaker, speaking ? TURN_RECHECK_MS : TURN_END_MS);
+      return;
+    }
+    st.heldSince = 0;
+    dispatchQuestions(onlyQuestionsFrom(speaker, questions), speaker);
+  }, [appendConversation, dispatchQuestions, scheduleTurnEnd]);
+
+  // The browser recogniser only hears the default mic. With meeting audio on
+  // its own channel that mic is the candidate, so it is only used as the fast
+  // question path when the mic is the sole (unattributed) source.
+  const startNativeRecognizer = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRec) return;
+
+    try {
+      if (nativeRecRef.current) {
+        try {
+          nativeRecRef.current.onend = null;
+          nativeRecRef.current.abort();
+        } catch {}
+        nativeRecRef.current = null;
+      }
+
+      const nativeRec = new SpeechRec();
+      nativeRec.continuous = true;
+      nativeRec.interimResults = true;
+      nativeRec.lang = languageRef.current === 'en' ? 'en-US' : (languageRef.current || 'en-US');
+      nativeRec.maxAlternatives = 1;
+
+      // Only final results: interim guesses are partial sentences, and acting
+      // on them answered half-questions.
+      nativeRec.onresult = (event) => {
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          const res = event.results[i];
+          const transcript = res[0] && res[0].transcript ? res[0].transcript.trim() : '';
+          if (transcript && res.isFinal) {
+            // Not added to the conversation log: the chunked transcription of
+            // the same mic audio is the record, this is only the fast trigger.
+            processSpeechText(transcript, true, 'unknown', false);
+          }
+        }
+      };
+
+      nativeRec.onerror = (e) => {
+        if (e.error !== 'no-speech' && e.error !== 'aborted') {
+          console.warn('[Native Speech Recognition Error]:', e.error);
+        }
+      };
+
+      nativeRec.onend = () => {
+        if (recordingRef.current && isRecognitionActiveRef.current) {
+          if (restartNativeTimerRef.current) clearTimeout(restartNativeTimerRef.current);
+          restartNativeTimerRef.current = setTimeout(() => {
+            if (recordingRef.current && isRecognitionActiveRef.current) {
+              startNativeRecognizer();
+            }
+          }, 150);
+        }
+      };
+
+      nativeRec.start();
+      nativeRecRef.current = nativeRec;
+    } catch (e) {
+      console.warn('Native speech recognition init failed, relying on chunked transcription:', e);
+    }
+  }, [processSpeechText]);
+
+  const applyResult = useCallback((speaker, result) => {
+    if (result.text) {
+      processSpeechText(result.text, result.endOfUtterance, speaker, true);
+    } else if (result.endOfUtterance) {
+      flushPendingQuestion(speaker);
+    }
+  }, [flushPendingQuestion, processSpeechText]);
+
+  applyResultRef.current = (speaker, result) => {
+    if (recordingRef.current) applyResult(speaker, result);
+  };
+
+  const makeChunkHandler = useCallback((speaker) => async (blob, { hadSpeech = true, endOfUtterance = true } = {}) => {
+    const st = stateFor(speaker);
+    const seq = st.ordered.reserve();
+
+    if (!hadSpeech || st.inFlight >= MAX_IN_FLIGHT_PER_CHANNEL) {
+      if (hadSpeech) console.warn('[copilot] transcription backlog; chunk skipped', { speaker });
+      // A silent chunk means the speaker has stopped: complete what they said.
+      st.ordered.fill(seq, { text: '', endOfUtterance: !hadSpeech || endOfUtterance });
+      return;
+    }
+
+    st.inFlight += 1;
+    const activeSession = sessionIdRef.current || (typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('session') : null) || 'default';
+    let text = '';
+    try {
+      const data = await transcribeChunk(blob, activeSession);
+      consecutiveFailuresRef.current = 0;
+      setTranscriptionError('');
+      text = (data && data.text && data.text.trim()) || '';
     } catch (err) {
-      // Not fatal — this chunk is simply dropped and recording carries on;
-      // the next chunk fires in 3.5s regardless. console.warn rather than
-      // console.error deliberately, since Next's dev overlay treats a
-      // console.error carrying an Error object as a crash-looking "Console
-      // Error" banner, which is misleading for something already handled.
       console.warn('Transcription chunk upload failed (will retry on the next chunk):', err);
       if (err.status === 429) {
         toast(`⚠️ ${(err.data && err.data.message) || 'Quota limit reached.'}`);
       } else {
         consecutiveFailuresRef.current += 1;
-        // ~5s of back-to-back failures at the 1.6s chunk interval — a real
-        // outage, not one dropped chunk — surfaced once rather than repeated
-        // every 1.6s while it persists.
-        if (consecutiveFailuresRef.current === 3) {
-          toast('⚠️ Transcription is failing — check your connection.');
+        if (consecutiveFailuresRef.current >= 3) {
+          setTranscriptionError('Audio recognition is reconnecting…');
+          toast('⚠️ Transcription is reconnecting — check connection.');
         }
       }
+    } finally {
+      st.inFlight -= 1;
     }
+    // Always filled, even on failure — an unfilled slot would stall every later chunk.
+    // A chunk with no words means the speaker stopped, even if the voice
+    // detector never heard a pause (constant background noise): treat it as
+    // the end of the utterance so a held question is answered, not stranded.
+    st.ordered.fill(seq, { text, endOfUtterance: text ? endOfUtterance : true });
   }, [toast]);
 
-  const stopRecording = useCallback(async () => {
-    setListening(false);
+// Stops listening but keeps the audio sources open (see pauseRecording).
+  const stopListeners = useCallback(() => {
+    recordersRef.current.forEach((r) => { try { r.stop(); } catch {} });
+    recordersRef.current = [];
+    isRecognitionActiveRef.current = false;
+    if (restartNativeTimerRef.current) {
+      clearTimeout(restartNativeTimerRef.current);
+      restartNativeTimerRef.current = null;
+    }
+    if (nativeRecRef.current) {
+      try {
+        nativeRecRef.current.onend = null;
+        nativeRecRef.current.abort();
+      } catch {}
+      nativeRecRef.current = null;
+    }
+    channelStateRef.current.forEach((st) => clearTurnTimer(st));
+    channelStateRef.current = new Map();
     if (elapsedTimerRef.current) {
       clearInterval(elapsedTimerRef.current);
       elapsedTimerRef.current = null;
     }
-    if (recorderRef.current) {
-      try { recorderRef.current.stop(); } catch {}
-    }
-    stopStreamTracks(streamRef.current);
-    streamRef.current = null;
-    recorderRef.current = null;
   }, []);
 
-  const startRecording = useCallback(async (overrideSource) => {
-    try {
-      // Clean up any stale recorder or tracks before acquiring a new one
-      await stopRecording();
+  // Stops listening and closes the microphone and meeting-audio capture.
+  const releaseAll = useCallback(() => {
+    stopListeners();
+    channelsRef.current.forEach((c) => stopStreamTracks(c.stream));
+    channelsRef.current = [];
+    channelsSourceRef.current = null;
+  }, [stopListeners]);
 
-      const stream = await getListenStream(overrideSource || source);
-      streamRef.current = stream;
-
-      // Handle microphone track ending externally (e.g. unplugged or OS muted)
-      const audioTrack = stream.getAudioTracks()[0];
-      if (audioTrack) {
-        audioTrack.onended = () => {
-          stopRecording();
-          toast('⚠️ Microphone stream disconnected.');
-        };
-      }
-
-      setListening(true);
+  // Records from already-open channels: a fresh recorder per channel, the
+  // elapsed clock, and the browser recogniser when the mic is the only source.
+  const beginListening = useCallback((channels, { resetClock = true } = {}) => {
+    if (resetClock) {
       elapsedSecsRef.current = 0;
       setElapsedText('00:00');
+    }
+    if (elapsedTimerRef.current) clearInterval(elapsedTimerRef.current);
+    elapsedTimerRef.current = setInterval(() => {
+      elapsedSecsRef.current += 1;
+      const m = Math.floor(elapsedSecsRef.current / 60);
+      const s = elapsedSecsRef.current % 60;
+      setElapsedText(`${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
+    }, 1000);
 
-      elapsedTimerRef.current = setInterval(() => {
-        elapsedSecsRef.current += 1;
-        const m = Math.floor(elapsedSecsRef.current / 60);
-        const s = elapsedSecsRef.current % 60;
-        setElapsedText(`${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
-      }, 1000);
-
-      // Question detection can't happen before a chunk finishes recording
-      const recorder = createChunkedRecorder(stream, { intervalMs: 1600, onChunk: uploadAudioChunk });
-      recorderRef.current = recorder;
+recordingRef.current = true;
+    setListening(true);
+    recordersRef.current = channels.map(({ stream, speaker }) => {
+      const recorder = createChunkedRecorder(stream, { onChunk: makeChunkHandler(speaker) });
+      stateFor(speaker).recorder = recorder;
       recorder.start();
+      return recorder;
+    });
+
+    if (channels.length === 1 && channels[0].speaker === 'unknown') {
+      isRecognitionActiveRef.current = true;
+      startNativeRecognizer();
+    }
+  }, [makeChunkHandler, startNativeRecognizer]);
+
+  const rawTracksOf = (channels) => channels.flatMap(({ stream }) => (
+    (stream._rawStreams || [stream]).flatMap((raw) => raw.getAudioTracks())
+  ));
+
+  const startRecording = useCallback(async (overrideSource) => {
+    if (startingRef.current || recordingRef.current) return;
+    startingRef.current = true;
+    if (!sessionIdRef.current) {
+      if (typeof window !== 'undefined') {
+        try {
+          const urlSession = new URLSearchParams(window.location.search).get('session');
+          if (urlSession) sessionIdRef.current = urlSession;
+        } catch {}
+      }
+      if (!sessionIdRef.current) sessionIdRef.current = 'default';
+    }
+    try {
+      releaseAll();
+      consecutiveFailuresRef.current = 0;
+
+      const wantedSource = overrideSource || source;
+      const { channels, warning } = await getListenChannels(wantedSource);
+      channelsRef.current = channels;
+      channelsSourceRef.current = wantedSource;
+      setCaptureWarning(warning || '');
+      setTranscriptionError('');
+      if (warning) toast(`⚠️ ${warning}`);
+
+      channels.forEach(({ stream, speaker }) => {
+        (stream._rawStreams || [stream]).forEach((raw) => raw.getAudioTracks().forEach((track) => {
+          track.addEventListener('ended', () => {
+            if (!recordingRef.current) return;
+            const what = speaker === 'interviewer' ? 'Meeting audio sharing stopped' : 'Microphone disconnected';
+            toast(`⚠️ ${what} — click the mic twice to reconnect.`);
+            setCaptureWarning(`${what}.`);
+          });
+        }));
+      });
+      beginListening(channels);
     } catch (err) {
       if (err.code === 'NO_AUDIO_SHARED') {
         toast('⚠️ No audio was shared — tick "Share tab audio" in the picker, or switch to Microphone.');
+      } else if (err.code === 'TAB_AUDIO_UNAVAILABLE') {
+        toast(`⚠️ ${err.message} Switch to Microphone in Copilot settings.`);
       } else if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
         toast('⚠️ Microphone access blocked — check Windows Settings > Privacy & security > Microphone.');
       } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
@@ -154,24 +427,26 @@ export function useSpeechRecognition({ sessionId, source = 'mic', language = 'en
         console.error('Audio stream access failed:', err);
         toast(`⚠️ Audio access failed: ${err.message || err.name || 'unknown error'}`);
       }
+      recordingRef.current = false;
+      releaseAll();
       setListening(false);
-      if (elapsedTimerRef.current) {
-        clearInterval(elapsedTimerRef.current);
-        elapsedTimerRef.current = null;
-      }
-    }
-  }, [source, stopRecording, toast, uploadAudioChunk]);
+setCaptureWarning('');
 
   const toggleListening = useCallback(() => {
-    if (listening) stopRecording();
-    else startRecording();
-  }, [listening, startRecording, stopRecording]);
+    if (startingRef.current) return undefined;
+    if (recordingRef.current) return pauseRecording();
+    return resumeRecording();
+  }, [pauseRecording, resumeRecording]);
 
   return {
     listening,
     elapsedText,
     transcriptChips,
+    lastHeard,
+    captureWarning,
+    transcriptionError,
     setTranscriptChips,
+    getConversationTranscript,
     startRecording,
     stopRecording,
     toggleListening,

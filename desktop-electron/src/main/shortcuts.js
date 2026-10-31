@@ -36,7 +36,7 @@ function handleShortcutHide(settingsStore) {
         win.webContents.focus();
       } catch { }
       try {
-        const stealth = settingsStore ? (settingsStore.get('stealthMode') !== false) : true;
+        const stealth = settingsStore ? (settingsStore.get('stealthMode') === true) : false;
         win.setContentProtection(stealth);
       } catch { /* best effort */ }
       try {
@@ -54,7 +54,7 @@ function handleShortcutToggle(settingsStore) {
     win.show();
     bringToFront(win, alwaysOnTop);
     try {
-      const stealth = settingsStore ? (settingsStore.get('stealthMode') !== false) : true;
+      const stealth = settingsStore ? (settingsStore.get('stealthMode') === true) : false;
       win.setContentProtection(stealth);
     } catch { /* best effort */ }
     win.webContents.send('feonix:shortcut-toggle');

@@ -8,10 +8,16 @@ import TopBar from '../../components/overlay/TopBar';
 import QuestionPanel from '../../components/overlay/QuestionPanel';
 import AnswerPanel from '../../components/overlay/AnswerPanel';
 import ChatPanel from '../../components/overlay/ChatPanel';
+import AnswerCard from '../../components/overlay/AnswerCard';
+import TranscriptTicker from '../../components/overlay/TranscriptTicker';
+import FloatingDock from '../../components/overlay/FloatingDock';
+import QuickSettingsPopover from '../../components/overlay/QuickSettingsPopover';
+import FloatingChatBar from '../../components/overlay/FloatingChatBar';
 import AssistantSettings from '../../components/overlay/AssistantSettings';
 import AssistantPill from '../../components/overlay/AssistantPill';
 import { readFileAsDataUrl, downscaleDataUrl, captureScreenSnapshot } from '../../services/screenshotService';
 import { htmlToPlainText } from '../../lib/answerFormatter';
+import { looksLikeQuestion } from '../../services/speechService';
 import './overlay.css';
 
 // Mirrors desktop-electron/src/main/settingsStore.js's DEFAULT_SETTINGS so
@@ -32,12 +38,12 @@ const DEFAULT_SETTINGS = {
   assistantSize: 'normal',
   rememberPosition: true,
   voiceEnabled: true,
-  stealthMode: true,
+  stealthMode: false,
   autoHideOnShare: false,
-  audioSource: 'mic',
+  audioSource: 'both',
 };
 
-const SIZE_PX = { compact: 880, normal: 1140, large: 1340, xlarge: 1540 };
+const SIZE_PX = { compact: 1000, normal: 1180, large: 1380, xlarge: 1560 };
 const SIZE_KEYS = ['compact', 'normal', 'large', 'xlarge'];
 const SIZE_LABELS = {
   compact: 'Compact',
@@ -54,7 +60,7 @@ function OverlayContent() {
   const searchParams = useSearchParams();
   const plan = searchParams.get('plan') || 'full';
   const querySessionId = searchParams.get('session');
-  const queryAuto = searchParams.get('auto') === '1';
+  const queryAuto = searchParams.get('auto') !== '0'; // Default Auto-Answer to ON
   const queryStart = searchParams.get('start'); // 'minimized' | 'open' | null
 
   // Chat compose box / screenshot attachment. Kept here rather than inside
@@ -105,9 +111,9 @@ function OverlayContent() {
     speech, answering, askQuestion,
     handleEndSession,
   } = interview;
-  const { listening, elapsedText, transcriptChips, setTranscriptChips, toggleListening } = speech;
+  const { listening, elapsedText, transcriptChips, lastHeard, setTranscriptChips, captureWarning, transcriptionError, toggleListening } = speech;
   const {
-    thinking, answerHtml, cueLine, showAnswerCard, clearAnswer, hasError, rerun,
+    thinking, isStreaming, isAnswering, answerHtml, answerText, cueLine, showAnswerCard, clearAnswer, hasError, rerun,
     answersHistory, currentAnswerIndex, selectHistoryAnswer, prevAnswer, nextAnswer,
     messages,
   } = answering;
@@ -164,8 +170,70 @@ function OverlayContent() {
   // persistence via window.feonix.setSetting. (settings/setSettings itself
   // is declared above, ahead of useInterview.)
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [popoverOpen, setPopoverOpen] = useState(false);
+  // Desktop app: the HUD stays at the bottom of its OS window (which is what
+  // moves), and the dock handle is a native drag region. Decided after mount,
+  // not during render: the server render has no window.feonix, and React does
+  // not patch a mismatched style attribute on hydration — computing it inline
+  // left the handle with neither the native drag region nor the JS drag.
+  const [isDesktopWindow, setIsDesktopWindow] = useState(false);
+
+  // Session clock (counts up from when the session started), independent of
+  // whether the microphone is on.
+  const [sessionElapsedText, setSessionElapsedText] = useState('');
+  const sessionStartedAt = session?.started_at;
+  useEffect(() => {
+    if (!sessionStartedAt) {
+      setSessionElapsedText('');
+      return undefined;
+    }
+    const startMs = Date.parse(String(sessionStartedAt).replace(' ', 'T') + 'Z');
+    if (!Number.isFinite(startMs)) return undefined;
+    const tick = () => {
+      const total = Math.max(0, Math.floor((Date.now() - startMs) / 1000));
+      const h = Math.floor(total / 3600);
+      const m = Math.floor((total % 3600) / 60);
+      const s = total % 60;
+      const mmss = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+      setSessionElapsedText(h > 0 ? `${h}:${mmss}` : mmss);
+    };
+    tick();
+    const iv = setInterval(tick, 1000);
+    return () => clearInterval(iv);
+  }, [sessionStartedAt]);
+  useEffect(() => {
+    setIsDesktopWindow(Boolean(window.feonix && typeof window.feonix.moveBy === 'function'));
+  }, []);
   const [isExpanded, setIsExpanded] = useState(false);
   const cardSize = { width: 1140, height: 500 };
+
+  useEffect(() => {
+    if (!popoverOpen) return;
+    const handleClickOutside = (e) => {
+      if (!e.target.closest('.fe-popover-menu') && !e.target.closest('.fe-dock-more-btn')) {
+        setPopoverOpen(false);
+      }
+    };
+    window.addEventListener('mousedown', handleClickOutside);
+    return () => window.removeEventListener('mousedown', handleClickOutside);
+  }, [popoverOpen]);
+
+  const handleQuit = () => {
+    try {
+      handleEndSession();
+    } catch { }
+    if (typeof window !== 'undefined') {
+      if (window.feonix && typeof window.feonix.quit === 'function') {
+        window.feonix.quit();
+        return;
+      }
+      if (window.feonix && typeof window.feonix.closeOverlay === 'function') {
+        window.feonix.closeOverlay();
+        return;
+      }
+      window.location.href = '/?view=dash';
+    }
+  };
 
   useEffect(() => {
     if (window.feonix && typeof window.feonix.getSettings === 'function') {
@@ -196,11 +264,18 @@ function OverlayContent() {
     if (window.feonix && typeof window.feonix.setStealthMode === 'function') {
       window.feonix.setStealthMode(isTurnOn);
     }
+    setVisibility('open');
+    if (window.feonix && typeof window.feonix.show === 'function') {
+      window.feonix.show();
+    }
+    if (window.feonix && typeof window.feonix.bringToFront === 'function') {
+      window.feonix.bringToFront();
+    }
     if (typeof triggerToast === 'function') {
       if (isTurnOn) {
-        triggerToast('🛡️ Private Mode ON: Copilot is hidden from screenshots & screen shares');
+triggerToast('🛡️ Private Mode ON: Copilot is hidden from opposite person / screen share');
       } else {
-        triggerToast('👥 Private Mode OFF: Copilot is visible in screenshots & screen shares');
+        triggerToast('👥 Private Mode OFF: Copilot is visible to opposite person / screen share');
       }
     }
   };
@@ -262,7 +337,7 @@ function OverlayContent() {
   const shortcutHandlersRef = useRef({});
   useEffect(() => {
     shortcutHandlersRef.current = {
-      onAnswer: () => handleAnswerClick(),
+onAnswer: () => handleAnswerClick(),
       onScreenshotMenu: () => setScreenshotMenuOpen((prev) => !prev),
       onChat: () => {
         setPromptHubOpen((prev) => !prev);
@@ -348,6 +423,18 @@ function OverlayContent() {
       } else if (e.shiftKey && (e.key === 'Q' || e.key === 'q')) {
         e.preventDefault();
         handlers.onEndSession();
+      } else if (e.key === 'q' || e.key === 'Q') {
+        e.preventDefault();
+        handleQuit();
+      } else if (e.key === 'k' || e.key === 'K') {
+        e.preventDefault();
+        handlers.onChat();
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        prevAnswer();
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        nextAnswer();
       }
     };
     window.addEventListener('keydown', handleKeyDown, true);
@@ -447,6 +534,10 @@ function OverlayContent() {
   // "Remember position" off, in which case it always opens centered.
   useEffect(() => {
     if (!settings.rememberPosition) return;
+    // The desktop app moves the OS window itself; a saved in-page position
+    // would pin the HUD to the window's top, so every resize (opening the ⋮
+    // menu grows the window upward) would carry the HUD with it.
+    if (window.feonix && typeof window.feonix.moveBy === 'function') return;
     try {
       const saved = JSON.parse(localStorage.getItem('feonix.overlayPos') || 'null');
       if (saved && Number.isFinite(saved.x) && Number.isFinite(saved.y)) {
@@ -473,12 +564,26 @@ function OverlayContent() {
   useEffect(() => {
     const onMove = (e) => {
       if (!dragRef.current.dragging) return;
+      // Button already released but the mouseup was never delivered (it can
+      // be lost while the window moves under the cursor): end the drag here
+      // instead of letting the window keep following the pointer.
+      if (e.buttons === 0) {
+        onUp();
+        return;
+      }
       const dx = e.clientX - dragRef.current.startX;
       const dy = e.clientY - dragRef.current.startY;
+      // Screen coordinates: when the OS window follows the cursor, the
+      // cursor's position inside the page hardly changes.
+      const sdx = e.screenX - dragRef.current.startScreenX;
+      const sdy = e.screenY - dragRef.current.startScreenY;
 
-      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+      if (Math.abs(sdx) > 3 || Math.abs(sdy) > 3) {
         dragRef.current.hasMoved = true;
       }
+
+      // Desktop app: the main process moves the window to follow the cursor.
+      if (window.feonix && typeof window.feonix.dragStart === 'function') return;
 
       // In the real desktop app, this HUD IS the OS window — a tightly
       // content-sized, frameless BrowserWindow has essentially no extra
@@ -511,6 +616,7 @@ function OverlayContent() {
     const onUp = () => {
       if (dragRef.current.dragging) {
         dragRef.current.dragging = false;
+        if (window.feonix && typeof window.feonix.dragEnd === 'function') window.feonix.dragEnd();
         document.body.style.cursor = '';
         if (settings.rememberPosition) {
           try {
@@ -524,9 +630,12 @@ function OverlayContent() {
 
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
+    // A release that never reaches the page (focus stolen mid-drag) must still end the drag.
+    window.addEventListener('blur', onUp);
     return () => {
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('blur', onUp);
     };
   }, [visibility, settings.rememberPosition]);
 
@@ -549,9 +658,12 @@ function OverlayContent() {
       hasMoved: false,
       startX: e.clientX,
       startY: e.clientY,
+      startScreenX: e.screenX,
+      startScreenY: e.screenY,
       originX: rect.left,
       originY: rect.top,
     };
+    if (window.feonix && typeof window.feonix.dragStart === 'function') window.feonix.dragStart();
     e.preventDefault();
   };
 
@@ -572,14 +684,51 @@ function OverlayContent() {
       Promise.all(
         imageItems.map((item) => readFileAsDataUrl(item.getAsFile()).then(downscaleDataUrl))
       ).then((dataUrls) => {
-        addScreenshots(dataUrls);
-        setPromptHubOpen(true);
-        triggerToast(dataUrls.length > 1 ? `📸 ${dataUrls.length} screenshots pasted from clipboard` : '📸 Screenshot pasted from clipboard');
+        solveWithImagesRef.current(dataUrls, dataUrls.length > 1 ? `📸 ${dataUrls.length} images pasted — solving…` : '📸 Image pasted — solving…');
       });
     };
     window.addEventListener('paste', handlePaste);
     return () => window.removeEventListener('paste', handlePaste);
   }, [triggerToast]);
+
+  const currentDisplayAnswer = (thinking || isStreaming)
+    ? answerHtml
+    : (answerHtml
+      || (answersHistory && answersHistory[currentAnswerIndex]?.answerHtml)
+      || (messages && messages.filter((m) => m.role === 'assistant').slice(-1)[0]?.html)
+      || '');
+
+  // While a new answer is being generated the card shows only that answer —
+  // falling back to the previous one made the card show a long old answer,
+  // then snap down to the first words of the new one.
+  const answeringNow = Boolean(thinking || isStreaming);
+  const currentDisplayAnswerText = answeringNow
+    ? answerText
+    : (answerText
+      || (answersHistory && answersHistory[currentAnswerIndex]?.answerText)
+      || (messages && messages.filter((m) => m.role === 'assistant').slice(-1)[0]?.content)
+      || '');
+
+  const currentDisplayTimestamp = (answersHistory && answersHistory[currentAnswerIndex]?.timestamp)
+    || '';
+
+  const canPrev = currentAnswerIndex < (answersHistory?.length || 0) - 1;
+  const canNext = currentAnswerIndex > 0;
+
+  const trialsBadgeText = session?.trialsRemaining !== undefined
+    ? `${session.trialsRemaining} trials left`
+    : '0 trials left';
+
+  const [answerCardDismissed, setAnswerCardDismissed] = useState(false);
+
+  // Automatically reopen the answer card whenever thinking starts or new answer arrives
+  useEffect(() => {
+    if (thinking || isAnswering || currentDisplayAnswer) {
+      setAnswerCardDismissed(false);
+    }
+  }, [thinking, isAnswering, currentDisplayAnswer]);
+
+  const isAnswerWindowVisible = Boolean(thinking || isAnswering || currentDisplayAnswer) && !answerCardDismissed;
 
   // Sync window size with the Electron overlay window for whichever
   // visibility state is current — a full HUD needs room for content, the
@@ -609,18 +758,20 @@ function OverlayContent() {
         if (isExpanded) {
           window.feonix.resize(targetWidth, maxH);
         } else if (settingsOpen) {
+          window.feonix.resize(targetWidth, 620);
+        } else if (isAnswerWindowVisible) {
+          const height = Math.min(availH - 80, 680);
+          window.feonix.resize(targetWidth, height);
+        } else if (popoverOpen) {
           window.feonix.resize(targetWidth, 540);
         } else if (promptHubOpen) {
-          window.feonix.resize(targetWidth, 420 + CHAT_INPUT_BAR_PX);
-        } else if (cueLine || answerHtml || thinking || (messages && messages.length > 0) || (answersHistory && answersHistory.length > 0)) {
-          const height = Math.min(availH - 80, (cardSize.height || 420) + 140 + CHAT_INPUT_BAR_PX);
-          window.feonix.resize(targetWidth, height);
+          window.feonix.resize(targetWidth, 420);
         } else {
-          window.feonix.resize(targetWidth, 270 + CHAT_INPUT_BAR_PX);
+          window.feonix.resize(targetWidth, 220);
         }
       }
     }
-  }, [visibility, cueLine, answerHtml, thinking, messages, answersHistory, isExpanded, settings.assistantSize, settingsOpen, promptHubOpen]);
+  }, [visibility, isAnswerWindowVisible, popoverOpen, promptHubOpen, settingsOpen, isExpanded, settings.assistantSize]);
 
   // Focus the compose box again once an answer finishes arriving (thinking
   // goes true -> false), so the user can immediately type the next question.
@@ -634,11 +785,25 @@ function OverlayContent() {
 
   const handleToggleListening = () => {
     if (!settings.voiceEnabled) {
-      triggerToast('🎙 Voice input is disabled in Settings');
-      return;
+      updateSetting('voiceEnabled', true);
+      triggerToast('🎙 Voice input enabled');
     }
     toggleListening();
   };
+
+  // Every way of giving the copilot an image — capture, upload, paste — asks
+  // for the answer straight away (it used to only attach the image and wait
+  // for a typed question). Anything already typed in Chat rides along.
+  const solveWithImages = (newImages, toastText) => {
+    const typed = customPromptText && customPromptText.trim();
+    const images = [...screenshots, ...newImages].slice(0, MAX_SCREENSHOTS);
+    setPromptHubOpen(false);
+    setCustomPromptText('');
+    triggerToast(toastText);
+    askQuestion(typed || 'Answer what is shown in this image.', { images, style: answerStyle });
+  };
+  const solveWithImagesRef = useRef(solveWithImages);
+  solveWithImagesRef.current = solveWithImages;
 
   const handleFileSelect = async (e) => {
     const files = Array.from(e.target.files || []);
@@ -647,10 +812,8 @@ function OverlayContent() {
       const dataUrls = await Promise.all(
         files.map((file) => readFileAsDataUrl(file).then(downscaleDataUrl))
       );
-      addScreenshots(dataUrls);
-      setPromptHubOpen(true);
       setScreenshotMenuOpen(false);
-      triggerToast(dataUrls.length > 1 ? `📸 ${dataUrls.length} screenshots loaded — ready to solve` : '📸 Screenshot loaded — ready to solve');
+      solveWithImages(dataUrls, dataUrls.length > 1 ? `🖼️ ${dataUrls.length} images uploaded — solving…` : '🖼️ Image uploaded — solving…');
     } catch (err) {
       console.error('File read failed:', err);
     }
@@ -660,32 +823,57 @@ function OverlayContent() {
   const handleCaptureScreen = async () => {
     setScreenshotMenuOpen(false);
     const visibilityBeforeCapture = visibility;
-    const isPrivate = settings.stealthMode !== false;
+const isPrivate = settings.stealthMode !== false;
     try {
       const dataUrl = await captureScreenSnapshot({
-        // When Private Mode is ON, hide the copilot HUD so it does not appear in the screenshot.
-        // When Private Mode is OFF, do NOT hide the copilot HUD so it is included in the screenshot.
         onBeforeFrame: isPrivate ? () => { setVisibility('hidden'); } : undefined,
       });
-      addScreenshots([dataUrl]);
-      setPromptHubOpen(true);
-      triggerToast('🖥️ Screen captured — ready to solve');
+      solveWithImages([dataUrl], '🖥️ Screen captured — solving…');
     } catch (err) {
       if (err.code === 'NOT_SUPPORTED' || err.name === 'NotSupportedError') {
         triggerToast('ℹ️ Screen snap not supported in this browser — opening file picker');
         fileInputRef.current?.click();
       } else {
         console.warn('Screen capture note:', err.message);
-        triggerToast('⚠️ Screen capture cancelled');
+        triggerToast(err.code === 'CAPTURE_TIMEOUT' ? `⚠️ ${err.message}` : '⚠️ Screen capture cancelled');
       }
     } finally {
-      if (isPrivate) {
+if (isPrivate) {
         setVisibility(visibilityBeforeCapture);
       }
     }
   };
 
   const handleAnswerClick = () => {
+<<<<<<< HEAD
+    if (customPromptText && customPromptText.trim()) {
+      const q = customPromptText.trim();
+      setCustomPromptText('');
+      setTranscriptChips((prev) => [...prev, { text: q, isQuestion: true }]);
+      askQuestion(q, { images: screenshots, style: answerStyle });
+      return;
+    }
+    if (screenshots.length > 0) {
+      askQuestion('Analyze the attached screenshot and provide the complete solution.', { images: screenshots, style: answerStyle });
+      return;
+    }
+    const lastQ = [...transcriptChips].reverse().find((c) => c.isQuestion);
+    const lastChip = transcriptChips[transcriptChips.length - 1];
+    let targetQ = lastQ?.text || lastChip?.text;
+    if (targetQ) {
+      if (targetQ.split(/\s+/).length < 3 && !looksLikeQuestion(targetQ) && !/\b(explain|describe|write|code|solve|implement|clarify)\b/i.test(targetQ)) {
+        const priorSubstantive = [...transcriptChips].reverse().find((c) => c.text !== targetQ && c.text.split(/\s+/).length >= 3);
+        if (priorSubstantive) {
+          targetQ = `${priorSubstantive.text} — (${targetQ})`;
+        }
+      }
+      askQuestion(targetQ, { images: screenshots, style: answerStyle });
+      return;
+    }
+    if (cueLine) {
+      askQuestion(cueLine, { images: screenshots, style: answerStyle });
+      return;
+=======
     const latestQuestionText = customPromptText.trim()
       || cueLine
       || transcriptChips.filter((c) => c.isQuestion).pop()?.text
@@ -700,19 +888,25 @@ function OverlayContent() {
       setPromptHubOpen(true);
       composeInputRef.current?.focus();
       triggerToast('💡 Type a question in Chat to generate an answer');
+>>>>>>> origin/main
     }
+    setPromptHubOpen(true);
+    triggerToast('💡 Type a question in Chat to generate an answer');
   };
 
   const handleChipClick = (chip) => {
-    askQuestion(chip.text, { images: screenshots, style: answerStyle });
+    let qText = chip.text;
+    if (qText && qText.split(/\s+/).length < 3 && !looksLikeQuestion(qText) && !/\b(explain|describe|write|code|solve|implement|clarify)\b/i.test(qText)) {
+      const priorSubstantive = [...transcriptChips].reverse().find((c) => c.text !== qText && c.text.split(/\s+/).length >= 3);
+      if (priorSubstantive) {
+        qText = `${priorSubstantive.text} — (${qText})`;
+      }
+    }
+    askQuestion(qText, { images: screenshots, style: answerStyle });
   };
 
   const handleCustomPromptSubmit = (e) => {
     e.preventDefault();
-    // Disable duplicate submissions — the Send button is already disabled
-    // while thinking, but Enter is a separate code path (see
-    // handleComposeKeyDown) that needs the same guard.
-    if (thinking) return;
     if (!customPromptText.trim() && screenshots.length === 0) return;
     const prompt = customPromptText.trim() || 'Analyze the question and provide the solution.';
     setPromptHubOpen(false);
@@ -768,7 +962,7 @@ function OverlayContent() {
     const curIdx = SIZE_KEYS.indexOf(settings.assistantSize);
     if (curIdx < SIZE_KEYS.length - 1) {
       const next = SIZE_KEYS[curIdx + 1];
-      handleSettingChange('assistantSize', next);
+      updateSetting('assistantSize', next);
       triggerToast(`Copilot Size: ${SIZE_LABELS[next]} (${SIZE_PX[next]}px)`);
     } else {
       triggerToast('Copilot is already at maximum size tier');
@@ -779,7 +973,7 @@ function OverlayContent() {
     const curIdx = SIZE_KEYS.indexOf(settings.assistantSize);
     if (curIdx > 0) {
       const next = SIZE_KEYS[curIdx - 1];
-      handleSettingChange('assistantSize', next);
+      updateSetting('assistantSize', next);
       triggerToast(`Copilot Size: ${SIZE_LABELS[next]} (${SIZE_PX[next]}px)`);
     } else {
       triggerToast('Copilot is already at compact size tier');
@@ -789,14 +983,34 @@ function OverlayContent() {
   const handleCycleSize = () => {
     const curIdx = SIZE_KEYS.indexOf(settings.assistantSize);
     const next = SIZE_KEYS[(curIdx + 1) % SIZE_KEYS.length];
-    handleSettingChange('assistantSize', next);
+    updateSetting('assistantSize', next);
     triggerToast(`Copilot Size: ${SIZE_LABELS[next]} (${SIZE_PX[next]}px)`);
   };
 
   const pillStatus = hasError ? 'error' : thinking ? 'processing' : listening ? 'listening' : 'ready';
 
+  // Dock timer: time remaining for a timed (free/paid) session, otherwise time
+  // since the session started. It used to show the microphone's recording
+  // time, so it sat at 00:00 while Screenshot or Chat were being used.
+  const isUnlimited = session?.billing_kind === 'unlimited' || !session?.expires_at;
+  const dockTimerText = isUnlimited ? sessionElapsedText : remainingText;
+
   return (
-    <div className="overlay-page-shell" style={{ opacity: settings.opacity / 100, pointerEvents: 'none' }}>
+    <div
+      className="overlay-page-shell"
+      style={{
+        opacity: settings.opacity / 100,
+        pointerEvents: 'none',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'flex-end',
+        minHeight: '100vh',
+        padding: '24px 16px',
+        boxSizing: 'border-box',
+        background: 'transparent',
+      }}
+    >
       <input
         type="file"
         multiple
@@ -820,7 +1034,7 @@ function OverlayContent() {
       {visibility === 'open' && (
         <div
           ref={shellRef}
-          className={`pk-shell ${isExpanded ? 'pk-maximized' : ''}`}
+          className={`fe-copilot-container ${isExpanded ? 'fe-copilot-expanded' : ''}`}
           style={isExpanded ? {
             position: 'fixed',
             left: '16px',
@@ -828,107 +1042,125 @@ function OverlayContent() {
             top: '16px',
             bottom: '16px',
             width: 'calc(100vw - 32px)',
-            maxWidth: '1680px',
+            maxWidth: '1200px',
             margin: '0 auto',
             transform: 'none',
             pointerEvents: 'all',
             zIndex: 9999,
-          } : (dragPos.x !== null ? {
+          } : (dragPos.x !== null && !isDesktopWindow ? {
             position: 'fixed',
             left: `${dragPos.x}px`,
             top: `${dragPos.y}px`,
             bottom: 'unset',
             transform: 'none',
             pointerEvents: 'all',
-            width: `${SIZE_PX[settings.assistantSize] || SIZE_PX.normal}px`,
-            maxWidth: '98vw',
+            width: '100%',
+            maxWidth: '720px',
             zIndex: 9999,
           } : {
             pointerEvents: 'all',
             width: '100%',
-            maxWidth: `${SIZE_PX[settings.assistantSize] || SIZE_PX.normal}px`,
+            maxWidth: '720px',
+            margin: '0 auto',
           })}
         >
-          <TopBar
-            onDragStart={handleDragStart}
-            dragging={dragRef.current?.dragging}
-            listening={listening}
-            elapsedText={elapsedText}
-            onToggleListening={handleToggleListening}
+          {/* 1. TOP ANSWER WINDOW (CARD) - Only opens when answer is generated or being generated */}
+          <AnswerCard
+            visible={isAnswerWindowVisible}
+            answer={currentDisplayAnswer}
+            answerText={currentDisplayAnswerText}
             thinking={thinking}
-            onAnswerClick={handleAnswerClick}
-            screenshots={screenshots}
-            screenshotMenuOpen={screenshotMenuOpen}
-            onToggleScreenshotMenu={() => setScreenshotMenuOpen((prev) => !prev)}
-            onUploadClick={() => { fileInputRef.current?.click(); setScreenshotMenuOpen(false); }}
-            onCaptureScreen={handleCaptureScreen}
-            onSolveScreenshotNow={handleSolveScreenshotNow}
-            onRemoveScreenshot={() => { setScreenshots([]); setScreenshotMenuOpen(false); }}
-            promptHubOpen={promptHubOpen}
-            onToggleChat={() => {
-              setPromptHubOpen((prev) => !prev);
-              // The compose box is always visible now, but this button used
-              // to also mean "I want to type" — keep that courtesy.
-              composeInputRef.current?.focus();
-            }}
-            isExpanded={isExpanded}
-            onToggleExpand={handleToggleExpand}
-            assistantSize={settings.assistantSize}
-            onIncreaseSize={handleIncreaseSize}
-            onDecreaseSize={handleDecreaseSize}
-            onCycleSize={handleCycleSize}
-            onMinimize={() => setVisibility('minimized')}
-            stealthMode={settings.stealthMode}
-            onToggleStealth={handleToggleStealth}
-            onSetStealth={handleSetStealth}
-            onToggleHide={handleToggleHide}
-            settingsOpen={settingsOpen}
-            onToggleSettings={() => setSettingsOpen((prev) => !prev)}
-            onEndSession={handleEndClick}
-            remainingText={remainingText}
-          />
-
-          <QuestionPanel
-            listening={listening}
-            transcriptChips={transcriptChips}
-            chipsContainerRef={chipsContainerRef}
-            onChipClick={handleChipClick}
+            isStreaming={isStreaming}
+            hasError={hasError}
+            timestamp={currentDisplayTimestamp}
+            canPrev={canPrev}
+            canNext={canNext}
+            onPrevious={prevAnswer}
+            onNext={nextAnswer}
             onClear={() => {
-              setTranscriptChips([]);
               clearAnswer();
+              setTranscriptChips([]);
+              answering.setAnswersHistory?.([]);
+              setAnswerCardDismissed(true);
             }}
+            onMinimize={() => setAnswerCardDismissed(true)}
+            onToggleExpand={handleToggleExpand}
+            isExpanded={isExpanded}
             onDragStart={handleDragStart}
           />
 
-          <AnswerPanel
-            visible={showAnswerCard}
-            messages={messages}
-            isExpanded={isExpanded}
-            elapsedText={elapsedText}
-            hasError={hasError}
-            onCopyMessage={handleCopyMessage}
-            onThumbUp={() => triggerToast('👍 Saved')}
-            onThumbDown={() => triggerToast('👎 Noted')}
-            onRegenerate={() => rerun({ action: 'answer', style: answerStyle })}
-            onShorten={() => rerun({ action: 'shorten', style: answerStyle })}
-            onExpand={() => rerun({ action: 'deepen', style: answerStyle })}
-            onRetry={() => rerun({ style: answerStyle })}
-          />
-
-          <ChatPanel
+          {/* 2. CHAT COMPOSE BAR (WHEN TOGGLED) */}
+          <FloatingChatBar
             open={promptHubOpen}
             onClose={() => setPromptHubOpen(false)}
             customPromptText={customPromptText}
             onChangePromptText={setCustomPromptText}
-            screenshots={screenshots}
-            onRemoveScreenshotAt={(index) => setScreenshots((prev) => prev.filter((_, i) => i !== index))}
             onSubmit={handleCustomPromptSubmit}
             onKeyDown={handleComposeKeyDown}
-            onQuickPrompt={handleQuickPromptClick}
             inputRef={composeInputRef}
             thinking={thinking}
+            screenshots={screenshots}
+            onRemoveScreenshotAt={(index) => setScreenshots((prev) => prev.filter((_, i) => i !== index))}
           />
 
+          {/* 3. MIDDLE LIVE TRANSCRIPT TICKER PILL */}
+          <TranscriptTicker
+            listening={listening}
+            transcriptChips={transcriptChips}
+            cueLine={cueLine}
+            lastHeard={lastHeard}
+            onDragStart={handleDragStart}
+            nativeDrag={isDesktopWindow}
+          />
+
+          {/* 4. BOTTOM FLOATING DOCK BAR + POPOVER */}
+          <div className="fe-dock-wrapper" style={{ position: 'relative', width: 'fit-content', margin: '0 auto', pointerEvents: 'all' }}>
+            <FloatingDock
+              onDragStart={handleDragStart}
+              listening={listening}
+              onToggleListening={handleToggleListening}
+              thinking={thinking}
+              isAnswering={isAnswering}
+              onAnswer={handleAnswerClick}
+              onCaptureScreen={handleCaptureScreen}
+              chatOpen={promptHubOpen}
+              onToggleChat={() => {
+                setPromptHubOpen((prev) => !prev);
+                setTimeout(() => composeInputRef.current?.focus(), 80);
+              }}
+              onMinimize={() => setVisibility('minimized')}
+              popoverOpen={popoverOpen}
+              onTogglePopover={() => setPopoverOpen((prev) => !prev)}
+              trialsText={trialsBadgeText}
+              elapsedText={dockTimerText || '00:00'}
+              timerUnlimited={isUnlimited}
+              stealthMode={settings.stealthMode}
+              onToggleStealth={handleToggleStealth}
+              nativeDrag={isDesktopWindow}
+              onUploadImage={() => fileInputRef.current?.click()}
+            />
+
+            {/* 5. POPOVER MENU ("FEONIXAI") */}
+            <QuickSettingsPopover
+              open={popoverOpen}
+              onClose={() => setPopoverOpen(false)}
+              privateMode={settings.stealthMode !== false}
+              onTogglePrivateMode={handleToggleStealth}
+              answerMode={autoAnswer ? 'AUTO' : 'MANUAL'}
+              onToggleAnswerMode={toggleAutoAnswer}
+              opacity={settings.opacity}
+              onOpacityChange={(val) => updateSetting('opacity', val)}
+              onResetPosition={() => {
+                setDragPos({ x: null, y: null });
+                triggerToast('Overlay position reset to center');
+              }}
+              onOpenSettings={() => setSettingsOpen(true)}
+              onEndSession={handleEndClick}
+              onQuit={handleQuit}
+            />
+          </div>
+
+          {/* FULL SETTINGS MODAL */}
           <AssistantSettings
             open={settingsOpen}
             settings={settings}

@@ -1,13 +1,12 @@
 "use client";
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import {
   Mail,
   Lock,
   Sparkles,
   ArrowRight,
-  ShieldCheck,
   Eye,
   EyeOff,
   Zap,
@@ -22,12 +21,16 @@ import {
 export default function AuthModal({
   authMode,
   setAuthMode,
+  authRole = 'user',
+  setAuthRole,
   authEmail,
   setAuthEmail,
   authPassword,
   setAuthPassword,
   authSignupCode,
   setAuthSignupCode,
+  authAdminCode,
+  setAuthAdminCode,
   authLoading,
   authMsg,
   setAuthMsg,
@@ -39,34 +42,13 @@ export default function AuthModal({
   const [useOtp, setUseOtp] = useState(false);
   const [otpCode, setOtpCode] = useState('');
 
-  // 3D Parallax Tilt State for Center Card
-  const [tiltX, setTiltX] = useState(0);
-  const [tiltY, setTiltY] = useState(0);
-  const [glarePos, setGlarePos] = useState({ x: 50, y: 50 });
-  const cardRef = useRef(null);
+  // Reset credentials on open to ensure fields start empty
+  useEffect(() => {
+    setAuthEmail('');
+    setAuthPassword('');
+  }, [setAuthEmail, setAuthPassword]);
 
-  const handleMouseMove = (e) => {
-    if (!cardRef.current) return;
-    const rect = cardRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    const xc = rect.width / 2;
-    const yc = rect.height / 2;
-    const rotateY = ((x - xc) / xc) * 8;
-    const rotateX = -((y - yc) / yc) * 8;
-    setTiltX(rotateX);
-    setTiltY(rotateY);
-
-    const px = Math.round((x / rect.width) * 100);
-    const py = Math.round((y / rect.height) * 100);
-    setGlarePos({ x: px, y: py });
-  };
-
-  const handleMouseLeave = () => {
-    setTiltX(0);
-    setTiltY(0);
-    setGlarePos({ x: 50, y: 50 });
-  };
+  // Center Card kept static without cursor/mouse movement animations
 
   const handleSocialClick = (provider) => {
     setAuthMsg({
@@ -174,55 +156,71 @@ export default function AuthModal({
             2. CENTER COLUMN: Glassmorphic Sign-In / Register Card
             ============================================================ */}
         <section className="auth-center-card-col">
-          <div
-            ref={cardRef}
-            className="auth-signin-card-wrapper"
-            onMouseMove={handleMouseMove}
-            onMouseLeave={handleMouseLeave}
-            style={{
-              transform: `perspective(1000px) rotateX(${tiltX}deg) rotateY(${tiltY}deg)`,
-              transition: tiltX === 0 ? 'transform 0.5s cubic-bezier(0.16, 1, 0.3, 1)' : 'none',
-            }}
-          >
+          <div className="auth-signin-card-wrapper">
             {/* Multi-layer Neon Gradient Border Halo */}
             <div className="auth-neon-border-halo" />
             <div className="auth-card-neon-glow" />
 
             {/* Inner Glass Card */}
             <div className="auth-glass-card-body">
-              {/* Dynamic Mouse Glare */}
-              <div
-                className="auth-glare-layer"
-                style={{
-                  background: `radial-gradient(circle at ${glarePos.x}% ${glarePos.y}%, rgba(0, 245, 255, 0.16), transparent 60%)`,
-                }}
-              />
 
               {/* Card Header */}
               <div className="auth-card-header">
                 <div>
                   <h2 className="auth-card-title">
-                    {authMode === 'register' ? 'Create Account' : authMode === 'forgot' ? 'Reset Password' : 'Welcome Back'}
+                    {authRole === 'admin'
+                      ? (authMode === 'forgot' ? 'Reset Admin Password' : 'Admin Portal Sign In')
+                      : (authMode === 'register' ? 'Create User Account' : authMode === 'forgot' ? 'Reset Password' : 'User Sign In')}
                   </h2>
                   <p className="auth-card-subtitle">
-                    {authMode === 'register'
-                      ? 'Get started with Feonix AI today'
-                      : authMode === 'forgot'
-                      ? 'Enter your email to receive recovery instructions'
-                      : 'Sign in to your Feonix AI account'}
+                    {authRole === 'admin'
+                      ? (authMode === 'forgot' ? 'Enter your administrator email to receive recovery instructions' : 'Access platform controls and management analytics')
+                      : (authMode === 'register' ? 'Get started with Feonix AI today' : authMode === 'forgot' ? 'Enter your email to receive recovery instructions' : 'Sign in to access your interview simulator')}
                   </p>
                 </div>
 
                 {/* 3D Neural Core Icon/Badge in Top Right */}
-                <div className="auth-neural-badge" title="Feonix 3.0 Neural Core">
-                  <div className="neural-swirl-ring" />
-                  <Sparkles size={13} className="text-cyan neural-icon" />
-                  <span className="neural-version">v3.0</span>
+                <div className="auth-neural-badge" title={authRole === 'admin' ? "Admin Portal" : "Feonix 3.0 Neural Core"}>
+                  {authRole === 'admin' ? (
+                    <Shield size={14} style={{ color: '#c084fc' }} />
+                  ) : (
+                    <Sparkles size={13} className="text-cyan neural-icon" />
+                  )}
+                  <span className="neural-version">{authRole === 'admin' ? 'Admin' : 'v3.0'}</span>
                 </div>
               </div>
 
-              {/* Segmented Tab Switcher (Sign In vs Create Account) */}
+              {/* Role Switcher: User vs Admin */}
               {authMode !== 'forgot' && (
+                <div className="auth-role-tabs">
+                  <button
+                    type="button"
+                    className={`auth-role-tab ${authRole === 'user' ? 'active-user' : ''}`}
+                    onClick={() => {
+                      if (setAuthRole) setAuthRole('user');
+                      setAuthMsg({ text: '', type: '' });
+                    }}
+                  >
+                    <User size={15} />
+                    <span>User / Candidate</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={`auth-role-tab ${authRole === 'admin' ? 'active-admin' : ''}`}
+                    onClick={() => {
+                      if (setAuthRole) setAuthRole('admin');
+                      if (setAuthMode) setAuthMode('login');
+                      setAuthMsg({ text: '', type: '' });
+                    }}
+                  >
+                    <Shield size={15} />
+                    <span>Admin Portal</span>
+                  </button>
+                </div>
+              )}
+
+              {/* Segmented Tab Switcher (Sign In vs Create Account for Users) */}
+              {authMode !== 'forgot' && authRole === 'user' && (
                 <div className="auth-segmented-tabs">
                   <button
                     type="button"
@@ -253,7 +251,7 @@ export default function AuthModal({
               )}
 
               {/* Form Component */}
-              <form onSubmit={handleAuthSubmit} className="auth-inputs-form">
+              <form onSubmit={handleAuthSubmit} className="auth-inputs-form" autoComplete="off">
                 {/* Email Address Field */}
                 <div className="auth-field-group">
                   <label htmlFor="auth-email-input" className="auth-field-label">
@@ -263,12 +261,13 @@ export default function AuthModal({
                     <Mail size={16} className="auth-input-icon" />
                     <input
                       id="auth-email-input"
+                      name="auth_user_email"
                       type="email"
                       placeholder="name@company.com"
                       value={authEmail}
                       onChange={(e) => setAuthEmail(e.target.value)}
                       required
-                      autoComplete="username"
+                      autoComplete="off"
                       className="auth-text-input"
                     />
                   </div>
@@ -323,12 +322,13 @@ export default function AuthModal({
                         <Lock size={16} className="auth-input-icon" />
                         <input
                           id="auth-password-input"
+                          name="auth_user_password"
                           type={showPassword ? 'text' : 'password'}
                           placeholder="••••••••••••"
                           value={authPassword}
                           onChange={(e) => setAuthPassword(e.target.value)}
                           required
-                          autoComplete={authMode === 'register' ? 'new-password' : 'current-password'}
+                          autoComplete="new-password"
                           className="auth-text-input"
                         />
                         <button
@@ -344,8 +344,9 @@ export default function AuthModal({
                   )
                 )}
 
-                {/* Optional Invite Code for Registration */}
-                {authMode === 'register' && (
+
+                {/* Optional Invite Code for User Registration */}
+                {authRole === 'user' && authMode === 'register' && (
                   <div className="auth-field-group">
                     <label htmlFor="auth-invite-code" className="auth-field-label">
                       Invite Code (Optional)
@@ -412,7 +413,7 @@ export default function AuthModal({
                           ? 'Create Account →'
                           : authMode === 'forgot'
                           ? 'Send Reset Link →'
-                          : 'Sign in to Feonix →'}
+                          : (authRole === 'admin' ? 'Sign in as Admin →' : 'Sign in to Feonix →')}
                       </span>
                     </span>
                   )}
@@ -427,9 +428,10 @@ export default function AuthModal({
                 )}
               </form>
 
-              {/* Social Login Options */}
-              {authMode !== 'forgot' && (
-                <div className="auth-social-block">
+              {/* Social Login Options (User only) */}
+              {authRole === 'admin' ? null : (
+                authMode !== 'forgot' && (
+                  <div className="auth-social-block">
                   <div className="auth-divider-row">
                     <span className="divider-line" />
                     <span className="divider-text">Or continue with</span>
@@ -492,7 +494,7 @@ export default function AuthModal({
                     </button>
                   </div>
                 </div>
-              )}
+              ))}
 
               {/* Bottom Switch Link */}
               <div className="auth-footer-switch-prompt">
@@ -507,6 +509,23 @@ export default function AuthModal({
                   >
                     ← Back to Sign In
                   </button>
+                ) : authRole === 'admin' ? (
+                  <>
+                    <span className="switch-prompt-text">
+                      Candidate or standard user?
+                    </span>
+                    <button
+                      type="button"
+                      className="auth-switch-text-btn"
+                      onClick={() => {
+                        if (setAuthRole) setAuthRole('user');
+                        setAuthMode('login');
+                        setAuthMsg({ text: '', type: '' });
+                      }}
+                    >
+                      User Login / Create Account
+                    </button>
+                  </>
                 ) : (
                   <>
                     <span className="switch-prompt-text">
@@ -526,11 +545,6 @@ export default function AuthModal({
                 )}
               </div>
 
-              {/* Security Badge */}
-              <div className="auth-card-security-badge">
-                <ShieldCheck size={13} className="text-cyan" />
-                <span>256-bit encrypted · Sandbox privacy isolated</span>
-              </div>
             </div>
           </div>
         </section>

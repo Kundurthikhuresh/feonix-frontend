@@ -106,7 +106,16 @@ export async function captureScreenSnapshot({ onBeforeFrame } = {}) {
     throw err;
   }
 
-  const displayStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+  // Bounded: if the desktop shell never answers the request, the click would
+  // otherwise hang silently and look like the button does nothing.
+  const displayStream = await Promise.race([
+    navigator.mediaDevices.getDisplayMedia({ video: true }),
+    new Promise((_, reject) => setTimeout(() => {
+      const err = new Error('Screen capture did not start. Please try again.');
+      err.code = 'CAPTURE_TIMEOUT';
+      reject(err);
+    }, 10000)),
+  ]);
   const videoTrack = displayStream.getVideoTracks()[0];
   const video = document.createElement('video');
   video.srcObject = displayStream;
