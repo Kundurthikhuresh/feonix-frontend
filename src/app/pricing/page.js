@@ -141,12 +141,16 @@ export default function PricingPage() {
       const data = await res.json();
       if (res.ok && data.valid) {
         setAppliedCoupon({
+          valid: true,
           code: data.promotion.code,
           name: data.promotion.name,
+          discount_percent: data.promotion.discount_percent || 0,
           discount_amount: data.discount_amount,
           bonus_credits: data.bonus_credits,
           final_amount: data.final_amount,
           original_amount: data.original_amount,
+          currency: data.currency || targetCurrency || 'INR',
+          promotion: data.promotion,
         });
         setCouponError('');
       } else {
@@ -237,6 +241,22 @@ export default function PricingPage() {
     }
   }
 
+  /* Shown under the shop name in the Razorpay window: the plan, and with a
+   * coupon the full price, the discount and the amount payable. Amounts from
+   * the order are in the currency's smallest unit. */
+  function checkoutDescription(order) {
+    const fmt = (minor) => new Intl.NumberFormat(order.currency === 'INR' ? 'en-IN' : 'en-US', {
+      style: 'currency', currency: order.currency,
+      minimumFractionDigits: minor % 100 === 0 ? 0 : 2,
+    }).format(minor / 100);
+    const name = order.plan_name || `${String(order.plan).toUpperCase()} Plan`;
+    if (order.applied_coupon && order.original_amount > order.amount) {
+      return `${name} · ${fmt(order.original_amount)} − ${fmt(order.original_amount - order.amount)} `
+        + `(${order.applied_coupon.code}) = ${fmt(order.amount)} payable`;
+    }
+    return `${name} · ${fmt(order.amount)} payable`;
+  }
+
   async function handleSubscribe(planId, preferredMethod = null, currency = null, couponCode = null) {
     if (!planId || planId === 'free') return;
 
@@ -278,7 +298,7 @@ export default function PricingPage() {
         currency: order.currency,
         order_id: order.order_id,
         name: 'FeonixAI',
-        description: `${planId.toUpperCase()} Plan`,
+        description: checkoutDescription(order),
         theme: { color: '#00f5ff' },
         handler: async (response) => {
           try {

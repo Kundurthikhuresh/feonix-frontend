@@ -1163,6 +1163,54 @@
   font-weight: 600;
 }
 
+.pk-checkout-summary-box {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-top: 10px;
+  margin-bottom: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pk-summary-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13.5px;
+  color: #475569;
+}
+
+.pk-summary-line.pk-summary-discount {
+  color: #16a34a;
+  font-weight: 600;
+}
+
+.pk-summary-old {
+  text-decoration: line-through;
+  color: #94a3b8;
+}
+
+.pk-summary-divider {
+  height: 1px;
+  background: #e2e8f0;
+  margin: 2px 0;
+}
+
+.pk-summary-line.pk-summary-total {
+  font-size: 15px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.pk-summary-payable {
+  color: #16a34a;
+  font-size: 16px;
+  font-weight: 800;
+}
+
 .pk-checkout-remove-code {
   background: none;
   border: none;

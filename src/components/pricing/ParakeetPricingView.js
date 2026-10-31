@@ -118,7 +118,17 @@ export default function ParakeetPricingView({
       });
       const data = await res.json();
       if (res.ok && data.valid) {
-        setModalCoupon(data);
+        setModalCoupon({
+          valid: true,
+          code: data.promotion.code,
+          name: data.promotion.name,
+          discount_percent: data.promotion.discount_percent || 0,
+          discount_amount: data.discount_amount,
+          final_amount: data.final_amount,
+          original_amount: data.original_amount,
+          currency: data.currency || cur,
+          promotion: data.promotion,
+        });
         setCodeError('');
         if (onApplyCoupon) onApplyCoupon(clean, targetPlan, cur);
       } else {
@@ -135,25 +145,36 @@ export default function ParakeetPricingView({
   // Currency toggle inside modal
   const handleCurrencySwitch = (newCur) => {
     setModalCurrency(newCur);
-    if (modalCoupon && modalCoupon.valid && modalCoupon.promotion?.code) {
-      validateModalCode(modalCoupon.promotion.code, newCur, checkoutPlanId);
+    const code = modalCoupon?.code || appliedCoupon?.code || referralInput.trim();
+    if (code) {
+      validateModalCode(code, newCur, checkoutPlanId);
     }
   };
 
   // Live price & discount calculations for the modal
+  const activeCoupon = modalCoupon || appliedCoupon;
   const baseCheckoutAmount = planAmount(checkoutPlanId, modalCurrency);
   let finalCheckoutAmount = baseCheckoutAmount;
   let discountAmount = 0;
-  if (modalCoupon && modalCoupon.valid) {
-    if (modalCoupon.final_amount !== undefined && modalCoupon.currency === modalCurrency) {
-      finalCheckoutAmount = modalCoupon.final_amount;
-      discountAmount = modalCoupon.discount_amount || (baseCheckoutAmount - finalCheckoutAmount);
-    } else if (modalCoupon.promotion?.discount_percent > 0) {
-      discountAmount = (baseCheckoutAmount * modalCoupon.promotion.discount_percent) / 100;
+  let hasDiscount = false;
+
+  if (activeCoupon) {
+    const pct = activeCoupon.promotion?.discount_percent || activeCoupon.discount_percent || 0;
+    const fixedDiscount = Number(activeCoupon.discount_amount) || 0;
+    const finalFromApi = Number(activeCoupon.final_amount);
+
+    if (pct > 0) {
+      discountAmount = Math.round((baseCheckoutAmount * pct) / 100);
       finalCheckoutAmount = Math.max(1, baseCheckoutAmount - discountAmount);
-    } else if (modalCoupon.discount_amount > 0) {
-      discountAmount = modalCoupon.discount_amount;
+      hasDiscount = true;
+    } else if (fixedDiscount > 0) {
+      discountAmount = Math.min(baseCheckoutAmount, fixedDiscount);
       finalCheckoutAmount = Math.max(1, baseCheckoutAmount - discountAmount);
+      hasDiscount = true;
+    } else if (!isNaN(finalFromApi) && finalFromApi > 0 && finalFromApi < baseCheckoutAmount) {
+      finalCheckoutAmount = finalFromApi;
+      discountAmount = baseCheckoutAmount - finalCheckoutAmount;
+      hasDiscount = true;
     }
   }
 
@@ -163,7 +184,7 @@ export default function ParakeetPricingView({
     setCodeError('');
     const targetPlan = checkoutPlanId;
     const targetCurrency = modalCurrency;
-    const appliedCode = modalCoupon?.valid ? modalCoupon.promotion?.code : (referralInput.trim() ? referralInput.trim().toUpperCase() : null);
+    const appliedCode = activeCoupon?.code || activeCoupon?.promotion?.code || (referralInput.trim() ? referralInput.trim().toUpperCase() : null);
 
     if (onSelectPlan) {
       onSelectPlan(targetPlan, null, targetCurrency, appliedCode);
@@ -773,26 +794,44 @@ export default function ParakeetPricingView({
                 </button>
               </div>
 
-              {/* Dynamic Discount Applied Message */}
-              {modalCoupon?.valid && (
-                <div className="pk-checkout-discount-badge">
-                  <span>
-                    ✓ Code <strong>{modalCoupon.promotion?.code}</strong> applied!
-                    {discountAmount > 0 && ` Saved ${formatMoney(discountAmount, modalCurrency)}`}
-                    {modalCoupon.promotion?.discount_percent > 0 && ` (${modalCoupon.promotion.discount_percent}% Off)`}
-                  </span>
-                  <button
-                    type="button"
-                    className="pk-checkout-remove-code"
-                    onClick={() => {
-                      setModalCoupon(null);
-                      setReferralInput('');
-                      if (onRemoveCoupon) onRemoveCoupon();
-                    }}
-                  >
-                    Remove
-                  </button>
-                </div>
+              {/* Dynamic Discount Applied Message & Detailed Order Summary */}
+              {hasDiscount && (
+                <>
+                  <div className="pk-checkout-discount-badge">
+                    <span>
+                      ✓ Code <strong>{activeCoupon?.code || activeCoupon?.promotion?.code}</strong> applied!
+                      {discountAmount > 0 && ` Saved ${formatMoney(discountAmount, modalCurrency)}`}
+                      {(activeCoupon?.promotion?.discount_percent || activeCoupon?.discount_percent) > 0 && ` (${activeCoupon.promotion?.discount_percent || activeCoupon.discount_percent}% Off)`}
+                    </span>
+                    <button
+                      type="button"
+                      className="pk-checkout-remove-code"
+                      onClick={() => {
+                        setModalCoupon(null);
+                        setReferralInput('');
+                        if (onRemoveCoupon) onRemoveCoupon();
+                      }}
+                    >
+                      Remove
+                    </button>
+                  </div>
+
+                  <div className="pk-checkout-summary-box">
+                    <div className="pk-summary-line">
+                      <span>Original Price:</span>
+                      <span className="pk-summary-old">{formatMoney(baseCheckoutAmount, modalCurrency)}</span>
+                    </div>
+                    <div className="pk-summary-line pk-summary-discount">
+                      <span>Discount ({activeCoupon?.code || activeCoupon?.promotion?.code}):</span>
+                      <span>-{formatMoney(discountAmount, modalCurrency)}</span>
+                    </div>
+                    <div className="pk-summary-divider" />
+                    <div className="pk-summary-line pk-summary-total">
+                      <span>Payable Amount:</span>
+                      <span className="pk-summary-payable">{formatMoney(finalCheckoutAmount, modalCurrency)}</span>
+                    </div>
+                  </div>
+                </>
               )}
 
               {/* Validation Error Message */}
@@ -839,9 +878,18 @@ export default function ParakeetPricingView({
                 onClick={handleProceedCheckout}
                 disabled={isProcessingCheckout}
               >
-                {isProcessingCheckout
-                  ? 'Redirecting…'
-                  : `Checkout ${formatMoney(finalCheckoutAmount, modalCurrency)}`}
+                {isProcessingCheckout ? (
+                  'Redirecting to Gateway…'
+                ) : hasDiscount ? (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                    <span style={{ textDecoration: 'line-through', opacity: 0.65, fontSize: '13px' }}>
+                      {formatMoney(baseCheckoutAmount, modalCurrency)}
+                    </span>
+                    <span>Checkout {formatMoney(finalCheckoutAmount, modalCurrency)}</span>
+                  </span>
+                ) : (
+                  `Checkout ${formatMoney(finalCheckoutAmount, modalCurrency)}`
+                )}
               </button>
             </div>
 
