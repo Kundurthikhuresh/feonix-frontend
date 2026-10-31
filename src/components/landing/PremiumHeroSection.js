@@ -1,28 +1,23 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Sparkles,
   Play,
+  Pause,
+  RotateCcw,
   CheckCircle2,
   Zap,
   Activity,
   Mic,
-  Camera,
-  MessageSquare,
-  Maximize2,
   Copy,
   ThumbsUp,
   ThumbsDown,
-  ChevronRight,
-  Move,
   Code2,
   Check,
   Shield,
   Layers,
   Radio,
-  EyeOff,
-  Terminal,
 } from 'lucide-react';
 import Hero3DVisual from './Hero3DVisual';
 
@@ -109,7 +104,7 @@ return 1 -- Allowed`,
     if (!this.map.has(key)) return -1;
     const val = this.map.get(key);
     this.map.delete(key);
-    this.map.set(key, val); // Move to most recently used
+    this.map.set(key, val); // Move to most recent
     return val;
   }
   put(key, value) {
@@ -122,32 +117,32 @@ return 1 -- Allowed`,
 }`,
   },
   {
-    id: 'outage_star',
-    tabLabel: 'STAR Behavioral · Outage',
+    id: 'incident_response',
+    tabLabel: 'System Design · Circuit Breaker',
     icon: Zap,
     interviewerName: 'Marcus Vance',
-    interviewerRole: 'Director of Engineering @ Netflix',
+    interviewerRole: 'VP of Engineering @ Netflix',
     interviewerAvatar: 'MV',
-    interviewerColor: '#10b981',
-    question: 'Tell me about a high-severity production outage where you had to lead technical incident resolution under intense pressure.',
-    tokens: ['Tell me about', 'a critical', 'production outage and', 'how you led resolution?'],
-    highlightWord: 'how you led resolution?',
-    latency: '1.04s',
-    confidence: '98.9%',
-    time: '38:15',
-    strategyHeadline: 'Payment connection pool starvation during Black Friday traffic surge',
+    interviewerColor: '#f59e0b',
+    question: 'Describe how you handled a cascading microservice outage and what resilience patterns you put in place.',
+    tokens: ['Describe how you', 'handled cascading outages', 'and resilience patterns', 'under high load?'],
+    highlightWord: 'under high load?',
+    latency: '0.85s',
+    confidence: '99.6%',
+    time: '32:15',
+    strategyHeadline: 'Distributed Circuit Breaker with Exponential Backoff + Bulkhead Thread Isolation',
     talkingPoints: [
       {
-        label: 'Situation & Task',
-        desc: 'Payment processing dropped 42% of checkout attempts during peak Black Friday surge due to database connection exhaustion. Led 6-engineer war room with a 15-minute recovery SLA.',
+        label: 'Incident Identification',
+        desc: 'Downstream payment gateway latency spiked to 4.2s, exhausting upstream HTTP connection pools and causing cascading thread pool starvation across 14 services.',
       },
       {
-        label: 'Action Taken',
-        desc: 'Isolated unclosed database connections in a newly deployed analytics hook via Datadog traces. Triggered an instant zero-downtime rollback and scaled connection pool from 60 to 240.',
+        label: 'Immediate Mitigation',
+        desc: 'Tripped the circuit breaker to Open state, returning cached payment confirmations and queuing asynchronous settlements into Apache Kafka for retry.',
       },
       {
-        label: 'Quantified Result',
-        desc: 'Full 99.99% payment processing restored in 11 minutes. Added automated connection leak linters and circuit breaker thresholds preventing future cascade failures.',
+        label: 'Long-term Resilience',
+        desc: 'Configured Envoy sidecar circuit breakers with 50% error threshold over 10s, bulkhead concurrency limits of 200 concurrent calls, and adaptive exponential jitter.',
       },
     ],
     codeSnippet: null,
@@ -190,10 +185,90 @@ export default function PremiumHeroSection({ onSignupClick, onWatchDemo }) {
   const [activeView, setActiveView] = useState('talking_points'); // 'talking_points' | 'code'
   const [copied, setCopied] = useState(false);
 
+  // Live video/interactive streaming simulation states
+  // Phases: 'transcribing' | 'detected' | 'generating' | 'completed'
+  const [phase, setPhase] = useState('transcribing');
+  const [visibleTokenCount, setVisibleTokenCount] = useState(1);
+  const [visiblePointsCount, setVisiblePointsCount] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(true);
+  const [generationProgress, setGenerationProgress] = useState(0);
+
+  const timerRef = useRef(null);
+
+  // Reset and restart simulation
+  const restartSimulation = (scenario = activeScenario) => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    setActiveScenario(scenario);
+    setActiveView('talking_points');
+    setPhase('transcribing');
+    setVisibleTokenCount(1);
+    setVisiblePointsCount(0);
+    setGenerationProgress(0);
+    setIsPlaying(true);
+  };
+
+  // Skip / Fast-forward immediately to full answer
+  const handleInstantAnswer = () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    setVisibleTokenCount(activeScenario.tokens.length);
+    setVisiblePointsCount(activeScenario.talkingPoints.length);
+    setPhase('completed');
+    setGenerationProgress(100);
+  };
+
   const handleCopy = () => {
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  // Video-like streaming sequence runner
+  useEffect(() => {
+    if (!isPlaying) return;
+
+    if (phase === 'transcribing') {
+      if (visibleTokenCount < activeScenario.tokens.length) {
+        timerRef.current = setTimeout(() => {
+          setVisibleTokenCount((prev) => prev + 1);
+        }, 550);
+      } else {
+        // Question is fully transcribed
+        timerRef.current = setTimeout(() => {
+          setPhase('detected');
+        }, 300);
+      }
+    } else if (phase === 'detected') {
+      // Question Detected badge activates, trigger answer generation
+      timerRef.current = setTimeout(() => {
+        setPhase('generating');
+      }, 700);
+    } else if (phase === 'generating') {
+      // AI neural generation progress
+      timerRef.current = setTimeout(() => {
+        setPhase('streaming_answer');
+        setVisiblePointsCount(1);
+      }, 500);
+    } else if (phase === 'streaming_answer') {
+      if (visiblePointsCount < activeScenario.talkingPoints.length) {
+        timerRef.current = setTimeout(() => {
+          setVisiblePointsCount((prev) => prev + 1);
+        }, 600);
+      } else {
+        timerRef.current = setTimeout(() => {
+          setPhase('completed');
+        }, 400);
+      }
+    } else if (phase === 'completed') {
+      // Auto-loop after 9 seconds if still playing
+      timerRef.current = setTimeout(() => {
+        // Loop back to restart next scenario or current
+        restartSimulation();
+      }, 10000);
+    }
+
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, [phase, visibleTokenCount, visiblePointsCount, isPlaying, activeScenario]);
 
   return (
     <section id="hero" className="px-hero" style={{ padding: '64px 0 84px 0', position: 'relative' }}>
@@ -261,7 +336,7 @@ export default function PremiumHeroSection({ onSignupClick, onWatchDemo }) {
             ================================================================ */}
         <div style={{ maxWidth: '1060px', margin: '0 auto', textAlign: 'left', position: 'relative' }}>
           
-          {/* Subtle Floating 3D AI Assistant Core Badge */}
+          {/* Floating 3D AI Neural Core Badge */}
           <div
             style={{
               position: 'absolute',
@@ -271,12 +346,15 @@ export default function PremiumHeroSection({ onSignupClick, onWatchDemo }) {
               display: 'flex',
               alignItems: 'center',
               gap: '10px',
-              background: 'rgba(12, 17, 28, 0.92)',
-              border: '1px solid rgba(56, 189, 248, 0.3)',
+              background: 'rgba(12, 17, 28, 0.94)',
+              border: `1px solid ${phase === 'detected' || phase === 'generating' ? '#38bdf8' : 'rgba(56, 189, 248, 0.3)'}`,
               borderRadius: '999px',
               padding: '6px 14px 6px 8px',
-              boxShadow: '0 10px 30px rgba(0, 0, 0, 0.6), 0 0 20px rgba(6, 182, 212, 0.15)',
+              boxShadow: phase === 'generating'
+                ? '0 10px 30px rgba(6, 182, 212, 0.4), 0 0 25px rgba(56, 189, 248, 0.4)'
+                : '0 10px 30px rgba(0, 0, 0, 0.6), 0 0 20px rgba(6, 182, 212, 0.15)',
               backdropFilter: 'blur(16px)',
+              transition: 'all 0.3s ease',
             }}
           >
             <div style={{ width: '28px', height: '28px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -284,11 +362,23 @@ export default function PremiumHeroSection({ onSignupClick, onWatchDemo }) {
             </div>
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               <span style={{ fontSize: '11px', fontWeight: 800, color: '#f8fafc', letterSpacing: '0.02em', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981', boxShadow: '0 0 8px #10b981' }} />
+                <span
+                  style={{
+                    width: '6px',
+                    height: '6px',
+                    borderRadius: '50%',
+                    background: phase === 'generating' ? '#38bdf8' : '#10b981',
+                    boxShadow: phase === 'generating' ? '0 0 10px #38bdf8' : '0 0 8px #10b981',
+                    animation: phase === 'generating' ? 'pulse 0.8s infinite' : 'none',
+                  }}
+                />
                 Feonix Neural Core
               </span>
-              <span style={{ fontSize: '9.5px', color: '#94a3b8', fontFamily: 'monospace' }}>
-                Streaming Whisper-1 • {activeScenario.latency}
+              <span style={{ fontSize: '9.5px', color: phase === 'generating' ? '#38bdf8' : '#94a3b8', fontFamily: 'monospace' }}>
+                {phase === 'transcribing' && 'Transcribing Voice • Whisper-1'}
+                {phase === 'detected' && 'Question Detected • Synthesizing'}
+                {phase === 'generating' && `Streaming Answer • ${activeScenario.latency}`}
+                {(phase === 'streaming_answer' || phase === 'completed') && `Streaming Whisper-1 • ${activeScenario.latency}`}
               </span>
             </div>
           </div>
@@ -304,7 +394,7 @@ export default function PremiumHeroSection({ onSignupClick, onWatchDemo }) {
               position: 'relative',
             }}
           >
-            {/* macOS Window Title Bar */}
+            {/* macOS Window Title Bar with Simulation Playback Controls */}
             <div
               style={{
                 display: 'flex',
@@ -324,7 +414,31 @@ export default function PremiumHeroSection({ onSignupClick, onWatchDemo }) {
                 </span>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                {/* Simulation Replay / Interactive Control */}
+                <button
+                  type="button"
+                  onClick={() => restartSimulation()}
+                  title="Replay Question and Answer Streaming Animation"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    background: 'rgba(56, 189, 248, 0.12)',
+                    border: '1px solid rgba(56, 189, 248, 0.3)',
+                    color: '#38bdf8',
+                    padding: '3px 9px',
+                    borderRadius: '6px',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <RotateCcw size={12} />
+                  <span>Replay Live Demo</span>
+                </button>
+
                 <span style={{ fontSize: '11px', color: '#10b981', background: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '3px 10px', borderRadius: '999px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
                   <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981' }} />
                   Zoom Video Active
@@ -335,7 +449,7 @@ export default function PremiumHeroSection({ onSignupClick, onWatchDemo }) {
               </div>
             </div>
 
-            {/* Video Call Backdrop with Floating Parakeet HUD */}
+            {/* Video Call Backdrop with Live Streaming Teleprompter HUD */}
             <div
               style={{
                 position: 'relative',
@@ -358,9 +472,7 @@ export default function PremiumHeroSection({ onSignupClick, onWatchDemo }) {
                 }}
               />
 
-              {/* ============================================================
-                  THE UNIFIED FEONIX AI STEALTH TELEPROMPTER WIDGET
-                  ============================================================ */}
+              {/* THE UNIFIED FEONIX AI STEALTH TELEPROMPTER WIDGET */}
               <div
                 style={{
                   width: '100%',
@@ -412,22 +524,28 @@ export default function PremiumHeroSection({ onSignupClick, onWatchDemo }) {
                     {/* Action Hotkeys */}
                     <button
                       type="button"
+                      onClick={handleInstantAnswer}
+                      title="Click to generate full answer instantly"
                       style={{
-                        background: 'rgba(6, 182, 212, 0.2)',
-                        border: '1px solid rgba(6, 182, 212, 0.5)',
-                        color: '#38bdf8',
-                        padding: '4px 10px',
+                        background: phase === 'detected' || phase === 'generating'
+                          ? 'linear-gradient(135deg, #0284c7, #06b6d4)'
+                          : 'rgba(6, 182, 212, 0.2)',
+                        border: '1px solid rgba(6, 182, 212, 0.6)',
+                        color: '#ffffff',
+                        padding: '4px 11px',
                         borderRadius: '6px',
                         fontSize: '11.5px',
                         fontWeight: 700,
                         display: 'flex',
                         alignItems: 'center',
                         gap: '4px',
-                        cursor: 'default',
+                        cursor: 'pointer',
+                        boxShadow: phase === 'detected' ? '0 0 14px rgba(6, 182, 212, 0.6)' : 'none',
+                        transition: 'all 0.2s ease',
                       }}
                     >
                       <span>Answer</span>
-                      <kbd style={{ fontFamily: 'sans-serif', fontSize: '10px', background: 'rgba(255, 255, 255, 0.12)', padding: '1px 4px', borderRadius: '3px', color: '#ffffff' }}>⌘↵</kbd>
+                      <kbd style={{ fontFamily: 'sans-serif', fontSize: '10px', background: 'rgba(255, 255, 255, 0.2)', padding: '1px 4px', borderRadius: '3px', color: '#ffffff' }}>⌘↵</kbd>
                     </button>
 
                     <button
@@ -474,6 +592,7 @@ export default function PremiumHeroSection({ onSignupClick, onWatchDemo }) {
 
                     <button
                       type="button"
+                      onClick={() => restartSimulation()}
                       style={{
                         background: '#dc2626',
                         border: 'none',
@@ -482,7 +601,7 @@ export default function PremiumHeroSection({ onSignupClick, onWatchDemo }) {
                         fontWeight: 700,
                         padding: '4px 10px',
                         borderRadius: '6px',
-                        cursor: 'default',
+                        cursor: 'pointer',
                       }}
                     >
                       End
@@ -490,51 +609,79 @@ export default function PremiumHeroSection({ onSignupClick, onWatchDemo }) {
                   </div>
                 </div>
 
-                {/* 2. Transcription Token Stream Bar */}
+                {/* 2. Real-Time Interviewer Transcription Token Stream Bar */}
                 <div
                   style={{
-                    background: 'rgba(18, 24, 38, 0.92)',
+                    background: 'rgba(18, 24, 38, 0.94)',
                     backdropFilter: 'blur(20px)',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    border: '1px solid rgba(255, 255, 255, 0.12)',
                     borderRadius: '10px',
-                    padding: '8px 14px',
+                    padding: '9px 14px',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     boxShadow: '0 4px 16px rgba(0, 0, 0, 0.3)',
                     gap: '12px',
+                    minHeight: '44px',
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: '11px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    <span style={{ fontSize: '11px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Mic size={13} style={{ color: phase === 'transcribing' ? '#38bdf8' : '#94a3b8', animation: phase === 'transcribing' ? 'pulse 1s infinite' : 'none' }} />
                       INTERVIEWER SPEECH:
                     </span>
 
-                    {activeScenario.tokens.map((token, i) => {
+                    {/* Tokens appearing progressively as the interviewer speaks */}
+                    {activeScenario.tokens.slice(0, visibleTokenCount).map((token, i) => {
                       const isHigh = token === activeScenario.highlightWord;
                       return (
                         <span
                           key={i}
                           style={{
-                            background: isHigh ? 'rgba(34, 197, 94, 0.18)' : 'rgba(255, 255, 255, 0.06)',
-                            border: `1px solid ${isHigh ? 'rgba(34, 197, 94, 0.45)' : 'rgba(255, 255, 255, 0.08)'}`,
-                            color: isHigh ? '#4ade80' : '#e2e8f0',
-                            padding: '3px 9px',
+                            background: isHigh ? 'rgba(34, 197, 94, 0.22)' : 'rgba(255, 255, 255, 0.08)',
+                            border: `1px solid ${isHigh ? 'rgba(34, 197, 94, 0.6)' : 'rgba(255, 255, 255, 0.12)'}`,
+                            color: isHigh ? '#4ade80' : '#f1f5f9',
+                            padding: '3px 10px',
                             borderRadius: '6px',
-                            fontSize: '12px',
+                            fontSize: '12.5px',
                             fontWeight: isHigh ? 700 : 500,
+                            boxShadow: isHigh ? '0 0 12px rgba(74, 222, 128, 0.35)' : 'none',
+                            animation: 'fadeIn 0.25s ease-out',
+                            transition: 'all 0.2s ease',
                           }}
                         >
                           {token}
                         </span>
                       );
                     })}
+
+                    {phase === 'transcribing' && visibleTokenCount < activeScenario.tokens.length && (
+                      <span style={{ width: '8px', height: '14px', background: '#38bdf8', display: 'inline-block', borderRadius: '1px', animation: 'blink 0.8s infinite' }} />
+                    )}
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-                    <span style={{ fontSize: '10.5px', color: '#10b981', background: 'rgba(16, 185, 129, 0.12)', padding: '2px 8px', borderRadius: '4px', fontWeight: 700 }}>
-                      ● Question Detected ({activeScenario.confidence})
-                    </span>
+                    {phase !== 'transcribing' && (
+                      <span
+                        style={{
+                          fontSize: '11px',
+                          color: '#10b981',
+                          background: 'rgba(16, 185, 129, 0.16)',
+                          border: '1px solid rgba(16, 185, 129, 0.45)',
+                          padding: '3px 10px',
+                          borderRadius: '6px',
+                          fontWeight: 700,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                          boxShadow: '0 0 14px rgba(16, 185, 129, 0.3)',
+                          animation: 'fadeIn 0.3s ease-out',
+                        }}
+                      >
+                        <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981' }} />
+                        ● Question Detected ({activeScenario.confidence})
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -543,13 +690,17 @@ export default function PremiumHeroSection({ onSignupClick, onWatchDemo }) {
                   style={{
                     background: 'rgba(16, 22, 36, 0.96)',
                     backdropFilter: 'blur(28px)',
-                    border: '1.5px solid rgba(56, 189, 248, 0.35)',
+                    border: `1.5px solid ${phase === 'generating' ? 'rgba(56, 189, 248, 0.7)' : 'rgba(56, 189, 248, 0.35)'}`,
                     borderRadius: '16px',
                     padding: '20px 24px',
-                    boxShadow: '0 20px 50px -10px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
+                    boxShadow: phase === 'generating'
+                      ? '0 20px 60px -10px rgba(6, 182, 212, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.2)'
+                      : '0 20px 50px -10px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
                     display: 'flex',
                     flexDirection: 'column',
                     gap: '14px',
+                    minHeight: '230px',
+                    transition: 'all 0.3s ease',
                   }}
                 >
                   {/* Card Sub-Header Actions */}
@@ -611,49 +762,78 @@ export default function PremiumHeroSection({ onSignupClick, onWatchDemo }) {
                     </div>
                   </div>
 
-                  {/* Primary Answer Strategy Callout */}
-                  <div
-                    style={{
-                      background: 'rgba(56, 189, 248, 0.08)',
-                      border: '1px solid rgba(56, 189, 248, 0.25)',
-                      borderRadius: '10px',
-                      padding: '10px 14px',
-                      display: 'flex',
-                      alignItems: 'baseline',
-                      gap: '8px',
-                    }}
-                  >
-                    <span style={{ fontSize: '14px', color: '#f59e0b', flexShrink: 0 }}>⭐</span>
-                    <div>
-                      <span style={{ fontSize: '11px', fontWeight: 800, color: '#38bdf8', textTransform: 'uppercase', letterSpacing: '0.04em', marginRight: '6px' }}>
-                        Executive Summary:
-                      </span>
-                      <span style={{ fontSize: '13.5px', fontWeight: 700, color: '#ffffff' }}>
-                        {activeScenario.strategyHeadline}
-                      </span>
+                  {/* AI Generating Scanning State */}
+                  {phase === 'generating' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', padding: '16px 0', alignItems: 'center', justifyContent: 'center' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#38bdf8', fontSize: '13px', fontWeight: 700 }}>
+                        <Sparkles size={16} style={{ animation: 'spin 1.5s linear infinite' }} />
+                        <span>Feonix Neural Core streaming optimal response in {activeScenario.latency}...</span>
+                      </div>
+                      <div style={{ width: '80%', height: '4px', background: 'rgba(255,255,255,0.08)', borderRadius: '4px', overflow: 'hidden' }}>
+                        <div style={{ width: '60%', height: '100%', background: 'linear-gradient(90deg, #06b6d4, #38bdf8)', borderRadius: '4px', animation: 'progressIndeterminate 1s infinite linear' }} />
+                      </div>
                     </div>
-                  </div>
+                  )}
 
-                  {/* View: Structured Talking Points vs Code Solution */}
-                  {activeView === 'talking_points' ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                      {activeScenario.talkingPoints.map((pt, i) => (
-                        <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', fontSize: '13px', lineHeight: 1.6 }}>
-                          <span style={{ color: '#06b6d4', fontWeight: 800, marginTop: '2px' }}>•</span>
-                          <div>
-                            <strong style={{ color: '#f8fafc', fontWeight: 700 }}>{pt.label}: </strong>
-                            <span style={{ color: '#cbd5e1' }}>{pt.desc}</span>
-                            {i === activeScenario.talkingPoints.length - 1 && (
-                              <span style={{ display: 'inline-block', width: '2px', height: '14px', background: '#38bdf8', verticalAlign: 'middle', marginLeft: '3px', animation: 'blink 1s infinite' }} />
-                            )}
-                          </div>
+                  {/* When question is detected or streaming: show answers */}
+                  {(phase === 'streaming_answer' || phase === 'completed' || phase === 'detected') && (
+                    <>
+                      {/* Primary Answer Strategy Callout */}
+                      <div
+                        style={{
+                          background: 'rgba(56, 189, 248, 0.08)',
+                          border: '1px solid rgba(56, 189, 248, 0.25)',
+                          borderRadius: '10px',
+                          padding: '10px 14px',
+                          display: 'flex',
+                          alignItems: 'baseline',
+                          gap: '8px',
+                          animation: 'fadeIn 0.3s ease-out',
+                        }}
+                      >
+                        <span style={{ fontSize: '14px', color: '#f59e0b', flexShrink: 0 }}>⭐</span>
+                        <div>
+                          <span style={{ fontSize: '11px', fontWeight: 800, color: '#38bdf8', textTransform: 'uppercase', letterSpacing: '0.04em', marginRight: '6px' }}>
+                            Executive Summary:
+                          </span>
+                          <span style={{ fontSize: '13.5px', fontWeight: 700, color: '#ffffff' }}>
+                            {activeScenario.strategyHeadline}
+                          </span>
                         </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div style={{ background: '#070b13', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '10px', padding: '14px 16px', fontFamily: 'monospace', fontSize: '12px', color: '#38bdf8', overflowX: 'auto' }}>
-                      <pre style={{ margin: 0 }}>{activeScenario.codeSnippet}</pre>
-                    </div>
+                      </div>
+
+                      {/* View: Structured Talking Points vs Code Solution */}
+                      {activeView === 'talking_points' ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                          {activeScenario.talkingPoints.slice(0, visiblePointsCount).map((pt, i) => (
+                            <div
+                              key={i}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'flex-start',
+                                gap: '10px',
+                                fontSize: '13px',
+                                lineHeight: 1.6,
+                                animation: 'fadeIn 0.3s ease-out',
+                              }}
+                            >
+                              <span style={{ color: '#06b6d4', fontWeight: 800, marginTop: '2px' }}>•</span>
+                              <div>
+                                <strong style={{ color: '#f8fafc', fontWeight: 700 }}>{pt.label}: </strong>
+                                <span style={{ color: '#cbd5e1' }}>{pt.desc}</span>
+                                {i === visiblePointsCount - 1 && phase !== 'completed' && (
+                                  <span style={{ display: 'inline-block', width: '2px', height: '14px', background: '#38bdf8', verticalAlign: 'middle', marginLeft: '3px', animation: 'blink 1s infinite' }} />
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div style={{ background: '#070b13', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '10px', padding: '14px 16px', fontFamily: 'monospace', fontSize: '12px', color: '#38bdf8', overflowX: 'auto' }}>
+                          <pre style={{ margin: 0 }}>{activeScenario.codeSnippet}</pre>
+                        </div>
+                      )}
+                    </>
                   )}
 
                   {/* Teleprompter Footer Bar */}
@@ -700,10 +880,7 @@ export default function PremiumHeroSection({ onSignupClick, onWatchDemo }) {
                   return (
                     <button
                       key={sc.id}
-                      onClick={() => {
-                        setActiveScenario(sc);
-                        setActiveView('talking_points');
-                      }}
+                      onClick={() => restartSimulation(sc)}
                       type="button"
                       style={{
                         background: isSelected ? 'rgba(56, 189, 248, 0.16)' : 'rgba(255, 255, 255, 0.04)',
@@ -727,9 +904,28 @@ export default function PremiumHeroSection({ onSignupClick, onWatchDemo }) {
                 })}
               </div>
 
-              <div style={{ fontSize: '11px', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <div style={{ fontSize: '11px', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsPlaying(!isPlaying)}
+                  style={{
+                    background: 'transparent',
+                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    color: '#e2e8f0',
+                    borderRadius: '6px',
+                    padding: '2px 8px',
+                    fontSize: '11px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                  }}
+                >
+                  {isPlaying ? <Pause size={10} /> : <Play size={10} />}
+                  <span>{isPlaying ? 'Pause' : 'Play'}</span>
+                </button>
                 <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981' }} />
-                <span>Click any scenario to test live teleprompter responses</span>
+                <span>Simulating real-time question detection & answer streaming</span>
               </div>
             </div>
           </div>

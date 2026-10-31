@@ -178,16 +178,6 @@ export default function AuthModal({
                       : (authMode === 'register' ? 'Get started with Feonix AI today' : authMode === 'forgot' ? 'Enter your email to receive recovery instructions' : 'Sign in to access your interview simulator')}
                   </p>
                 </div>
-
-                {/* 3D Neural Core Icon/Badge in Top Right */}
-                <div className="auth-neural-badge" title={authRole === 'admin' ? "Admin Portal" : "Feonix 3.0 Neural Core"}>
-                  {authRole === 'admin' ? (
-                    <Shield size={14} style={{ color: '#c084fc' }} />
-                  ) : (
-                    <Sparkles size={13} className="text-cyan neural-icon" />
-                  )}
-                  <span className="neural-version">{authRole === 'admin' ? 'Admin' : 'v3.0'}</span>
-                </div>
               </div>
 
               {/* Segmented Tab Switcher (Sign In vs Create Account for Users) */}
