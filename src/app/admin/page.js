@@ -45,6 +45,20 @@ export default function AdminPage() {
       document.documentElement.dataset.theme = activeTheme;
     }
 
+    // If already authenticated as admin and hitting /admin directly, forward to /admin/dashboard
+    if (typeof window !== 'undefined' && window.location.pathname === '/admin') {
+      try {
+        const raw = localStorage.getItem('feonix_dash_cache');
+        if (raw) {
+          const cached = JSON.parse(raw);
+          if (cached?.user && (cached.user.is_admin || cached.user.role === 'owner')) {
+            window.location.replace('/admin/dashboard');
+            return;
+          }
+        }
+      } catch {}
+    }
+
     checkAdminSession();
   }, []);
 
@@ -63,6 +77,9 @@ export default function AdminPage() {
           try {
             localStorage.setItem('feonix_dash_cache', JSON.stringify({ user: data.user }));
           } catch {}
+          if (typeof window !== 'undefined' && window.location.pathname === '/admin') {
+            window.location.replace('/admin/dashboard');
+          }
         } else {
           setUser(null);
         }
@@ -96,6 +113,9 @@ export default function AdminPage() {
     setAuthEmail('');
     setAuthPassword('');
     setAuthMsg({ text: 'Signed out successfully.', type: 'ok' });
+    if (typeof window !== 'undefined') {
+      window.location.href = '/admin';
+    }
   };
 
   const handleAuthSubmit = async (e) => {
@@ -152,6 +172,11 @@ export default function AdminPage() {
     } catch {}
     setAuthPassword('');
     setAuthMsg({ text: '', type: '' });
+
+    // Redirect admin to /admin/dashboard
+    if (typeof window !== 'undefined') {
+      window.location.href = '/admin/dashboard';
+    }
   };
 
   // If authenticated as admin, render AdminPane
@@ -203,3 +228,4 @@ export default function AdminPage() {
     </div>
   );
 }
+
