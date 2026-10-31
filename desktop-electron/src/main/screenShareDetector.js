@@ -1,5 +1,5 @@
 const { exec } = require('child_process');
-const { getOverlayWindow, bringToFront } = require('./window');
+const { getOverlayWindow, getMainWindow, bringToFront } = require('./window');
 
 /**
  * Screen Share Stealth & Detection Engine for FeonixAI.
@@ -165,12 +165,16 @@ class ScreenShareDetector {
     if (!overlay || overlay.isDestroyed()) return;
 
     // Enforce anti-capture content protection strictly whenever stealth mode is on/off
-    const stealthEnabled = this.settingsStore ? (this.settingsStore.get('stealthMode') === true) : false;
-    try {
-      overlay.setContentProtection(stealthEnabled);
-    } catch (err) {
-      // Non-fatal
-    }
+const stealthEnabled = this.settingsStore ? (this.settingsStore.get('stealthMode') === true) : true;
+    [getOverlayWindow(), getMainWindow()].forEach((win) => {
+      if (win && !win.isDestroyed()) {
+        try {
+          win.setContentProtection(stealthEnabled);
+        } catch (err) {
+          // Non-fatal
+        }
+      }
+    });
 
     if (isCurrentlyActive && !previousActive) {
       // Screen-share platform became active

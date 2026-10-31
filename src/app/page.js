@@ -130,7 +130,7 @@ export default function Page({ searchParams }) {
   const [currentView, setCurrentView] = useState(() => {
     if (typeof window !== 'undefined') {
       const v = new URLSearchParams(window.location.search).get('view');
-      if (v === 'app' || v === 'review') return v;
+      if (v === 'app' || v === 'review' || v === 'dash') return v;
     }
     return 'landing';
   }); // 'landing', 'dash', 'app', 'review'
@@ -286,6 +286,7 @@ export default function Page({ searchParams }) {
   const [newAuto, setNewAuto] = useState(true);
   const [newSaveTranscript, setNewSaveTranscript] = useState(true);
   const [createMsg, setCreateMsg] = useState('');
+  const [isCreatingSession, setIsCreatingSession] = useState(false);
 
   // Live Copilot App States
   const [activeSession, setActiveSession] = useState(null);
@@ -458,18 +459,26 @@ export default function Page({ searchParams }) {
       setShowAuthModal(true);
     }
 
-    const initialPane = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('pane') : null;
+const initialPane = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('pane') : null;
 
-    if (isReload) {
-      if (initialView !== 'dash' && initialPane !== 'admin' && initialView !== 'admin') {
-        if (typeof window !== 'undefined') {
+    if (initialView === 'dash' || initialPane === 'admin' || initialView === 'admin') {
+      setCurrentView(initialView === 'admin' ? 'admin' : 'dash');
+      if (initialPane) setActivePane(initialPane);
+      if (typeof window !== 'undefined') {
+        if (!window.history.state || window.history.state.view !== (initialView || 'dash')) {
           window.history.replaceState({ view: 'landing' }, '', '/');
+          window.history.pushState({ view: initialView || 'dash' }, '', `/?view=${initialView || 'dash'}${initialPane ? `&pane=${initialPane}` : ''}`);
         }
-        setCurrentView('landing');
       }
-    } else if (initialView && initialView !== 'dash') {
+    } else if (isReload) {
+      if (typeof window !== 'undefined') {
+        window.history.replaceState({ view: 'landing' }, '', '/');
+      }
+      setCurrentView('landing');
+    } else if (initialView) {
       window.history.replaceState({ view: initialView }, '');
       setCurrentView(initialView);
+    }
     }
 
     const handlePopState = (e) => {
@@ -637,7 +646,7 @@ export default function Page({ searchParams }) {
         if (typeof window !== 'undefined') {
           const urlParams = new URLSearchParams(window.location.search);
           const sessionId = urlParams.get('session');
-          const requestedView = urlParams.get('view');
+const requestedView = urlParams.get('view') || (currentViewRef.current === 'dash' ? 'dash' : null);
           const requestedPane = urlParams.get('pane');
 
           if (requestedPane === 'admin' || requestedView === 'admin') {
@@ -924,7 +933,7 @@ export default function Page({ searchParams }) {
   // instead of the hardcoded one below, which is specific to auth's own UI.
   const postJSONWithRetry = async (path, body, attempts = 5, delayMs = 600, onRetry) => {
     for (let attempt = 1; attempt <= attempts; attempt++) {
-      const result = await postJSON(path, body, { timeoutMs: 15000 });
+      const result = await postJSON(path, body, { timeoutMs: 30000 });
       const isTransient = !result.ok && (
         result.status === 0 ||
         (result.status === 503 && result.data?.error === 'server_unavailable')
@@ -1013,52 +1022,48 @@ export default function Page({ searchParams }) {
   // ----------------------------------------------------
   const handleCreateSession = async (e) => {
     e.preventDefault();
+    if (isCreatingSession) return;
+    setIsCreatingSession(true);
     setCreateMsg('Creating…');
 
-    const body = {
-      company: sessionType === 'interview' ? newCompany : newTitle,
-      role: sessionType === 'interview' ? newRole : '',
-      job_description: sessionType === 'interview' ? newJd : newDesc,
-      // The backend's POST /api/sessions reads `context` and `agent` — this
-      // field previously reverted to `instructions`/`agent_id`, names it
-      // never reads, so anything typed into "Context & instructions" (or
-      // picked in the agent selector) was silently discarded again.
-      context: newContext,
-      language: newLanguage,
-      agent: newAgent,
-      auto_answer: newAuto,
-      save_transcript: newSaveTranscript,
-      billing: billingChoice,
-    };
+    try {
+      const body = {
+        company: sessionType === 'interview' ? newCompany : newTitle,
+        role: sessionType === 'interview' ? newRole : '',
+        job_description: sessionType === 'interview' ? newJd : newDesc,
+        context: newContext,
+        language: newLanguage,
+        agent: newAgent,
+        auto_answer: newAuto,
+        save_transcript: newSaveTranscript,
+        billing: billingChoice,
+      };
 
-    // A plain postJSON() call here had only a 4s timeout and no retry, so
-    // the same transient slowness that postJSONWithRetry already absorbs
-    // for login (a request landing right after a backend/DB restart) showed
-    // up here as "Could not reach the server." instead of just creating the
-    // session a couple seconds later. postJSONWithRetry can take up to
-    // ~77s in the worst case (5 attempts, 15s timeout each) before giving
-    // up — without this callback the "Creating…" label just sat frozen the
-    // whole time with no sign anything was happening, indistinguishable
-    // from the app being stuck even when it was genuinely still retrying.
-    const { ok, data } = await postJSONWithRetry(
-      '/api/sessions',
-      body,
-      5,
-      600,
-      (attempt) => setCreateMsg(attempt >= 2 ? 'Still connecting… retrying' : 'Creating…')
-    );
-    if (!ok) {
-      setCreateMsg(data.message || 'Could not create session.');
-      return;
-    }
+      const { ok, data } = await postJSONWithRetry(
+        '/api/sessions',
+        body,
+        5,
+        1000,
+        (attempt) => setCreateMsg(attempt >= 2 ? 'Still connecting… retrying' : 'Creating…')
+      );
+      if (!ok) {
+        setCreateMsg(data.message || 'Could not create session.');
+        return;
+      }
 
-    setShowCreateSheet(false);
-    setCreateMsg('');
-    if (data?.session) {
-      setSessions((prev) => [data.session, ...prev.filter((s) => s.id !== data.session.id)]);
+      setShowCreateSheet(false);
+      setCreateMsg('');
+      if (data?.session) {
+        setSessions((prev) => [data.session, ...prev.filter((s) => s.id !== data.session.id)]);
+      }
+      await loadSessions();
+      await loadAccount();
+    } catch (err) {
+      console.error('Failed to create session:', err);
+      setCreateMsg('Failed to create session. Please try again.');
+    } finally {
+      setIsCreatingSession(false);
     }
-    await loadSessions();
-    await loadAccount();
   };
 
   const handleStartSession = async (session) => {
@@ -1149,15 +1154,26 @@ export default function Page({ searchParams }) {
 
   const handleManualAskSubmit = async (e) => {
     e.preventDefault();
-    if (!manualQuestion.trim()) return;
+    const qText = manualQuestion.trim();
+    if (!qText) return;
+
+    if (!activeSession || !activeSession.id) {
+      setLiveCueLine(qText);
+      setLiveQType('⚠️ Session Error');
+      setLiveAnswer('No active session found. Please start a session first.');
+      return;
+    }
 
     setTallyState('answering');
     setTallyLabel('Answering…');
+    setLiveCueLine(qText);
+    setLiveQType('Generating…');
+    setLiveAnswer('Generating high-impact answer…');
 
     const { ok, data } = await postJSON(
       `/api/sessions/${activeSession.id}/questions`,
-      { question: manualQuestion },
-      { timeoutMs: 60000 }
+{ question: qText },
+      { timeoutMs: 90000 }
     );
     setTallyState('listening');
     setTallyLabel('Listening');
@@ -1165,21 +1181,20 @@ export default function Page({ searchParams }) {
 
     if (ok && data.answer) {
       setLiveAnswer(data.answer);
-      setLiveCueLine(data.question);
+      setLiveCueLine(data.question || qText);
       setLiveQType(data.kind || 'Direct Question');
 
-      const tRes = await fetch(`/api/sessions/${activeSession.id}/transcript`);
-      if (tRes.ok) {
-        const tData = await tRes.json();
-        setLiveTranscripts(tData.transcripts || []);
-      }
+try {
+        const tRes = await fetch(`/api/sessions/${activeSession.id}/transcript`);
+        if (tRes.ok) {
+          const tData = await tRes.json();
+          setLiveTranscripts(tData.transcripts || []);
+        }
+      } catch { }
     } else {
-      console.warn('Manual ask failed:', data);
-      if (data && data.message) {
-        setLiveAnswer(`⚠️ Could not generate answer: ${data.message}`);
-        setLiveCueLine(manualQuestion);
-        setLiveQType('Error');
-      }
+      setLiveQType('⚠️ Generation Failed');
+      setLiveAnswer(`Could not generate answer: ${data?.message || data?.error || 'Server error or request timed out.'}`);
+      setLiveCueLine(qText);
     }
   };
 
@@ -1477,7 +1492,34 @@ export default function Page({ searchParams }) {
   // 2. Dashboard Page View
   if (currentView === 'dash') {
     if (!user) {
-      return null;
+      return (
+        <div style={{
+          minHeight: '100vh',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: '#0a0d14',
+          color: '#00f5ff',
+          fontFamily: 'sans-serif',
+          gap: '16px'
+        }}>
+          <div style={{
+            width: '32px',
+            height: '32px',
+            border: '3px solid rgba(0, 245, 255, 0.2)',
+            borderTopColor: '#00f5ff',
+            borderRadius: '50%',
+            animation: 'dashSpin 0.8s linear infinite'
+          }} />
+          <span style={{ fontSize: '13px', color: '#94a3b8', letterSpacing: '0.05em' }}>Loading Dashboard...</span>
+          <style jsx>{`
+            @keyframes dashSpin {
+              to { transform: rotate(360deg); }
+            }
+          `}</style>
+        </div>
+      );
     }
 
     const isAdmin = Boolean(user.is_admin || user.role === 'owner');
@@ -1571,6 +1613,7 @@ export default function Page({ searchParams }) {
             newSaveTranscript={newSaveTranscript}
             setNewSaveTranscript={setNewSaveTranscript}
             createMsg={createMsg}
+            isCreating={isCreatingSession}
             handleCreateSession={handleCreateSession}
             setShowCreateSheet={setShowCreateSheet}
           />

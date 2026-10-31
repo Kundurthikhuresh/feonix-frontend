@@ -22,6 +22,10 @@ const SCHEME = process.env.DESKTOP_SCHEME || 'feonixai';
 // reads getPath('userData').
 app.setName(app.isPackaged ? 'FeonixAI' : 'FeonixAI-dev');
 
+app.commandLine.appendSwitch('enable-features', 'WebRTCPipeWireCapturer');
+app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
+app.commandLine.appendSwitch('use-fake-ui-for-media-stream');
+
 const logger = new Logger(path.join(app.getPath('userData'), 'logs'));
 const settingsStore = new SettingsStore(app.getPath('userData'));
 
@@ -143,7 +147,7 @@ if (!gotLock) {
   });
 
   app.whenReady().then(() => {
-    try {
+try {
       if (session && session.defaultSession) {
         session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
           if (permission === 'media' || permission === 'audio-capture' || permission === 'desktop-capture') {
@@ -156,18 +160,13 @@ if (!gotLock) {
         }
         if (typeof session.defaultSession.setDisplayMediaRequestHandler === 'function') {
           const trustedOrigin = new URL(WEB_URL).origin;
-          // request.securityOrigin can be empty or formatted differently in
-          // this Electron version; a strict string compare was rejecting the
-          // app's own page, so screenshots and meeting-audio capture failed.
           const originOf = (request) => {
             for (const candidate of [request.securityOrigin, request.frame && request.frame.url]) {
-              try { if (candidate) return new URL(candidate).origin; } catch { /* try the next one */ }
+              try { if (candidate) return new URL(candidate).origin; } catch {}
             }
             return '';
           };
-          // Electron 33 throws on callback({}) when video was requested; keep a
-          // refusal from becoming an unhandled rejection.
-          const refuse = (callback) => { try { callback({}); } catch { /* refusal acknowledged */ } };
+          const refuse = (callback) => { try { callback({}); } catch {} };
 
           session.defaultSession.setDisplayMediaRequestHandler(async (request, callback) => {
             const origin = originOf(request);

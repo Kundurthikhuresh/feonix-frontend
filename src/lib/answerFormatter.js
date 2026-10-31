@@ -11,20 +11,40 @@ export function isCodingQuestion(text) {
   const q = String(text || '').toLowerCase().trim();
   if (!q) return false;
 
+  // Code block or markdown code markers present
+  if (/```|`[a-z0-9_().]+`/i.test(q)) return true;
+
   // Direct code / program / syntax / implementation keywords
-  if (/\b(example|sample|demo|snippet|syntax)\s+code\b/i.test(q)) return true;
+  if (/\b(example|sample|demo|snippet|syntax|source)\s+code\b/i.test(q)) return true;
   if (/\bcode\s+(example|sample|demo|snippet|template|syntax|solution)\b/i.test(q)) return true;
-  if (/\b(write|create|implement|provide|generate|give|show|build|develop|solve|draft|need|want|share)\b.*?\b(code|program|script|function|class|method|query|algorithm|snippet|solution|component|syntax)\b/i.test(q)) return true;
+  if (/\b(write|create|implement|provide|generate|give|show|build|develop|solve|draft|need|want|share)\b.*?\b(code|program|script|function|class|method|query|algorithm|snippet|solution|component|syntax|api|backend|frontend|system|app|application|service)\b/i.test(q)) return true;
   if (/\b(write\s+a?\s*code|write\s+code|code\s+(for|to|of|in|that|addition|subtraction|multiplication|division)|coding\s+question|coding\s+problem)\b/i.test(q)) return true;
-  if (/\b(python|javascript|typescript|java|c\+\+|cpp|c#|golang|go|rust|ruby|php|swift|kotlin|sql|html|css|bash|powershell|regex)\s+(code|script|program|solution|function|implementation|snippet|syntax)\b/i.test(q)) return true;
-  if (/\b(code|function|program|script|solution|implementation|snippet|syntax)\s+(in|using|with|for)\s+(python|javascript|typescript|java|c\+\+|cpp|c#|golang|go|rust|ruby|php|swift|kotlin|sql|html|css|bash|powershell)\b/i.test(q)) return true;
+
+  // Programming languages mentioned in combination with code, tasks, or systems
+  const langRegex = /\b(python|javascript|typescript|java|c\+\+|cpp|c#|csharp|golang|go|rust|ruby|php|swift|kotlin|sql|html|css|bash|powershell|scala|dart|r|regex)\b/i;
+  if (langRegex.test(q)) {
+    if (/\b(using|in|with|via)\s+(python|javascript|typescript|java|c\+\+|cpp|c#|golang|go|rust|ruby|php|swift|kotlin|sql|html|css|bash|powershell|scala|dart|r)\b/i.test(q)) return true;
+    if (/\b(code|script|program|solution|function|implementation|snippet|syntax|class|method|app|application|system|project|algorithm)\b/i.test(q)) return true;
+  }
+
   if (/\b(with|in)\s+code\b/i.test(q)) return true;
   if (/\b(write\s+(a\s+)?python|write\s+(a\s+)?javascript|write\s+(a\s+)?typescript|write\s+(a\s+)?java|write\s+(a\s+)?c\+\+|write\s+(a\s+)?cpp|write\s+(a\s+)?sql|write\s+(a\s+)?query)\b/i.test(q)) return true;
   if (/\b(sql\s+query|select\s+.*\s+from|insert\s+into|update\s+.*\s+set|delete\s+from|create\s+table)\b/i.test(q)) return true;
-  if (/\b(leetcode|hackerrank|codewars)\b/i.test(q)) return true;
+  if (/\b(leetcode|hackerrank|codewars|codeforces)\b/i.test(q)) return true;
   if (/\b(write\s+a\s+program|write\s+program|program\s+to\s+[a-z]+|function\s+to\s+[a-z]+)\b/i.test(q)) return true;
-  if (/\b(implement|code|program)\s+(a\s+|an\s+|the\s+)?([a-z0-9_-]+\s+)?(binary search|quicksort|mergesort|dfs|bfs|dijkstra|lru cache|linked list|stack|queue|tree|heap|two sum|fibonacci|palindrome|reverse|if condition|while loop|for loop)\b/i.test(q)) return true;
+
+  // Data structures & algorithms
+  if (/\b(implement|code|program|build|create|design)\s+(a\s+|an\s+|the\s+)?([a-z0-9_-]+\s+)?(binary search|quicksort|mergesort|dfs|bfs|dijkstra|lru cache|linked list|stack|queue|tree|heap|two sum|fibonacci|palindrome|reverse|if condition|while loop|for loop|graph|trie|dynamic programming|recursion)\b/i.test(q)) return true;
   if (/\b(if\s+condition|for\s+loop|while\s+loop|switch\s+case)\s+code\b/i.test(q)) return true;
+
+  // Software projects, systems, architectures, assignments
+  if (/\b(banking|library|inventory|hospital|school|hotel|student|employee|management\s+system)\b/i.test(q) && (langRegex.test(q) || /\b(menu|console|oop|object-oriented|class|classes)\b/i.test(q))) return true;
+  if (/\b(full\s+code|give\s+full\s+code|complete\s+code|source\s+code|entire\s+code)\b/i.test(q)) return true;
+  if (/\b(rest\s+api|crud|mvc|database|spring\s+boot|express|django|flask|react|nextjs)\b/i.test(q) && /\b(create|build|write|implement|code)\b/i.test(q)) return true;
+
+  // Code syntax tokens in prompt
+  if (/\b(def|class|public\s+static\s+void|import\s+java|const|let|var|function\*?|#include|package\s+com)\b/.test(q)) return true;
+
   return false;
 }
 

@@ -14,10 +14,10 @@ export function useAudioRecorder(onChunkAvailable) {
       cycleTimerRef.current = null;
     }
     if (recorderRef.current && recorderRef.current.state !== 'inactive') {
-      recorderRef.current.stop();
+      try { recorderRef.current.stop(); } catch {}
     }
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current.getTracks().forEach((track) => track.stop());
     }
     streamRef.current = null;
     recorderRef.current = null;
@@ -26,18 +26,14 @@ export function useAudioRecorder(onChunkAvailable) {
   const startRecording = useCallback(async () => {
     setListening(true);
     try {
-      // Allow ambient room acoustic capture so interviewer on speakers is also recorded
-      let stream;
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: true },
+audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: true },
         });
       } catch {
         stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       }
       streamRef.current = stream;
 
-      const pickMimeType = () => {
+const pickMimeType = () => {
         const types = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus', ''];
         for (const t of types) {
           if (!t || (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(t))) return t;
@@ -66,13 +62,18 @@ export function useAudioRecorder(onChunkAvailable) {
       active.start();
 
       cycleTimerRef.current = setInterval(() => {
-        const next = makeRecorder();
-        next.start();
-        const prev = active;
-        active = next;
-        recorderRef.current = next;
-        if (prev && prev.state === 'recording') {
-          prev.stop();
+try {
+          const next = makeRecorder();
+          next.start();
+          const prev = active;
+          active = next;
+          recorderRef.current = next;
+          if (prev && prev.state === 'recording') {
+            prev.stop();
+          }
+        } catch (e) {
+          console.warn('Recorder tick warning:', e);
+        }
         }
       }, 2500);
 

@@ -259,7 +259,7 @@ function registerIpcHandlers({ logger, settingsStore, getPendingHandoff, clearPe
       }
     } else if (key === 'stealthMode') {
       const isStealth = Boolean(updated.stealthMode);
-      BrowserWindow.getAllWindows().forEach((win) => {
+BrowserWindow.getAllWindows().forEach((win) => {
         if (win && !win.isDestroyed()) {
           try {
             win.setContentProtection(isStealth);
@@ -274,30 +274,12 @@ function registerIpcHandlers({ logger, settingsStore, getPendingHandoff, clearPe
           }
         }
       });
-      logger.info(`🛡️ setContentProtection set to ${isStealth} across all windows`);
-    }
-
-    return updated;
-  });
-
-  // Pushed from the renderer whenever speech.listening changes, regardless
-  // of whether it was toggled from the panel or from the tray itself — the
-  // tray's own "Start/Stop Listening" label needs to reflect reality no
-  // matter where recording was actually turned on.
-  ipcMain.on('feonix:set-listening-state', (_event, value) => {
-    setListeningState(value);
-  });
-
-  ipcMain.handle('feonix:pending-handoff', () => {
-    const handoff = getPendingHandoff();
-    clearPendingHandoff();
-    return handoff;
-  });
-
-  ipcMain.handle('feonix:set-stealth-mode', (_event, enabled) => {
-    const isStealth = Boolean(enabled);
-    settingsStore.set('stealthMode', isStealth);
-    BrowserWindow.getAllWindows().forEach((win) => {
+      logger.info(`🛡️ setContentProtection set to ${isStealth} across all windows`); catch (err) {
+            logger.warn('setContentProtection failed:', err.message);
+          }
+        }
+      });
+BrowserWindow.getAllWindows().forEach((win) => {
       if (win && !win.isDestroyed()) {
         try {
           win.setContentProtection(isStealth);

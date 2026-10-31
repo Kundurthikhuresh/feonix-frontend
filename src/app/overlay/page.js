@@ -259,6 +259,7 @@ function OverlayContent() {
 
   const handleSetStealth = (val) => {
     const isTurnOn = Boolean(val);
+    setSettings((prev) => ({ ...prev, stealthMode: isTurnOn }));
     updateSetting('stealthMode', isTurnOn);
     if (window.feonix && typeof window.feonix.setStealthMode === 'function') {
       window.feonix.setStealthMode(isTurnOn);
@@ -272,7 +273,7 @@ function OverlayContent() {
     }
     if (typeof triggerToast === 'function') {
       if (isTurnOn) {
-        triggerToast('🛡️ Private Mode ON: Copilot is hidden from opposite person / screen share');
+triggerToast('🛡️ Private Mode ON: Copilot is hidden from opposite person / screen share');
       } else {
         triggerToast('👥 Private Mode OFF: Copilot is visible to opposite person / screen share');
       }
@@ -336,38 +337,7 @@ function OverlayContent() {
   const shortcutHandlersRef = useRef({});
   useEffect(() => {
     shortcutHandlersRef.current = {
-      onAnswer: () => {
-        if (customPromptText && customPromptText.trim()) {
-          const q = customPromptText.trim();
-          setCustomPromptText('');
-          setTranscriptChips((prev) => [...prev, { text: q, isQuestion: true }]);
-          askQuestion(q, { images: screenshots, style: answerStyle });
-          return;
-        }
-        if (screenshots.length > 0) {
-          askQuestion('Analyze the attached screenshot and provide the complete solution.', { images: screenshots, style: answerStyle });
-          return;
-        }
-        const lastQ = [...transcriptChips].reverse().find((c) => c.isQuestion);
-        const lastChip = transcriptChips[transcriptChips.length - 1];
-        let targetQ = lastQ?.text || lastChip?.text;
-        if (targetQ) {
-          if (targetQ.split(/\s+/).length < 3 && !/\b(explain|describe|write|code|solve|implement|clarify)\b/i.test(targetQ)) {
-            const priorSubstantive = [...transcriptChips].reverse().find((c) => c.text !== targetQ && c.text.split(/\s+/).length >= 3);
-            if (priorSubstantive) {
-              targetQ = `${priorSubstantive.text} — (${targetQ})`;
-            }
-          }
-          askQuestion(targetQ, { images: screenshots, style: answerStyle });
-          return;
-        }
-        if (cueLine) {
-          askQuestion(cueLine, { images: screenshots, style: answerStyle });
-          return;
-        }
-        setPromptHubOpen(true);
-        triggerToast('💡 Type a question in Chat to generate an answer');
-      },
+onAnswer: () => handleAnswerClick(),
       onScreenshotMenu: () => setScreenshotMenuOpen((prev) => !prev),
       onChat: () => {
         setPromptHubOpen((prev) => !prev);
@@ -853,14 +823,10 @@ function OverlayContent() {
   const handleCaptureScreen = async () => {
     setScreenshotMenuOpen(false);
     const visibilityBeforeCapture = visibility;
-    const isPrivateOn = settings.stealthMode !== false;
+const isPrivate = settings.stealthMode !== false;
     try {
       const dataUrl = await captureScreenSnapshot({
-        // When Private Mode is ON:
-        // Hide the Copilot HUD so only the background behind Copilot is captured into the screenshot.
-        // When Private Mode is OFF:
-        // Keep the Copilot HUD visible so the screen of Copilot also comes under the screenshot.
-        onBeforeFrame: isPrivateOn ? () => { setVisibility('hidden'); } : undefined,
+        onBeforeFrame: isPrivate ? () => { setVisibility('hidden'); } : undefined,
       });
       solveWithImages([dataUrl], '🖥️ Screen captured — solving…');
     } catch (err) {
@@ -872,13 +838,14 @@ function OverlayContent() {
         triggerToast(err.code === 'CAPTURE_TIMEOUT' ? `⚠️ ${err.message}` : '⚠️ Screen capture cancelled');
       }
     } finally {
-      if (isPrivateOn) {
+if (isPrivate) {
         setVisibility(visibilityBeforeCapture);
       }
     }
   };
 
   const handleAnswerClick = () => {
+<<<<<<< HEAD
     if (customPromptText && customPromptText.trim()) {
       const q = customPromptText.trim();
       setCustomPromptText('');
@@ -906,6 +873,22 @@ function OverlayContent() {
     if (cueLine) {
       askQuestion(cueLine, { images: screenshots, style: answerStyle });
       return;
+=======
+    const latestQuestionText = customPromptText.trim()
+      || cueLine
+      || transcriptChips.filter((c) => c.isQuestion).pop()?.text
+      || transcriptChips[transcriptChips.length - 1]?.text;
+
+    if (latestQuestionText) {
+      askQuestion(latestQuestionText, { images: screenshots, style: answerStyle });
+      setCustomPromptText('');
+    } else if (screenshots.length > 0) {
+      askQuestion('Analyze the attached screenshot and provide the complete solution.', { images: screenshots, style: answerStyle });
+    } else {
+      setPromptHubOpen(true);
+      composeInputRef.current?.focus();
+      triggerToast('💡 Type a question in Chat to generate an answer');
+>>>>>>> origin/main
     }
     setPromptHubOpen(true);
     triggerToast('💡 Type a question in Chat to generate an answer');

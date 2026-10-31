@@ -55,10 +55,7 @@ async function proxy(req, context) {
       }
     }
 
-    // AI operations (answer SSE, Whisper audio transcription, Vision analysis)
-    // legitimately require longer processing windows (up to 60s) depending on
-    // OpenAI model latency and network traffic. Regular endpoints use 20s.
-    const isStream = pathStr.startsWith('/api/answer') && !pathStr.startsWith('/api/answer/warm');
+const isStream = pathStr.startsWith('/api/answer') && !pathStr.startsWith('/api/answer/warm');
     isStreamReq = isStream;
     const isTranscribe = pathStr.startsWith('/api/transcribe');
     const isAiHeavy =
@@ -68,8 +65,11 @@ async function proxy(req, context) {
       pathStr.startsWith('/api/assistant') ||
       pathStr.startsWith('/api/resume-ai') ||
       pathStr.startsWith('/api/interview-prep') ||
-      pathStr.startsWith('/api/cover-letter');
-    const upstreamTimeoutMs = isAiHeavy ? 60000 : 20000;
+      pathStr.startsWith('/api/cover-letter') ||
+      pathStr.includes('/questions') ||
+      pathStr.includes('/ask') ||
+      pathStr.includes('/generate');
+    const upstreamTimeoutMs = isStream ? 300000 : (isAiHeavy ? 90000 : 30000);
 
     const init = {
       method: req.method,
@@ -126,7 +126,11 @@ async function proxy(req, context) {
         lowerKey === 'transfer-encoding' ||
         lowerKey === 'set-cookie' ||
         lowerKey === 'content-length' ||
-        lowerKey === 'content-encoding'
+        lowerKey === 'content-encoding' ||
+        lowerKey === 'connection' ||
+        lowerKey === 'keep-alive' ||
+        lowerKey === 'proxy-connection' ||
+        lowerKey === 'upgrade'
       ) {
         return;
       }
@@ -154,6 +158,9 @@ async function proxy(req, context) {
     }
 
     if (isStream || contentType.includes('text/event-stream')) {
+      outHeaders.set('content-type', 'text/event-stream; charset=utf-8');
+      outHeaders.set('cache-control', 'no-cache, no-transform');
+      outHeaders.set('x-accel-buffering', 'no');
       return new Response(upstream.body, {
         status: upstream.status,
         headers: outHeaders,
@@ -167,11 +174,12 @@ async function proxy(req, context) {
       headers: outHeaders,
     });
   } catch (err) {
-    if (isStreamReq) proxyDebug(`answer proxy error after ${Date.now() - proxyStartedAt}ms: ${err && (err.cause?.code || err.message)}`);
-    console.error('PROXY ERROR:', err);
+if (isStreamReq) proxyDebug(`answer proxy error after ${Date.now() - proxyStartedAt}ms: ${err && (err.cause?.code || err.message)}`);
+    console.error('PROXY ERROR:', err.message, err.cause, err.stack);
     return new Response(JSON.stringify({
       error: 'server_unavailable',
-      message: err.message || 'Service is initializing. Please try again in a moment.'
+      message: err.message || 'Service is initializing. Please try again in a moment.',
+      cause: String(err.cause?.message || err.cause || '')
     }), {
       status: 503,
       headers: { 'Content-Type': 'application/json' }

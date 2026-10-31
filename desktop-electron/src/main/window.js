@@ -79,18 +79,18 @@ function createMainWindow(routePath, settingsStore) {
       preload: path.join(__dirname, '..', 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: true,
+      sandbox: false,
       devTools: DEV_TOOLS_ALLOWED,
     },
   });
 
   hardenWindow(mainWindow);
   try {
-    const mainStealth = settingsStore ? (settingsStore.get('stealthMode') === true) : false;
+const mainStealth = settingsStore ? (settingsStore.get('stealthMode') === true) : false;
     mainWindow.setContentProtection(mainStealth);
     console.log(`🛡️ Screen share stealth set to ${mainStealth} on mainWindow`);
   } catch (err) {
-    console.warn('Could not enable content protection on mainWindow:', err.message);
+    console.warn('Could not set content protection on mainWindow:', err.message);
   }
   mainWindow.loadURL(`${WEB_URL}${routePath}`);
   bringToFront(mainWindow);
@@ -141,7 +141,7 @@ function createOverlayWindow(routePath, settingsStore) {
       preload: path.join(__dirname, '..', 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: true,
+      sandbox: false,
       devTools: DEV_TOOLS_ALLOWED,
       backgroundThrottling: false,
     },
