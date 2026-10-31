@@ -26,34 +26,53 @@ export function useAudioRecorder(onChunkAvailable) {
   const startRecording = useCallback(async () => {
     setListening(true);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Allow ambient room acoustic capture so interviewer on speakers is also recorded
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: true },
+        });
+      } catch {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      }
       streamRef.current = stream;
 
-      const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
-      recorderRef.current = mediaRecorder;
-
-      let chunks = [];
-      mediaRecorder.ondataavailable = (e) => {
-        if (e.data && e.data.size > 0) {
-          chunks.push(e.data);
+      const pickMimeType = () => {
+        const types = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus', ''];
+        for (const t of types) {
+          if (!t || (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(t))) return t;
         }
+        return '';
+      };
+      const mimeType = pickMimeType();
+
+      const makeRecorder = () => {
+        let rec;
+        try {
+          rec = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+        } catch {
+          rec = new MediaRecorder(stream);
+        }
+        rec.ondataavailable = async (e) => {
+          if (e.data && e.data.size > 0 && onChunkAvailable) {
+            await onChunkAvailable(e.data);
+          }
+        };
+        return rec;
       };
 
-      mediaRecorder.onstop = async () => {
-        if (chunks.length === 0) return;
-        const blob = new Blob(chunks, { type: 'audio/webm' });
-        chunks = [];
-        if (onChunkAvailable) {
-          await onChunkAvailable(blob);
-        }
-      };
-
-      mediaRecorder.start();
+      let active = makeRecorder();
+      recorderRef.current = active;
+      active.start();
 
       cycleTimerRef.current = setInterval(() => {
-        if (mediaRecorder.state === 'recording') {
-          mediaRecorder.stop();
-          mediaRecorder.start();
+        const next = makeRecorder();
+        next.start();
+        const prev = active;
+        active = next;
+        recorderRef.current = next;
+        if (prev && prev.state === 'recording') {
+          prev.stop();
         }
       }, 2500);
 

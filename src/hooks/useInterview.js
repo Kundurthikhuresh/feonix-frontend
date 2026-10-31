@@ -4,6 +4,8 @@ import { useSpeechRecognition } from './useSpeechRecognition';
 import { useAnswerStreaming } from './useAnswerStreaming';
 import { formatParakeetAnswer } from '../lib/answerFormatter';
 import { sanitizeHTML } from '../lib/sanitize';
+import { warmAnswer } from '../services/aiService';
+import { isSilenceHallucination, NON_QUESTION_PLEASANTRIES, OUTRO_OR_GREETING_ANYWHERE } from '../services/speechService';
 
 /**
  * The interview domain, composed from speech capture + answer streaming:
@@ -13,11 +15,11 @@ import { sanitizeHTML } from '../lib/sanitize';
  * open/close, the chat compose box) stays in the page/components that own
  * that UI — this hook only owns what the interview itself needs to run.
  */
-export function useInterview({ querySessionId, plan, queryAuto, screenshots = [], answerStyle = 'star', audioSource = 'mic', onScreenshotsConsumed }) {
+export function useInterview({ querySessionId, plan, queryAuto = true, screenshots = [], answerStyle = 'star', audioSource = 'both', onScreenshotsConsumed }) {
   const router = useRouter();
 
   const [session, setSession] = useState(null);
-  const [autoAnswer, setAutoAnswer] = useState(queryAuto);
+  const [autoAnswer, setAutoAnswer] = useState(queryAuto !== false);
   const [remainingText, setRemainingText] = useState('');
   const [creditsText, setCreditsText] = useState('— Credits');
   const [showWarningModal, setShowWarningModal] = useState(false);
@@ -35,6 +37,15 @@ export function useInterview({ querySessionId, plan, queryAuto, screenshots = []
   }, []);
 
   const answering = useAnswerStreaming();
+
+  // Warm the backend as soon as the copilot opens, so the first question is
+  // answered as fast as the later ones. Repeated while it stays open: OpenAI
+  // drops its cached prompt after a few idle minutes.
+  useEffect(() => {
+    warmAnswer(querySessionId || null);
+    const timer = setInterval(() => warmAnswer(querySessionId || null), 4 * 60 * 1000);
+    return () => clearInterval(timer);
+  }, [querySessionId]);
 
   // Deliberately not useCallback: it needs speech.transcriptChips and session
   // as they are at call time, not as they were whenever some unrelated
@@ -57,7 +68,9 @@ export function useInterview({ querySessionId, plan, queryAuto, screenshots = []
       images,
       style,
       action,
-      transcript: transcript !== undefined ? transcript : speech.transcriptChips.map((c) => c.text).join('\n'),
+      transcript: transcript !== undefined
+        ? transcript
+        : (speech.getConversationTranscript() || speech.transcriptChips.map((c) => c.text).join('\n')),
       sessionId: session ? session.id : querySessionId,
       language: session ? (session.language || 'en') : 'en',
     });
@@ -68,26 +81,49 @@ export function useInterview({ querySessionId, plan, queryAuto, screenshots = []
     source: audioSource,
     language: session ? (session.language || 'en') : 'en',
     onQuestionDetected: (text) => {
-      // screenshots/answerStyle come in as plain params, captured by this
-      // closure fresh on every render (useSpeechRecognition re-syncs its
-      // internal callback ref every render regardless) — so an auto-answer
-      // triggered mid-render always uses whatever's currently attached/
-      // selected, exactly like the manual "Answer" button does.
-      if (autoAnswerRef.current) askQuestion(text, { images: screenshots, style: answerStyle });
+      if (
+        !text ||
+        isSilenceHallucination(text) ||
+        NON_QUESTION_PLEASANTRIES.test(text) ||
+        OUTRO_OR_GREETING_ANYWHERE.test(text)
+      ) {
+        return;
+      }
+      answering.setCueLine(text);
+      if (autoAnswerRef.current !== false) {
+        askQuestion(text, { images: screenshots, style: answerStyle });
+      } else {
+        triggerToast(`🎙️ Question detected: "${text.slice(0, 45)}…" — Click ✨ Answer`);
+      }
     },
     onToast: triggerToast,
   });
 
-  const updateCreditsDisplay = useCallback((s) => {
+  const updateCreditsDisplay = useCallback(async (s) => {
     if (!s) return;
+    try {
+      const res = await fetch('/api/sessions/account');
+      if (res.ok) {
+        const data = await res.json();
+        const acc = data.account || {};
+        if (s.billing_kind === 'unlimited') {
+          setCreditsText('Unlimited');
+        } else if (s.billing_kind === 'trial' || plan === 'free') {
+          setCreditsText(`Trial (${acc.trials_remaining ?? 0} Left)`);
+        } else {
+          setCreditsText(`${Number(acc.credits || 0).toFixed(1)} Credits`);
+        }
+        return;
+      }
+    } catch {}
     if (s.billing_kind === 'unlimited') {
       setCreditsText('Unlimited');
-    } else if (s.billing_kind === 'trial') {
+    } else if (s.billing_kind === 'trial' || plan === 'free') {
       setCreditsText('Trial Active');
     } else {
       setCreditsText(`${Number(s.credits_balance || 0).toFixed(1)} Credits`);
     }
-  }, []);
+  }, [plan]);
 
   const loadSessionDetails = useCallback(async () => {
     const fallbackSession = (id) => ({
@@ -100,15 +136,21 @@ export function useInterview({ querySessionId, plan, queryAuto, screenshots = []
     try {
       if (!querySessionId) {
         setSession(fallbackSession('dev-session'));
+        answering.clearAnswer();
+        answering.setAnswersHistory([]);
+        speech.setTranscriptChips([]);
         return;
       }
       const res = await fetch('/api/sessions/' + querySessionId);
       if (!res.ok) {
         triggerToast('⚠️ Could not load full session context — continuing with limited info.');
         setSession(fallbackSession(querySessionId));
+        answering.clearAnswer();
+        answering.setAnswersHistory([]);
+        speech.setTranscriptChips([]);
         return;
       }
-      const { session: s } = await res.json();
+      const { session: s, transcript: sessionTranscript, answers: sessionAnswers } = await res.json();
 
       let isExpired = false;
       if (s.expires_at) {
@@ -119,18 +161,22 @@ export function useInterview({ querySessionId, plan, queryAuto, screenshots = []
       }
 
       let activeSession = s;
-      if (s.status === 'ready' || s.status === 'ended' || isExpired || !s.expires_at) {
+      // The first copilot open also goes through /start even when the website
+      // already started the session: the server then restarts the clock so
+      // the countdown begins at the full 10:00 instead of 9:4x.
+      const firstOpen = s.status === 'active' && !s.copilot_opened_at && !isExpired;
+      if (firstOpen || s.status === 'ready' || s.status === 'ended' || isExpired || !s.expires_at) {
         const billing = s.billing_kind || (plan === 'free' ? 'trial' : 'paid');
         try {
           const startRes = await fetch(`/api/sessions/${s.id}/start`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ billing, plan }),
+            body: JSON.stringify({ billing, plan, copilot_open: true }),
           });
           const startData = await startRes.json().catch(() => ({}));
           if (startRes.ok && startData.session) {
             activeSession = startData.session;
-          } else if (s.status === 'ended' || isExpired) {
+          } else if (s.status === 'ended' && isExpired) {
             sessionEndedRef.current = true;
             setRemainingText('Ended');
             triggerToast('⚠️ Session ended — visit dashboard to renew or start a new session');
@@ -140,32 +186,49 @@ export function useInterview({ querySessionId, plan, queryAuto, screenshots = []
 
       setSession(activeSession);
       updateCreditsDisplay(activeSession);
+      if (activeSession.billing_kind === 'trial' || plan === 'free') {
+        triggerToast('Free trial active (10-minute limit). 1 trial consumed.');
+      }
 
-      if (queryAuto) {
+      if (queryAuto !== false) {
         setAutoAnswer(true);
       }
 
-      // Preload previous answers from session history if available
-      try {
-        const histRes = await fetch('/api/history?limit=20');
-        if (histRes.ok) {
-          const histData = await histRes.json();
-          if (histData && Array.isArray(histData.answers) && histData.answers.length > 0) {
-            const formatted = histData.answers.map((a) => ({
-              id: a.id,
-              question: a.question,
-              answerHtml: sanitizeHTML(formatParakeetAnswer(a.reply)),
-              style: a.mode || 'star',
-              timestamp: a.created_at ? new Date(a.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
-            }));
-            answering.setAnswersHistory(formatted);
-          }
-        }
-      } catch {}
+      // Reset live answer state when loading session
+      answering.clearAnswer();
+
+      // Preload previous answers ONLY for this specific session
+      if (Array.isArray(sessionAnswers) && sessionAnswers.length > 0) {
+        const formatted = sessionAnswers.map((a) => ({
+          id: a.id,
+          question: a.question,
+          answerHtml: sanitizeHTML(formatParakeetAnswer(a.reply)),
+          answerText: a.reply || '',
+          style: a.mode || 'star',
+          timestamp: a.created_at ? new Date(a.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
+        }));
+        answering.setAnswersHistory(formatted);
+      } else {
+        answering.setAnswersHistory([]);
+      }
+
+      // Preload transcript chips ONLY for this specific session
+      if (Array.isArray(sessionTranscript) && sessionTranscript.length > 0) {
+        speech.setTranscriptChips(sessionTranscript.map((t) => ({
+          id: t.id,
+          text: t.text,
+          isQuestion: Boolean(t.is_question),
+        })));
+      } else {
+        speech.setTranscriptChips([]);
+      }
     } catch (err) {
       console.warn('Fallback session activated:', err);
       triggerToast('⚠️ Could not load full session context — continuing with limited info.');
       setSession(fallbackSession(querySessionId));
+      answering.clearAnswer();
+      answering.setAnswersHistory([]);
+      speech.setTranscriptChips([]);
     }
     // speech.startRecording is stable across renders (useCallback in
     // useSpeechRecognition); only re-run this loader when the query params
@@ -273,7 +336,15 @@ export function useInterview({ querySessionId, plan, queryAuto, screenshots = []
       if (remainingMs <= 0) {
         setRemainingText('00:00');
         if (iv) clearInterval(iv);
-        if (!sessionEndedRef.current) handleEndSession();
+        if (!sessionEndedRef.current) {
+          const isTrial = session?.billing_kind === 'trial' || plan === 'free';
+          if (isTrial) {
+            triggerToast('Free trial expired (10-minute limit reached). Session ended.');
+          } else {
+            triggerToast('Paid session duration limit reached. Session ended.');
+          }
+          handleEndSession();
+        }
         return false;
       }
       const totalSecs = Math.floor(remainingMs / 1000);
@@ -283,7 +354,8 @@ export function useInterview({ querySessionId, plan, queryAuto, screenshots = []
       if (!warned && remainingMs <= 60000) {
         warned = true;
         setShowWarningModal(true);
-        triggerToast('⚠️ 1 minute remaining');
+        const isTrial = session?.billing_kind === 'trial' || plan === 'free';
+        triggerToast(isTrial ? '⚠️ 1 minute remaining in this free trial' : '⚠️ 1 minute remaining in this session');
       }
       return true;
     };

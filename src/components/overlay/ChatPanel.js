@@ -35,11 +35,22 @@ export default function ChatPanel({
         </div>
       )}
 
+      <div className="pk-hub-status-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '2px 4px 6px', fontSize: '11px', color: '#a1a1aa' }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+          <span style={{ color: '#00f5ff', fontWeight: 600 }}>👑 Owner Persona:</span>
+          <span>90% Human Thinking · 10% AI Precision (Senior Engineer Voice)</span>
+        </span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: '#10b981' }}>
+          <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981', display: 'inline-block' }}></span>
+          <span>Dual Audio (Mic + Interviewer)</span>
+        </span>
+      </div>
+
       {open && (
         <div className="pk-hub-pills">
-          <button className="pk-hub-pill" onClick={() => onQuickPrompt('STAR Method', 'star')} type="button">⭐ STAR</button>
-          <button className="pk-hub-pill" onClick={() => onQuickPrompt('Code + Big-O', 'code')} type="button">💻 Code</button>
-          <button className="pk-hub-pill" onClick={() => onQuickPrompt('3 concise bullets', 'teleprompter')} type="button">💡 Bullets</button>
+          <button className="pk-hub-pill" onClick={() => onQuickPrompt('STAR Method (Owner Voice)', 'star')} type="button">⭐ STAR Story</button>
+          <button className="pk-hub-pill" onClick={() => onQuickPrompt('Code + Big-O Walkthrough', 'code')} type="button">💻 Code + Big-O</button>
+          <button className="pk-hub-pill" onClick={() => onQuickPrompt('Detailed Speaking Beats', 'teleprompter')} type="button">💡 Speaking Beats</button>
           <button className="pk-hub-pill" onClick={() => onQuickPrompt('Multiple Choice answer', 'quiz')} type="button">📝 Quiz</button>
           {onClose && (
             <button className="pk-hub-pill pk-hub-pill-close" onClick={onClose} type="button" title="Hide quick prompts">✕</button>
@@ -53,7 +64,7 @@ export default function ChatPanel({
           value={customPromptText}
           onChange={(e) => onChangePromptText(e.target.value)}
           onKeyDown={onKeyDown}
-          placeholder={hasScreenshots ? 'Add extra instructions… (Enter to send, Shift+Enter for a new line)' : 'Ask any interview question or coding prompt… (Enter to send, Shift+Enter for a new line)'}
+          placeholder={hasScreenshots ? 'Add extra instructions… (Enter to send, Shift+Enter for a new line)' : 'Ask any interview or coding question (Answers as Owner with "I used", "I did", "I work")...'}
           className="pk-chat-textarea"
           rows={1}
         />

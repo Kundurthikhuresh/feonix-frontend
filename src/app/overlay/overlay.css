@@ -46,7 +46,7 @@ body {
   flex-direction: column;
   justify-content: flex-start;
   align-items: center;
-  overflow: hidden;
+  overflow: visible;
   box-sizing: border-box;
   pointer-events: none;
   padding: 0;
@@ -2050,6 +2050,8 @@ body.is-resizing #answerCard {
   -webkit-font-smoothing: antialiased;
   animation: pk-pop-in 200ms cubic-bezier(0.16, 1, 0.3, 1);
   box-sizing: border-box;
+  container-type: inline-size;
+  container-name: pkshell;
 }
 
 /* Drag Rail — a full-width strip dedicated to moving the HUD. The topbar
@@ -2196,6 +2198,29 @@ body.is-resizing #answerCard {
 
 .pk-rec-active:hover {
   background: rgba(255, 69, 58, 0.2);
+}
+
+/* Copilot Recording Button States */
+
+.pk-rec-spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(74, 222, 128, 0.3);
+  border-top-color: #4ade80;
+  border-radius: 50%;
+  animation: pk-spin 0.8s linear infinite;
+  display: inline-block;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
+.pk-rec-elapsed {
+  font-size: 11px;
+  opacity: 0.85;
+  margin-left: 5px;
+  padding: 1px 5px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 4px;
 }
 
 /* Keep old mic classes for backward compat */
@@ -2577,24 +2602,27 @@ body.is-resizing #answerCard {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: #ff3b30;
-  color: #fff;
-  border: none;
+  gap: 5px;
+  background: #dc2626;
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.25);
   border-radius: 8px;
-  padding: 0 15px;
+  padding: 0 13px;
   height: 35px;
   font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.2px;
   cursor: pointer;
-  transition: background 120ms, transform 80ms;
-  box-shadow: 0 2px 8px rgba(255, 59, 48, 0.35);
-  flex-shrink: 0;
+  transition: all 120ms ease;
+  box-shadow: 0 2px 10px rgba(220, 38, 38, 0.45);
+  flex-shrink: 0 !important;
   margin-right: 2px;
 }
 
 .pk-end-btn:hover {
-  background: #d93025;
+  background: #b91c1c;
+  box-shadow: 0 2px 14px rgba(185, 28, 28, 0.65);
+  transform: translateY(-1px);
 }
 
 .pk-end-btn:active {
@@ -2611,8 +2639,38 @@ body.is-resizing #answerCard {
   padding: 1.5px 5px;
 }
 
-@media (max-width: 1120px) {
+/* Responsive HUD controls: Container queries track the exact width of the copilot HUD across macOS Retina, Windows, and scaled screens */
+@container pkshell (max-width: 1220px) {
+  .pk-topbar kbd {
+    display: none !important;
+  }
+  .pk-action-btn,
+  .pk-rec-btn {
+    padding: 0 9px;
+    font-size: 12.5px;
+  }
+}
 
+@container pkshell (max-width: 1060px) {
+  .pk-capsule-label span:not(.pk-stealth-dot) {
+    display: none !important;
+  }
+  .pk-private-capsule {
+    padding: 0 4px 0 7px;
+  }
+  .pk-topbar-left {
+    gap: 3px;
+  }
+  .pk-topbar-right {
+    gap: 3px;
+  }
+  .pk-action-btn {
+    padding: 0 8px;
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 1120px) {
   .pk-action-btn kbd,
   .pk-end-btn kbd {
     display: none;
@@ -2620,7 +2678,6 @@ body.is-resizing #answerCard {
 }
 
 @media (max-width: 880px) {
-
   .pk-action-btn,
   .pk-rec-btn {
     padding: 0 8px;
@@ -2844,6 +2901,39 @@ body.is-resizing #answerCard {
   font-size: 14px;
 }
 
+.pk-chip-fetching {
+  background: rgba(34, 197, 94, 0.16) !important;
+  color: #86efac !important;
+  border: 1px solid rgba(34, 197, 94, 0.45) !important;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  animation: pk-pulse-green 1.4s infinite;
+  box-shadow: 0 0 12px rgba(34, 197, 94, 0.2);
+}
+
+.pk-chip-warning {
+  background: rgba(255, 159, 10, 0.14);
+  color: #ffd08a;
+  border: 1px solid rgba(255, 159, 10, 0.38);
+  white-space: normal;
+  max-width: min(520px, 70vw);
+  line-height: 1.35;
+}
+
+.pk-chip-answering-active {
+  border-color: rgba(34, 197, 94, 0.5) !important;
+  background: rgba(34, 197, 94, 0.08) !important;
+}
+
+.pk-chip-solving {
+  color: #4ade80 !important;
+  background: rgba(34, 197, 94, 0.2) !important;
+  border-color: rgba(34, 197, 94, 0.5) !important;
+  font-weight: 700;
+  animation: pk-pulse-text 1.2s infinite;
+}
+
 .pk-strip-clear {
   display: inline-flex;
   align-items: center;
@@ -2955,8 +3045,10 @@ body.is-resizing #answerCard {
 /* Answer Card */
 .pk-answer-card {
   flex: 1;
-  background: #1c1c1e;
-  border-radius: 0;
+  background: rgba(28, 28, 30, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 10px;
+  backdrop-filter: blur(22px) saturate(1.25);
   overflow-y: auto;
   padding: 14px 18px 12px;
   transition: max-height 250ms ease;
@@ -2967,7 +3059,7 @@ body.is-resizing #answerCard {
 }
 
 .pk-answer-card.pk-expanded {
-  border-radius: 0;
+  border-radius: 10px;
 }
 
 .pk-answer-card::-webkit-scrollbar {
@@ -3341,6 +3433,251 @@ body.is-resizing #answerCard {
 .pk-answer-card-wrap .pk-answer-card {
   flex: 1;
   min-height: 0;
+}
+
+.pk-answer-reference {
+  padding: 8px 14px 14px;
+}
+
+.pk-answer-toolbar,
+.pk-answer-history-controls,
+.pk-answer-toolbar-actions,
+.pk-reference-question,
+.pk-reference-answer-title,
+.pk-reference-footer,
+.pk-reference-actions {
+  display: flex;
+  align-items: center;
+}
+
+.pk-answer-toolbar {
+  position: sticky;
+  top: -8px;
+  z-index: 3;
+  justify-content: space-between;
+  min-height: 38px;
+  margin: -8px -14px 4px;
+  padding: 4px 7px;
+  background: rgba(27, 27, 29, 0.88);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(16px);
+}
+
+.pk-answer-history-controls,
+.pk-answer-toolbar-actions,
+.pk-reference-actions {
+  gap: 5px;
+}
+
+.pk-answer-toolbar button,
+.pk-reference-actions button,
+.pk-reference-copy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  min-height: 28px;
+  padding: 4px 8px;
+  color: #f3f4f4;
+  background: rgba(255, 255, 255, 0.09);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 7px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.pk-answer-toolbar button:disabled {
+  opacity: 0.38;
+  cursor: default;
+}
+
+.pk-answer-toolbar kbd {
+  margin-left: 5px;
+  color: #b8bbc1;
+  font-size: 10px;
+}
+
+.pk-answer-clear-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px !important;
+  min-height: 26px !important;
+  font-size: 11.5px !important;
+  font-weight: 500;
+  color: #8e8e93 !important;
+  background: #2c2c2e !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 6px !important;
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+
+.pk-answer-clear-btn:hover {
+  background: #3a3a3c !important;
+  color: #e5e5ea !important;
+  border-color: rgba(255, 255, 255, 0.16) !important;
+}
+
+.pk-answer-clear-btn:active {
+  background: rgba(239, 68, 68, 0.25) !important;
+  color: #fca5a5 !important;
+  border-color: rgba(239, 68, 68, 0.4) !important;
+}
+
+.pk-answer-turn {
+  min-width: 0;
+  position: relative;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 10px;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.pk-answer-turn:last-child {
+  margin-bottom: 6px;
+}
+
+.pk-answer-turn-active {
+  border-color: rgba(34, 197, 94, 0.35);
+  background: rgba(34, 197, 94, 0.02);
+  box-shadow: 0 0 16px rgba(34, 197, 94, 0.06);
+}
+
+.pk-turn-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 4px;
+  background: rgba(56, 189, 248, 0.12);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  margin-right: 8px;
+  flex-shrink: 0;
+}
+
+.pk-turn-badge-latest {
+  background: rgba(34, 197, 94, 0.16);
+  color: #4ade80;
+  border-color: rgba(34, 197, 94, 0.4);
+}
+
+.pk-reference-question {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 4px 4px 10px;
+  color: #f3f4f4;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  line-height: 1.45;
+}
+
+.pk-reference-question strong,
+.pk-reference-answer-title strong {
+  flex: 0 0 auto;
+  font-size: 14px;
+}
+
+.pk-reference-question > span:nth-of-type(2) {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.pk-reference-icon {
+  font-size: 16px;
+}
+
+.pk-reference-copy {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+.pk-reference-answer {
+  padding: 10px 5px 0;
+}
+
+.pk-reference-answer-title {
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.pk-reference-answer-title > span {
+  font-size: 17px;
+}
+
+.pk-reference-answer .pk-answer-body {
+  padding-left: 0;
+}
+
+.pk-reference-answer .pk-answer-body > :first-child {
+  margin-top: 0;
+}
+
+/* "⭐ Answer: Java is a high-level…" — the answer's opening sentence sits on
+   the same line as the label; the bullets below it start on their own lines. */
+.pk-reference-answer .pk-reference-answer-title {
+  display: inline-flex;
+  margin: 0 6px 0 0;
+  vertical-align: baseline;
+}
+
+.pk-reference-answer .pk-reference-answer-title + .pk-answer-body,
+.pk-reference-answer .pk-reference-answer-title + .pk-answer-body > .fe-spoken-answer,
+.pk-reference-answer .pk-reference-answer-title + .pk-answer-body > .fe-spoken-answer > .parakeet-para:first-child {
+  display: inline;
+}
+
+.pk-reference-answer .pk-reference-answer-title + .pk-answer-body > .fe-spoken-answer > .parakeet-para:first-child + * {
+  margin-top: 8px;
+}
+
+.pk-reference-footer {
+  justify-content: space-between;
+  gap: 12px;
+  margin: 9px 5px 0;
+  padding-top: 7px;
+  color: #a1a7b3;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 11px;
+}
+
+.pk-reference-actions button {
+  min-width: 26px;
+  min-height: 25px;
+  padding: 3px 6px;
+}
+
+.pk-reference-answer .pk-answer-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px;
+  color: #fca5a5;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  border-radius: 7px;
+  font-size: 13px;
+}
+
+.pk-reference-answer .pk-thinking-live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  padding: 3px 8px;
+  color: #4ade80;
+  background: rgba(34, 197, 94, 0.1);
+  border: 1px solid rgba(34, 197, 94, 0.2);
+  border-radius: 4px;
+  font-size: 11px;
 }
 
 .pk-conversation .pk-user-turn {
@@ -4330,3 +4667,867 @@ body.is-resizing #answerCard {
   max-height: calc(100vh - 210px) !important;
   min-height: 400px;
 }
+
+/* ================================================================
+   FEONIXAI FLOATING COPILOT REDESIGN — EXACT SCREENSHOT MATCH
+   ================================================================ */
+
+.fe-copilot-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  width: 100%;
+  max-width: 720px;
+  position: relative;
+  overflow: visible;
+  pointer-events: all;
+  user-select: none;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 1. TOP ANSWER WINDOW (CARD) */
+.fe-answer-card {
+  width: 100%;
+  background: rgba(22, 22, 26, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  box-shadow: 0 20px 48px -10px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: all 200ms cubic-bezier(0.16, 1, 0.3, 1);
+  animation: feCardIn 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes feCardIn {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.fe-answer-card.fe-card-expanded {
+  max-width: 1100px;
+  width: 95vw;
+}
+
+.fe-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px 8px 18px;
+  cursor: grab;
+}
+
+.fe-card-head:active {
+  cursor: grabbing;
+}
+
+.fe-head-left,
+.fe-head-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fe-nav-kbd-btn {
+  background: transparent;
+  border: 0;
+  color: #94a3b8;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  padding: 4px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 140ms ease;
+  display: inline-flex;
+  align-items: center;
+  letter-spacing: 0.5px;
+}
+
+.fe-nav-kbd-btn:hover:not(:disabled) {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.fe-nav-kbd-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.fe-clear-btn {
+  background: transparent;
+  border: 0;
+  color: #94a3b8;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  padding: 4px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 140ms ease;
+}
+
+.fe-clear-btn:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.fe-kbd-badge {
+  background: rgba(255, 255, 255, 0.1);
+  color: #cbd5e1;
+  font-size: 11px;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Mono", Menlo, Consolas, monospace;
+  padding: 1.5px 5px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.fe-head-icon-btn {
+  background: transparent;
+  border: 0;
+  color: #94a3b8;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 140ms ease;
+}
+
+.fe-head-icon-btn:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* Card Body */
+.fe-card-body {
+  padding: 10px 22px 14px 22px;
+  font-size: 15.5px;
+  line-height: 1.62;
+  color: #e2e8f0;
+  max-height: 340px;
+  overflow-y: auto;
+  user-select: text;
+}
+
+.fe-answer-card.fe-card-expanded .fe-card-body {
+  max-height: 600px;
+}
+
+.fe-card-body::-webkit-scrollbar {
+  width: 6px;
+}
+.fe-card-body::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 999px;
+}
+
+.fe-answer-placeholder p {
+  color: #e2e8f0;
+  margin: 0;
+}
+
+.fe-answer-content p {
+  margin-bottom: 10px;
+}
+.fe-answer-content p:last-child {
+  margin-bottom: 0;
+}
+
+.fe-answer-fetching {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #10b981;
+  font-weight: 500;
+  font-size: 14.5px;
+  padding: 8px 0;
+}
+
+.fe-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(16, 185, 129, 0.25);
+  border-top-color: #10b981;
+  border-radius: 50%;
+  animation: feSpin 0.7s linear infinite;
+}
+
+@keyframes feSpin {
+  to { transform: rotate(360deg); }
+}
+
+.fe-card-foot {
+  padding: 10px 22px 16px 22px;
+  cursor: grab;
+}
+
+.fe-foot-timestamp {
+  font-size: 12px;
+  color: #71717a;
+  font-weight: 500;
+}
+
+/* 2. MIDDLE LIVE TRANSCRIPT TICKER PILL */
+.fe-transcript-pill {
+  height: 38px;
+  border-radius: 9999px;
+  background: rgba(26, 26, 30, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  padding: 0 16px 0 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: fit-content;
+  max-width: 680px;
+  cursor: grab;
+  margin: 0 auto;
+}
+
+.fe-transcript-pill:active {
+  cursor: grabbing;
+}
+
+.fe-equalizer {
+  display: flex;
+  align-items: center;
+  gap: 2.5px;
+  flex-shrink: 0;
+  height: 16px;
+}
+
+.fe-eq-bar {
+  width: 3px;
+  height: 12px;
+  background: #10b981;
+  border-radius: 2px;
+  transition: height 120ms ease;
+}
+
+.fe-eq-bar-1 { height: 9px; }
+.fe-eq-bar-2 { height: 16px; }
+.fe-eq-bar-3 { height: 11px; }
+
+.fe-equalizer-active .fe-eq-bar-1 {
+  animation: feWave 0.75s ease-in-out infinite alternate;
+}
+.fe-equalizer-active .fe-eq-bar-2 {
+  animation: feWave 0.55s ease-in-out infinite alternate 0.15s;
+}
+.fe-equalizer-active .fe-eq-bar-3 {
+  animation: feWave 0.85s ease-in-out infinite alternate 0.3s;
+}
+
+@keyframes feWave {
+  0% { height: 6px; }
+  50% { height: 16px; }
+  100% { height: 8px; }
+}
+
+.fe-ticker-scroll {
+  overflow-x: auto;
+  white-space: nowrap;
+  scrollbar-width: none;
+  display: flex;
+  align-items: center;
+  mask-image: linear-gradient(to right, transparent 0%, black 8px, black 95%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, black 8px, black 95%, transparent 100%);
+}
+
+.fe-ticker-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.fe-ticker-text {
+  font-size: 13px;
+  color: #94a3b8;
+  font-weight: 450;
+  letter-spacing: 0.15px;
+}
+
+/* 3. BOTTOM FLOATING DOCK BAR */
+.fe-dock-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(22, 22, 26, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 9999px;
+  padding: 6px 10px;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  width: fit-content;
+  position: relative;
+  z-index: 50;
+}
+
+.fe-dock-icon-btn {
+  background: transparent;
+  border: 0;
+  color: #cbd5e1;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  position: relative;
+  transition: all 140ms ease;
+}
+
+.fe-dock-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+}
+
+.fe-dock-screen-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.fe-dock-mic-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.fe-status-dot {
+  width: 6.5px;
+  height: 6.5px;
+  border-radius: 50%;
+  position: absolute;
+  top: 7px;
+  left: 6px;
+}
+
+.fe-dot-red {
+  background: #ef4444;
+  box-shadow: 0 0 6px #ef4444;
+}
+
+.fe-dot-green {
+  background: #10b981;
+  box-shadow: 0 0 6px #10b981;
+}
+
+.fe-dot-muted {
+  background: #64748b;
+}
+
+/* Dock Pill Action Buttons */
+.fe-dock-pill-btn {
+  border: 0;
+  border-radius: 9999px;
+  background: transparent;
+  color: #e2e8f0;
+  font-size: 13.5px;
+  font-weight: 500;
+  font-family: inherit;
+  padding: 7px 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 150ms ease;
+  white-space: nowrap;
+}
+
+.fe-dock-pill-btn:hover {
+  background: rgba(255, 255, 255, 0.09);
+  color: #ffffff;
+}
+
+.fe-dock-pill-btn:active {
+  transform: scale(0.97);
+}
+
+.fe-dock-btn-answer {
+  color: #f1f5f9;
+}
+
+.fe-dock-btn-answer:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.fe-btn-active {
+  background: rgba(255, 255, 255, 0.14) !important;
+  color: #ffffff !important;
+}
+
+/* Drag Handle */
+.fe-dock-drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+  width: 26px;
+  height: 26px;
+  cursor: grab;
+  border-radius: 6px;
+  transition: all 140ms ease;
+}
+
+.fe-dock-drag-handle:active {
+  cursor: grabbing;
+}
+
+.fe-dock-drag-handle:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* Three Dots Button - With Highlight Ring */
+.fe-dock-more-btn {
+  color: #cbd5e1;
+}
+
+.fe-dock-more-active {
+  box-shadow: 0 0 0 2px #f59e0b, 0 0 10px rgba(245, 158, 11, 0.5);
+  color: #f59e0b !important;
+  background: rgba(245, 158, 11, 0.15) !important;
+}
+
+/* Trials Badge */
+.fe-dock-trials-badge {
+  font-size: 12px;
+  color: #10b981;
+  font-weight: 600;
+  padding: 4px 10px;
+  white-space: nowrap;
+}
+
+/* Red Timer Pill */
+.fe-dock-timer-pill {
+  background: rgba(239, 68, 68, 0.88);
+  color: #ffffff;
+  border-radius: 9999px;
+  padding: 5px 12px;
+  font-size: 12.5px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  box-shadow: 0 0 14px rgba(239, 68, 68, 0.45);
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+
+.fe-timer-infinity {
+  font-size: 14px;
+  line-height: 1;
+}
+
+/* 4. POPOVER QUICK SETTINGS CARD */
+.fe-dock-wrapper {
+  position: relative;
+  width: fit-content;
+  margin: 0 auto;
+  pointer-events: all;
+  overflow: visible;
+}
+
+.fe-popover-menu {
+  position: absolute;
+  bottom: calc(100% + 14px);
+  right: 52px;
+  width: 254px;
+  background: rgba(26, 26, 31, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  box-shadow: 0 24px 50px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  z-index: 99999;
+  animation: fePopoverIn 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.fe-popover-menu > * {
+  flex-shrink: 0;
+}
+
+/* Screenshot button menu: Capture screen / Upload image, opening upward. */
+.fe-shot-wrap {
+  position: relative;
+}
+
+.fe-shot-menu {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: 180px;
+  background: rgba(26, 26, 31, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.6);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  z-index: 99999;
+}
+
+.fe-shot-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #e7e7ea;
+  font-size: 13.5px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.fe-shot-item:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* Settings / Answers panel: centred above the bottom dock and the status pill,
+   instead of the old top-right spot (built for the former top bar), which put
+   it over the dock and ran it off the bottom of the window. */
+.pk-settings-menu.pk-assistant-settings {
+  position: fixed;
+  top: 16px;
+  bottom: 150px;
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+  width: min(480px, calc(100vw - 32px));
+  max-width: none;
+  max-height: none;
+  z-index: 10000;
+  pointer-events: all;
+}
+
+.pk-settings-menu.pk-assistant-settings .pk-menu-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* No animated effects while an answer streams in: the card used to animate
+   (transition: all) every time it grew by a line, which read as a constant
+   hover/pulse effect. Only the open animation is kept. */
+.fe-answer-card {
+  transition: none;
+}
+
+/* Answer card: the spoken answer as plain, readable paragraphs. */
+.fe-spoken-answer {
+  font-size: 15.5px;
+  line-height: 1.7;
+  color: #e7e7ea;
+  letter-spacing: 0.005em;
+}
+
+.fe-spoken-answer .parakeet-para {
+  margin: 0 0 10px;
+  padding: 0;
+  font-size: inherit;
+  line-height: inherit;
+  color: inherit;
+}
+
+.fe-spoken-answer .parakeet-para:last-child {
+  margin-bottom: 0;
+}
+
+.fe-spoken-answer .parakeet-sub-list {
+  margin: 4px 0 10px 20px;
+  padding: 0;
+}
+
+.fe-spoken-answer .parakeet-hl {
+  background: none;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+/* Opened downward when there is no room above the dock (copilot near the top of the screen). */
+.fe-popover-menu.fe-popover-below {
+  bottom: auto;
+  top: calc(100% + 14px);
+  animation-name: fePopoverInBelow;
+}
+
+@keyframes fePopoverInBelow {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes fePopoverIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.fe-popover-header {
+  font-size: 11px;
+  font-weight: 700;
+  color: #71717a;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  margin-bottom: 2px;
+}
+
+.fe-popover-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.fe-popover-label {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: #e2e8f0;
+}
+
+/* Switch Toggle (OFF / ON) */
+.fe-toggle-pill {
+  border: 0;
+  border-radius: 9999px;
+  padding: 2px 10px;
+  font-size: 11.5px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 140ms ease;
+}
+
+.fe-toggle-off {
+  background: #3f3f46;
+  color: #a1a1aa;
+}
+
+.fe-toggle-on {
+  background: #10b981;
+  color: #ffffff;
+}
+
+/* Mode Badge (AUTO / MANUAL) */
+.fe-mode-badge {
+  border: 0;
+  border-radius: 9999px;
+  padding: 2px 10px;
+  font-size: 11.5px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 140ms ease;
+}
+
+.fe-mode-auto {
+  background: #10b981;
+  color: #ffffff;
+}
+
+.fe-mode-manual {
+  background: #3f3f46;
+  color: #a1a1aa;
+}
+
+/* Opacity Row */
+.fe-popover-opacity-row {
+  gap: 8px;
+}
+
+.fe-opacity-slider-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  justify-content: flex-end;
+}
+
+.fe-opacity-slider {
+  width: 90px;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: #27272a;
+  border-radius: 9999px;
+  outline: none;
+}
+
+.fe-opacity-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #10b981;
+  cursor: pointer;
+  box-shadow: 0 0 4px rgba(16, 185, 129, 0.6);
+}
+
+.fe-opacity-slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #10b981;
+  cursor: pointer;
+  border: none;
+}
+
+.fe-opacity-val {
+  font-size: 12px;
+  font-weight: 600;
+  color: #cbd5e1;
+  width: 32px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Action Rows */
+.fe-popover-action {
+  border: 0;
+  background: transparent;
+  color: #e2e8f0;
+  font-size: 13.5px;
+  font-weight: 450;
+  font-family: inherit;
+  padding: 5px 0;
+  text-align: left;
+  cursor: pointer;
+  transition: color 120ms ease;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.fe-popover-action:hover {
+  color: #ffffff;
+}
+
+.fe-popover-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.08);
+  margin: 2px 0;
+}
+
+.fe-popover-danger {
+  color: #ef4444 !important;
+}
+
+.fe-popover-danger:hover {
+  color: #f87171 !important;
+}
+
+.fe-quit-kbd {
+  background: rgba(255, 255, 255, 0.08);
+  color: #71717a;
+  font-size: 11px;
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+/* Floating Chat Composer */
+.fe-floating-chat-wrap {
+  width: 100%;
+  max-width: 680px;
+}
+
+.fe-floating-chat-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(20, 20, 24, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 9999px;
+  padding: 5px 10px 5px 14px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.55);
+}
+
+.fe-chat-icon {
+  font-size: 14px;
+}
+
+.fe-chat-input {
+  flex: 1;
+  background: transparent;
+  border: 0;
+  outline: none;
+  color: #ffffff;
+  font-size: 13.5px;
+  font-family: inherit;
+}
+
+.fe-chat-input::placeholder {
+  color: #64748b;
+}
+
+.fe-chat-send-btn {
+  background: #10b981;
+  border: 0;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  cursor: pointer;
+}
+
+.fe-chat-close-btn {
+  background: transparent;
+  border: 0;
+  color: #64748b;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+.fe-chat-close-btn:hover {
+  color: #ffffff;
+}
+
+.fe-spinner-small {
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation: feSpin 0.7s linear infinite;
+}

@@ -165,7 +165,7 @@ class ScreenShareDetector {
     if (!overlay || overlay.isDestroyed()) return;
 
     // Enforce anti-capture content protection strictly whenever stealth mode is on/off
-    const stealthEnabled = this.settingsStore ? (this.settingsStore.get('stealthMode') !== false) : true;
+    const stealthEnabled = this.settingsStore ? (this.settingsStore.get('stealthMode') === true) : false;
     try {
       overlay.setContentProtection(stealthEnabled);
     } catch (err) {

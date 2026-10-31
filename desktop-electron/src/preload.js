@@ -14,6 +14,8 @@ contextBridge.exposeInMainWorld('feonix', {
   maximize: () => ipcRenderer.send('feonix:maximize'),
   isMaximized: () => ipcRenderer.invoke('feonix:is-maximized'),
   moveBy: (dx, dy) => ipcRenderer.send('feonix:move-by', dx, dy),
+  dragStart: () => ipcRenderer.send('feonix:drag-start'),
+  dragEnd: () => ipcRenderer.send('feonix:drag-end'),
   startSession: (opts) => ipcRenderer.invoke('feonix:start-session', opts),
   pendingHandoff: () => ipcRenderer.invoke('feonix:pending-handoff'),
   onHandoff: (callback) => {

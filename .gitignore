@@ -37,3 +37,5 @@ desktop-electron/dist/
 desktop-electron/backups/
 
 scratch/
+
+logs/

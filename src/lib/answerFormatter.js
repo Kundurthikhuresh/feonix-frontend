@@ -312,20 +312,46 @@ function escapeHtml(str) {
  *
  * Streams points and answer content smoothly and immediately without waiting for stream completion.
  */
+/**
+ * The answer card's layout: only the spoken answer, as plain paragraphs (code
+ * blocks kept for coding questions). The [POINTS] bullets are left out — on
+ * the card they read as a sparse list instead of an answer to say out loud.
+ */
+function spokenAnswerHtml(text) {
+  return `<div class="parakeet-answer-container fe-spoken-answer">${formatBodyWithCodeBlocks(text)}</div>`;
+}
+
+export function formatSpokenAnswer(rawText) {
+  if (!rawText || typeof rawText !== 'string') return '';
+  // Mid-stream, a tag can be half-written ("[ANS", "\n[POI"); hide it until complete.
+  const settled = rawText.replace(/\[[A-Z_]*$/i, '');
+  const { answer, points } = parseAnswerSections(settled);
+  const text = answer || points.join(' ');
+  if (!text) return '';
+  // Plain text only — no glowing typing cursor while it streams.
+  return `<div class="fe-spoken-answer">${formatBodyWithCodeBlocks(text)}</div>`;
+}
+
 export function formatStreamingAnswer(accumulatedText) {
   if (!accumulatedText || typeof accumulatedText !== 'string') return null;
 
   const { points, answer, hasStructure, type } = parseAnswerSections(accumulatedText);
 
+  // The answer is the card: a bold opening sentence and its bullets. The
+  // [POINTS] summary is not shown beside it.
+  if (answer) return spokenAnswerHtml(answer.replace(/\[[A-Z_]*$/i, ''));
+
   if (hasStructure) {
     if (!points.length && !answer) {
       // Tokens have started arriving! Provide immediate live visual feedback instead of staying stuck on thinking spinner
+      const cleaned = accumulatedText.replace(/^\[[A-Z_\s-]*\]?/i, '').replace(/\[POINTS:?\]?/i, '').trim();
       return (
         '<div class="parakeet-answer-container">' +
-          '<div class="teleprompter-live-indicator" style="display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border-radius:9999px;background:rgba(0,245,255,0.08);border:1px solid rgba(0,245,255,0.25);color:#00f5ff;font-size:12px;font-weight:600;letter-spacing:0.02em;">' +
+          '<div class="teleprompter-live-indicator" style="display:inline-flex;align-items:center;gap:8px;padding:6px 14px;border-radius:9999px;background:rgba(0,245,255,0.08);border:1px solid rgba(0,245,255,0.3);color:#00f5ff;font-size:12px;font-weight:600;letter-spacing:0.02em;margin-bottom:8px;">' +
             '<span class="live-dot-pulse" style="width:7px;height:7px;border-radius:50%;background:#00f5ff;box-shadow:0 0 8px #00f5ff;display:inline-block;"></span> ' +
-            `Streaming ${type ? escapeHtml(type.toLowerCase()) : 'solution'}…` +
+            `Analyzing & generating answer…` +
           '</div>' +
+          (cleaned ? `<div class="teleprompter-explanation"><div class="explanation-body">${formatBodyWithCodeBlocks(cleaned)}<span class="chatgpt-cursor"></span></div></div>` : '') +
         '</div>'
       );
     }
@@ -385,7 +411,7 @@ export function formatStreamingAnswer(accumulatedText) {
   const cleanedText = accumulatedText.replace(/^\[[A-Z_\s-]*\]?/i, '').trim();
   const textToRender = cleanedText.length > 0 ? cleanedText : accumulatedText;
 
-  if (textToRender.trim().length > 2) {
+  if (textToRender.trim().length > 0) {
     return (
       '<div class="parakeet-answer-container">' +
         '<div class="teleprompter-explanation">' +
@@ -405,6 +431,8 @@ export function formatParakeetAnswer(rawText) {
   if (!rawText) return '';
 
   const { type, points, answer, hasStructure } = parseAnswerSections(rawText);
+
+  if (answer) return spokenAnswerHtml(answer);
 
   let html = `<div class="parakeet-answer-container">`;
 

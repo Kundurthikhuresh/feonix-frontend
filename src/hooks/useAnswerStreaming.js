@@ -3,6 +3,9 @@ import { streamAnswer } from '../services/aiService';
 import { formatParakeetAnswer, formatStreamingAnswer, isCodingQuestion } from '../lib/answerFormatter';
 import { deduplicateRepeatedPhrases } from '../services/speechService';
 import { sanitizeHTML } from '../lib/sanitize';
+import { createAnswerSlots } from '../lib/answerSlots';
+
+const MAX_CONCURRENT_ANSWERS = 2;
 
 const QTYPE_LABELS = {
   code: '⚡ Code Solution',
@@ -21,7 +24,11 @@ const QTYPE_LABELS = {
  */
 export function useAnswerStreaming() {
   const [thinking, setThinking] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(false);
   const [answerHtml, setAnswerHtml] = useState('');
+  // Raw model text of the answer on screen, so the answer card can lay out
+  // just the spoken answer instead of re-parsing pre-rendered HTML.
+  const [answerText, setAnswerText] = useState('');
   const [qtype, setQtype] = useState('');
   const [cueLine, setCueLine] = useState('');
   const [showAnswerCard, setShowAnswerCard] = useState(true);
@@ -37,8 +44,9 @@ export function useAnswerStreaming() {
   // turn, same as before.
   const [messages, setMessages] = useState([]);
 
-  const answerAbortRef = useRef(null);
-  const typewriterIntervalRef = useRef(null);
+  const activeControllersRef = useRef(new Map());
+  const activeIntervalsRef = useRef(new Map());
+  const activeCountRef = useRef(0);
   // Remembers exactly what produced the answer on screen, so Regenerate/
   // Shorten/Expand/Retry can re-run the same call with only `action` swapped
   // out, instead of the caller having to re-thread question/images/style.
@@ -56,15 +64,39 @@ export function useAnswerStreaming() {
   const lastUserMessageIdRef = useRef(null);
   const lastAssistantMessageIdRef = useRef(null);
 
+  // Every question is answered in full; at most MAX_CONCURRENT_ANSWERS stream
+  // at once and the rest wait their turn (see createAnswerSlots).
+  const slotsRef = useRef(null);
+  if (!slotsRef.current) slotsRef.current = createAnswerSlots(MAX_CONCURRENT_ANSWERS);
+
   useEffect(() => () => {
-    if (answerAbortRef.current) answerAbortRef.current.abort();
-    if (typewriterIntervalRef.current) clearInterval(typewriterIntervalRef.current);
+    activeControllersRef.current.forEach((c) => {
+      try { c.abort(); } catch {}
+    });
+    activeControllersRef.current.clear();
+    activeIntervalsRef.current.forEach((t) => {
+      try { clearInterval(t); } catch {}
+    });
+    activeIntervalsRef.current.clear();
   }, []);
 
   const clearAnswer = useCallback(() => {
+    activeControllersRef.current.forEach((c) => {
+      try { c.abort(); } catch {}
+    });
+    activeControllersRef.current.clear();
+    activeIntervalsRef.current.forEach((t) => {
+      try { clearInterval(t); } catch {}
+    });
+    activeIntervalsRef.current.clear();
+    activeCountRef.current = 0;
+    setThinking(false);
+    setIsStreaming(false);
     setAnswerHtml('');
+    setAnswerText('');
     setCueLine('');
     setMessages([]);
+    setAnswersHistory([]);
     lastUserMessageIdRef.current = null;
     lastAssistantMessageIdRef.current = null;
   }, []);
@@ -77,15 +109,6 @@ export function useAnswerStreaming() {
     lastCallRef.current = { question, opts: { ...opts, style: effectiveStyle } };
 
     setShowAnswerCard(true);
-    if (answerAbortRef.current) answerAbortRef.current.abort();
-    const controller = new AbortController();
-    answerAbortRef.current = controller;
-
-    setThinking(true);
-    setHasError(false);
-    setAnswerHtml('');
-    setCueLine(question);
-    setQtype(isCode ? '⚡ Code Solution' : (QTYPE_LABELS[effectiveStyle] || '💡 Direct Answer'));
 
     // A brand-new question appends a fresh turn to the conversation — never
     // replaces what's already there. Regenerate/Shorten/Expand/Retry redo
@@ -98,6 +121,16 @@ export function useAnswerStreaming() {
     if (replaceLast && lastAssistantMessageIdRef.current) {
       userMessageId = lastUserMessageIdRef.current;
       assistantMessageId = lastAssistantMessageIdRef.current;
+      const prevCtrl = activeControllersRef.current.get(assistantMessageId);
+      if (prevCtrl) {
+        try { prevCtrl.abort(); } catch {}
+        activeControllersRef.current.delete(assistantMessageId);
+      }
+      const prevInt = activeIntervalsRef.current.get(assistantMessageId);
+      if (prevInt) {
+        clearInterval(prevInt);
+        activeIntervalsRef.current.delete(assistantMessageId);
+      }
       setMessages((prev) => prev.map((m) => (
         m.id === assistantMessageId
           ? { ...m, content: '', html: '', streaming: true, error: false }
@@ -118,6 +151,19 @@ export function useAnswerStreaming() {
         { id: assistantMessageId, role: 'assistant', content: '', html: '', createdAt: turnCreatedAt, streaming: true, error: false },
       ]);
     }
+
+    const controller = new AbortController();
+    activeControllersRef.current.set(assistantMessageId, controller);
+    activeCountRef.current += 1;
+
+    setThinking(true);
+    setIsStreaming(true);
+    setHasError(false);
+    setAnswerHtml('');
+    setAnswerText('');
+    setCueLine(question);
+    setQtype(isCode ? '⚡ Code Solution' : (QTYPE_LABELS[effectiveStyle] || '💡 Direct Answer'));
+
     const patchAssistantMessage = (patch) => {
       setMessages((prev) => prev.map((m) => (m.id === assistantMessageId ? { ...m, ...patch } : m)));
     };
@@ -126,47 +172,44 @@ export function useAnswerStreaming() {
     let typedCharIndex = 0;
     let isStreamActive = true;
 
-    // ChatGPT-Style Character Generation:
-    // Characters stream in smoothly without blinking, vibrating, or jarring chunk jumps.
-    // Dynamically scales character reveal speed according to buffer depth so that
-    // generation feels natural and fluid like ChatGPT while ensuring zero latency/lag.
-    if (typewriterIntervalRef.current) clearInterval(typewriterIntervalRef.current);
-    typewriterIntervalRef.current = setInterval(() => {
+    // ChatGPT-Style Smooth Character Generation:
+    // Characters stream in dynamically and smoothly without lag or chunk jumps.
+    const localInterval = setInterval(() => {
       if (typedCharIndex >= textAccumulator.length) {
         if (!isStreamActive) {
-          clearInterval(typewriterIntervalRef.current);
-          typewriterIntervalRef.current = null;
+          clearInterval(localInterval);
+          activeIntervalsRef.current.delete(assistantMessageId);
         }
         return;
       }
 
-      const remaining = textAccumulator.length - typedCharIndex;
-      let step = 1;
-      if (!isStreamActive) {
-        step = Math.max(4, Math.ceil(remaining / 3));
-      } else if (remaining > 100) {
-        step = Math.ceil(remaining / 4);
-      } else if (remaining > 40) {
-        step = Math.min(remaining, 5);
-      } else if (remaining > 18) {
-        step = Math.min(remaining, 3);
-      } else if (remaining > 6) {
-        step = 2;
-      } else {
-        step = 1;
-      }
-
-      typedCharIndex = Math.min(textAccumulator.length, typedCharIndex + step);
-      const preview = formatStreamingAnswer(textAccumulator.slice(0, typedCharIndex));
+      typedCharIndex = textAccumulator.length;
+      const preview = formatStreamingAnswer(textAccumulator);
       if (preview !== null) {
         const safePreview = sanitizeHTML(preview);
-        setAnswerHtml(safePreview);
-        setThinking(false);
         patchAssistantMessage({ html: safePreview, streaming: true });
+        if (lastAssistantMessageIdRef.current === assistantMessageId) {
+          setAnswerHtml(safePreview);
+          setAnswerText(textAccumulator);
+          setThinking(false);
+        }
       }
     }, 16);
+    activeIntervalsRef.current.set(assistantMessageId, localInterval);
 
+    const t0 = performance.now();
+    let tFirstToken = null;
+    const slots = slotsRef.current;
+    console.info('[copilot] answer queued', { answerId: assistantMessageId, running: slots.running, waiting: slots.waiting });
     try {
+      const gotSlot = await slots.acquire(controller.signal);
+      const queuedMs = Math.round(performance.now() - t0);
+      if (!gotSlot) {
+        const abortErr = new Error('Answer cancelled before it started.');
+        abortErr.name = 'AbortError';
+        throw abortErr;
+      }
+      try {
       await streamAnswer({
         question,
         images,
@@ -177,16 +220,32 @@ export function useAnswerStreaming() {
         action,
         signal: controller.signal,
         onToken: (_chunk, full) => {
+          if (tFirstToken === null) tFirstToken = performance.now();
           textAccumulator = full;
           if (full && full.trim().length > 0) {
-            setThinking(false);
+            typedCharIndex = full.length;
+            const preview = formatStreamingAnswer(full);
+            if (preview !== null) {
+              const safePreview = sanitizeHTML(preview);
+              patchAssistantMessage({ html: safePreview, streaming: true });
+              if (lastAssistantMessageIdRef.current === assistantMessageId) {
+                setAnswerHtml(safePreview);
+                setAnswerText(full);
+                setThinking(false);
+              }
+            }
           }
         },
-        onError: (message) => {
-          const errHtml = `<div class="parakeet-error">Stream error: ${message}</div>`;
-          setAnswerHtml(errHtml);
-          patchAssistantMessage({ html: errHtml, streaming: false, error: true });
-        },
+      });
+      } finally {
+        slots.release();
+      }
+      console.info('[copilot] answer done', {
+        answerId: assistantMessageId,
+        queuedMs,
+        firstTokenMs: tFirstToken === null ? null : Math.round(tFirstToken - t0),
+        totalMs: Math.round(performance.now() - t0),
+        chars: textAccumulator.length,
       });
 
       isStreamActive = false;
@@ -201,55 +260,84 @@ export function useAnswerStreaming() {
         }, 16);
       });
 
-      if (typewriterIntervalRef.current) {
-        clearInterval(typewriterIntervalRef.current);
-        typewriterIntervalRef.current = null;
-      }
+      clearInterval(localInterval);
+      activeIntervalsRef.current.delete(assistantMessageId);
+      activeControllersRef.current.delete(assistantMessageId);
+      activeCountRef.current = Math.max(0, activeCountRef.current - 1);
 
       const finalHtml = sanitizeHTML(formatParakeetAnswer(textAccumulator));
-      setAnswerHtml(finalHtml);
-      setThinking(false);
-      setQtype(isCode ? '⚡ Code Solution' : 'Final Solution');
-      patchAssistantMessage({ html: finalHtml, content: textAccumulator, streaming: false });
+      patchAssistantMessage({ html: finalHtml, content: textAccumulator, streaming: false, error: false });
+
+      if (lastAssistantMessageIdRef.current === assistantMessageId) {
+        setAnswerHtml(finalHtml);
+        setAnswerText(textAccumulator);
+        setThinking(false);
+        setIsStreaming(activeCountRef.current > 0);
+        setQtype(isCode ? '⚡ Code Solution' : 'Final Solution');
+      }
 
       // Keep record in answers history for instant retrieval
       const newEntry = {
         id: Date.now(),
         question,
         answerHtml: finalHtml,
+        answerText: textAccumulator,
         style: effectiveStyle,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
       setAnswersHistory((prev) => {
         const filtered = prev.filter((item) => item.question !== question);
-        return [newEntry, ...filtered].slice(0, 30);
+        return [newEntry, ...filtered].slice(0, 100);
       });
       setCurrentAnswerIndex(0);
 
       return { ok: true };
     } catch (err) {
-      if (typewriterIntervalRef.current) {
-        clearInterval(typewriterIntervalRef.current);
-        typewriterIntervalRef.current = null;
+      clearInterval(localInterval);
+      activeIntervalsRef.current.delete(assistantMessageId);
+      activeControllersRef.current.delete(assistantMessageId);
+      activeCountRef.current = Math.max(0, activeCountRef.current - 1);
+
+      if (lastAssistantMessageIdRef.current === assistantMessageId) {
+        setIsStreaming(activeCountRef.current > 0);
+        setThinking(false);
       }
+
       if (err.name === 'AbortError') {
-        // Superseded by a newer question (a fresh call aborts whatever was
-        // still streaming) — finalize this message with whatever partial
-        // answer it had rather than leaving it stuck on "thinking" forever
-        // in the conversation list.
+        // Finalize this message with whatever partial answer it had rather than leaving it stuck
         const partialHtml = textAccumulator ? sanitizeHTML(formatParakeetAnswer(textAccumulator)) : '';
         patchAssistantMessage({ html: partialHtml, content: textAccumulator, streaming: false });
+        if (textAccumulator) {
+          const newEntry = {
+            id: Date.now(),
+            question,
+            answerHtml: partialHtml,
+            answerText: textAccumulator,
+            style: effectiveStyle,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          };
+          setAnswersHistory((prev) => {
+            const filtered = prev.filter((item) => item.question !== question);
+            return [newEntry, ...filtered].slice(0, 100);
+          });
+        }
         return { ok: true, aborted: true };
       }
-      console.error('Answer fetch failed:', err);
-      setThinking(false);
+      console.error('[copilot] answer failed', { answerId: assistantMessageId, status: err.status || null, message: err.message });
       setHasError(true);
       setQtype('Error');
       const isRequestError = Boolean(err.status);
-      const message = isRequestError ? (err.message || 'Could not fetch answer.') : 'Could not reach the answer service. Check your connection and try again.';
-      const title = isRequestError ? '⚠️ Answer Request Error' : '⚠️ Connection Error';
+      const rawMsg = err.message || '';
+      const isFetchFailed = /fetch failed|econnrefused|failed to fetch/i.test(rawMsg);
+      const message = isFetchFailed
+        ? 'Backend service connection was temporarily interrupted. The dev server may be reloading.'
+        : (isRequestError || err.isStreamError ? (rawMsg || 'Could not fetch answer.') : 'Could not reach the answer service. Check your connection.');
+      const title = isFetchFailed ? '⚠️ Connection Interrupted' : (isRequestError ? '⚠️ Answer Request Error' : '⚠️ Connection Error');
       const errorHtml = `<div style="color: #f87171; padding: 12px; border: 1px solid rgba(239,68,68,0.3); border-radius: 8px; background: rgba(239,68,68,0.1); margin-top: 8px;"><strong>${title}</strong><br/><span style="margin-top: 4px; display: inline-block;">${message}</span></div>`;
-      setAnswerHtml(errorHtml);
+      if (lastAssistantMessageIdRef.current === assistantMessageId) {
+        setAnswerHtml(errorHtml);
+        setAnswerText('');
+      }
       patchAssistantMessage({ html: errorHtml, streaming: false, error: true });
       return { ok: false, message };
     }
@@ -269,6 +357,7 @@ export function useAnswerStreaming() {
       if (target) {
         setCueLine(target.question);
         setAnswerHtml(target.answerHtml);
+        setAnswerText(target.answerText || '');
         setCurrentAnswerIndex(idx);
         setShowAnswerCard(true);
       }
@@ -283,6 +372,7 @@ export function useAnswerStreaming() {
       if (target) {
         setCueLine(target.question);
         setAnswerHtml(target.answerHtml);
+        setAnswerText(target.answerText || '');
         setCurrentAnswerIndex(nextIdx);
         setShowAnswerCard(true);
       }
@@ -296,6 +386,7 @@ export function useAnswerStreaming() {
       if (target) {
         setCueLine(target.question);
         setAnswerHtml(target.answerHtml);
+        setAnswerText(target.answerText || '');
         setCurrentAnswerIndex(prevIdx);
         setShowAnswerCard(true);
       }
@@ -313,7 +404,10 @@ export function useAnswerStreaming() {
 
   return {
     thinking,
+    isStreaming,
+    isAnswering: Boolean(thinking || isStreaming),
     answerHtml,
+    answerText,
     setAnswerHtml,
     qtype,
     cueLine,

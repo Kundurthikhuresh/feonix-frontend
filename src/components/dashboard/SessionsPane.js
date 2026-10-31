@@ -49,38 +49,12 @@ export default function SessionsPane({
 
   const [now, setNow] = useState(Date.now());
   const [startingSessionId, setStartingSessionId] = useState(null);
-  const [startedSessionIds, setStartedSessionIds] = useState(() => new Set());
 
   const handleStartOrResume = async (s) => {
     const isEnded = getSessionRemainingInfo(s, now).isEnded;
     if (isEnded) return;
 
-    const isFirstTime =
-      (s.status === 'ready' && !s.started_at && (!s.tokens_used || s.tokens_used === 0)) &&
-      !startedSessionIds.has(s.id);
-
-    if (isFirstTime) {
-      setStartingSessionId(s.id);
-      setStartedSessionIds((prev) => new Set(prev).add(s.id));
-      try {
-        if (onStartSession) {
-          await onStartSession(s);
-        } else {
-          await fetch(`/api/sessions/${s.id}/start`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ billing: s.billing_kind }),
-          });
-        }
-      } catch (err) {
-        console.error('Failed to start session:', err);
-      } finally {
-        setStartingSessionId(null);
-        goToLaunch(s.id);
-      }
-    } else {
-      goToLaunch(s.id);
-    }
+    goToLaunch(s.id);
   };
 
   useEffect(() => {
@@ -165,8 +139,7 @@ export default function SessionsPane({
           const { isEnded } = getSessionRemainingInfo(s, now);
           const isFirstTime =
             !isEnded &&
-            (s.status === 'ready' && !s.started_at && (!s.tokens_used || s.tokens_used === 0)) &&
-            !startedSessionIds.has(s.id);
+            (s.status === 'ready' && !s.started_at && (!s.tokens_used || s.tokens_used === 0));
 
           return (
             <div key={s.id} className="session-card">
@@ -193,9 +166,6 @@ export default function SessionsPane({
                         ? 'Ready to start'
                         : 'In progress'}
                   </div>
-                  <span className="sc-usage">
-                    {s.tokens_used ? `${s.tokens_used} tokens` : 'No usage yet'}
-                  </span>
                 </div>
 
                 <div className="sc-actions">

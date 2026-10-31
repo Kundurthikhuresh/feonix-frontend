@@ -1,4 +1,4 @@
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, desktopCapturer, session } = require('electron');
 const path = require('path');
 const { Logger } = require('../logger');
 const { SettingsStore } = require('./settingsStore');
@@ -100,7 +100,7 @@ function deliverHandoff(handoff) {
     bringToFront(mainWindow);
     mainWindow.webContents.send('feonix:handoff', handoff);
   } else {
-    createMainWindow(routePath);
+    createMainWindow(routePath, settingsStore);
   }
 }
 
@@ -143,6 +143,62 @@ if (!gotLock) {
   });
 
   app.whenReady().then(() => {
+    try {
+      if (session && session.defaultSession) {
+        session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
+          if (permission === 'media' || permission === 'audio-capture' || permission === 'desktop-capture') {
+            return callback(true);
+          }
+          callback(true);
+        });
+        if (typeof session.defaultSession.setPermissionCheckHandler === 'function') {
+          session.defaultSession.setPermissionCheckHandler(() => true);
+        }
+        if (typeof session.defaultSession.setDisplayMediaRequestHandler === 'function') {
+          const trustedOrigin = new URL(WEB_URL).origin;
+          // request.securityOrigin can be empty or formatted differently in
+          // this Electron version; a strict string compare was rejecting the
+          // app's own page, so screenshots and meeting-audio capture failed.
+          const originOf = (request) => {
+            for (const candidate of [request.securityOrigin, request.frame && request.frame.url]) {
+              try { if (candidate) return new URL(candidate).origin; } catch { /* try the next one */ }
+            }
+            return '';
+          };
+          // Electron 33 throws on callback({}) when video was requested; keep a
+          // refusal from becoming an unhandled rejection.
+          const refuse = (callback) => { try { callback({}); } catch { /* refusal acknowledged */ } };
+
+          session.defaultSession.setDisplayMediaRequestHandler(async (request, callback) => {
+            const origin = originOf(request);
+            if (origin !== trustedOrigin) {
+              logger.warn('Screen capture refused for untrusted origin:', origin || '(none)');
+              refuse(callback);
+              return;
+            }
+
+            try {
+              const sources = await desktopCapturer.getSources({ types: ['screen'] });
+              const primarySource = sources[0];
+              if (!primarySource) {
+                logger.warn('Screen capture: no screen source available');
+                refuse(callback);
+                return;
+              }
+
+              callback({
+                video: primarySource,
+                ...(request.audioRequested ? { audio: process.platform === 'win32' ? 'loopback' : true } : {}),
+              });
+            } catch (error) {
+              logger.warn('Screen capture failed:', error.message);
+              refuse(callback);
+            }
+          });
+        }
+      }
+    } catch {}
+
     registerIpcHandlers({
       logger,
       settingsStore,
@@ -164,7 +220,7 @@ if (!gotLock) {
     if (coldHandoff) {
       deliverHandoff(coldHandoff);
     } else {
-      createMainWindow('/session-type');
+      createMainWindow('/session-type', settingsStore);
     }
   });
 }
@@ -185,5 +241,5 @@ app.on('will-quit', () => {
 });
 
 app.on('activate', () => {
-  if (BrowserWindow.getAllWindows().length === 0) createMainWindow('/session-type');
+  if (BrowserWindow.getAllWindows().length === 0) createMainWindow('/session-type', settingsStore);
 });

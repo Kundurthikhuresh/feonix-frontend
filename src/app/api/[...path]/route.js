@@ -1,4 +1,21 @@
-const PRIMARY_BACKEND = process.env.BACKEND_URL || 'http://127.0.0.1:4000';
+import dns from 'node:dns';
+import fs from 'node:fs';
+import nodePath from 'node:path';
+try { dns.setDefaultResultOrder('ipv4first'); } catch {}
+
+// Development-only record of answer requests (status/latency/error, no
+// content) so a failed answer can be traced from a file.
+const PROXY_DEBUG_LOG = nodePath.join(process.cwd(), 'logs', 'proxy-debug.log');
+function proxyDebug(line) {
+  if (process.env.NODE_ENV === 'production') return;
+  try {
+    fs.mkdirSync(nodePath.dirname(PROXY_DEBUG_LOG), { recursive: true });
+    fs.appendFileSync(PROXY_DEBUG_LOG, `${new Date().toISOString()} ${line}\n`);
+  } catch { /* never let diagnostics break the proxy */ }
+}
+
+const RAW_BACKEND = process.env.BACKEND_URL || 'http://127.0.0.1:4000';
+const PRIMARY_BACKEND = RAW_BACKEND.replace(/\/+$/, '');
 const FALLBACK_BACKEND = PRIMARY_BACKEND.includes('127.0.0.1')
   ? PRIMARY_BACKEND.replace('127.0.0.1', 'localhost')
   : 'http://127.0.0.1:4000';
@@ -8,6 +25,8 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
 
 async function proxy(req, context) {
+  const proxyStartedAt = Date.now();
+  let isStreamReq = false;
   try {
     const { path } = await context.params;
     const search = req.nextUrl.search || '';
@@ -21,7 +40,8 @@ async function proxy(req, context) {
         lowerKey === 'connection' ||
         lowerKey === 'content-length' ||
         lowerKey === 'transfer-encoding' ||
-        lowerKey === 'keep-alive'
+        lowerKey === 'keep-alive' ||
+        lowerKey === 'expect' // undici's fetch refuses to forward it
       ) return;
       headers.set(key, value);
     });
@@ -35,48 +55,69 @@ async function proxy(req, context) {
       }
     }
 
-    // Answer streams (SSE) legitimately run long; anything else — auth
-    // included — has no business taking more than a few seconds against a
-    // healthy backend. Without a bound here a backend that accepted the
-    // connection but then stalled (e.g. mid-restart) left this fetch hanging
-    // for up to maxDuration, which is what turned a login into a spinner
-    // that never resolved instead of a fast retry or a fast, clear error.
-    const isStream = pathStr.startsWith('/api/answer');
-    const upstreamTimeoutMs = isStream ? 60000 : 15000;
+    // AI operations (answer SSE, Whisper audio transcription, Vision analysis)
+    // legitimately require longer processing windows (up to 60s) depending on
+    // OpenAI model latency and network traffic. Regular endpoints use 20s.
+    const isStream = pathStr.startsWith('/api/answer') && !pathStr.startsWith('/api/answer/warm');
+    isStreamReq = isStream;
+    const isTranscribe = pathStr.startsWith('/api/transcribe');
+    const isAiHeavy =
+      isStream ||
+      isTranscribe ||
+      pathStr.startsWith('/api/vision') ||
+      pathStr.startsWith('/api/assistant') ||
+      pathStr.startsWith('/api/resume-ai') ||
+      pathStr.startsWith('/api/interview-prep') ||
+      pathStr.startsWith('/api/cover-letter');
+    const upstreamTimeoutMs = isAiHeavy ? 60000 : 20000;
 
     const init = {
       method: req.method,
       headers,
       redirect: 'manual',
-      body: bodyBuffer,
+      body: bodyBuffer ? Buffer.from(bodyBuffer) : null,
     };
 
     let upstream = null;
     const isIdempotent = req.method === 'GET' || req.method === 'HEAD';
-    // Only safe/idempotent reads should retry upstream on transient fetch errors.
-    // Retrying state-mutating requests (POST, PUT, DELETE) across targets can cause
-    // duplicate side-effects (such as duplicate session creation or credit deductions).
-    const maxRetries = (isStream || !isIdempotent) ? 1 : 4;
-    const targets = PRIMARY_BACKEND !== FALLBACK_BACKEND
-      ? [PRIMARY_BACKEND, FALLBACK_BACKEND]
-      : [PRIMARY_BACKEND];
+    // Only safe/idempotent reads, stream answers and transcription chunks should retry
+    // upstream on transient fetch errors (e.g. ECONNRESET or reload).
+    const maxRetries = isStream ? 3 : (isTranscribe ? 3 : 4);
+    const targets = [
+      PRIMARY_BACKEND,
+      FALLBACK_BACKEND,
+      'http://127.0.0.1:4000',
+      'http://localhost:4000',
+    ].filter((val, idx, self) => self.indexOf(val) === idx);
 
+    // A refused connection never reached the backend, so retrying it is safe for
+    // any method; this rides out the ~2s gap while `node --watch` restarts.
+    const refusedDeadline = Date.now() + 10000;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       const targetUrl = `${targets[attempt % targets.length]}${pathStr}`;
       try {
         upstream = await fetch(targetUrl, {
           ...init,
+          body: bodyBuffer ? Buffer.from(bodyBuffer) : null,
           signal: AbortSignal.timeout(upstreamTimeoutMs),
         });
         break;
       } catch (fetchErr) {
+        const refused = fetchErr?.cause?.code === 'ECONNREFUSED';
+        if (refused && Date.now() < refusedDeadline) {
+          await new Promise((resolve) => setTimeout(resolve, 400));
+          attempt -= 1;
+          continue;
+        }
         if (attempt === maxRetries - 1) {
           throw fetchErr;
         }
-        const backoffMs = 250 * (attempt + 1);
+        const backoffMs = 350 * (attempt + 1);
         await new Promise((resolve) => setTimeout(resolve, backoffMs));
       }
     }
+
+    if (isStream) proxyDebug(`answer upstream status=${upstream.status} headersMs=${Date.now() - proxyStartedAt}`);
 
     const outHeaders = new Headers();
     upstream.headers.forEach((value, key) => {
@@ -126,6 +167,7 @@ async function proxy(req, context) {
       headers: outHeaders,
     });
   } catch (err) {
+    if (isStreamReq) proxyDebug(`answer proxy error after ${Date.now() - proxyStartedAt}ms: ${err && (err.cause?.code || err.message)}`);
     console.error('PROXY ERROR:', err);
     return new Response(JSON.stringify({
       error: 'server_unavailable',

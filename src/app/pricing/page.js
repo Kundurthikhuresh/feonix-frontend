@@ -110,6 +110,61 @@ export default function PricingPage() {
   const [upiSubmitting, setUpiSubmitting] = useState(false);
   const [upiError, setUpiError] = useState('');
 
+  // Promotions & Coupon state
+  const [activePublicPromos, setActivePublicPromos] = useState([]);
+  const [appliedCoupon, setAppliedCoupon] = useState(null);
+  const [couponValidating, setCouponValidating] = useState(false);
+  const [couponError, setCouponError] = useState('');
+
+  useEffect(() => {
+    fetch('/api/promotions/active')
+      .then((r) => (r.ok ? r.json() : { promotions: [] }))
+      .then((d) => setActivePublicPromos(d.promotions || []))
+      .catch(() => {});
+  }, []);
+
+  const handleApplyCoupon = async (couponCode, targetPlan) => {
+    const cleanCode = (couponCode || '').trim().toUpperCase();
+    if (!cleanCode) {
+      setCouponError('Please enter a promotion coupon code.');
+      return;
+    }
+    setCouponValidating(true);
+    setCouponError('');
+
+    try {
+      const res = await fetch('/api/promotions/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: cleanCode, plan: targetPlan }),
+      });
+      const data = await res.json();
+      if (res.ok && data.valid) {
+        setAppliedCoupon({
+          code: data.promotion.code,
+          name: data.promotion.name,
+          discount_amount: data.discount_amount,
+          bonus_credits: data.bonus_credits,
+          final_amount: data.final_amount,
+          original_amount: data.original_amount,
+        });
+        setCouponError('');
+      } else {
+        setAppliedCoupon(null);
+        setCouponError(data.message || 'Invalid or expired promotion code.');
+      }
+    } catch (err) {
+      setCouponError('Could not validate coupon. Check connection.');
+    } finally {
+      setCouponValidating(false);
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponError('');
+  };
+
   const refreshSubscription = () =>
     fetch('/api/razorpay/subscription').then(r => r.json()).then(d => setSubInfo(d));
 
@@ -148,10 +203,12 @@ export default function PricingPage() {
     setUpiError('');
 
     try {
+      const upiBody = { plan: upiPlanId, upiId: cleanUpi };
+      if (appliedCoupon?.code) upiBody.coupon_code = appliedCoupon.code;
       const res = await fetch('/api/razorpay/pay-upi', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan: upiPlanId, upiId: cleanUpi }),
+        body: JSON.stringify(upiBody),
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
@@ -188,10 +245,12 @@ export default function PricingPage() {
     setLoadingPlan(planId);
     setSuccessMsg('');
     try {
+      const orderBody = { plan: planId };
+      if (appliedCoupon?.code) orderBody.coupon_code = appliedCoupon.code;
       const orderRes = await fetch('/api/razorpay/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan: planId }),
+        body: JSON.stringify(orderBody),
       });
       const order = await orderRes.json();
       if (!orderRes.ok) {
@@ -220,6 +279,7 @@ export default function PricingPage() {
                 razorpay_payment_id: response.razorpay_payment_id,
                 razorpay_signature: response.razorpay_signature,
                 plan: planId,
+                coupon_code: appliedCoupon?.code || undefined,
               }),
             });
             const verifyData = await verifyRes.json();
@@ -287,6 +347,12 @@ export default function PricingPage() {
           onSelectPlan={handleSubscribe}
           loadingPlan={loadingPlan}
           currentPlan={currentPlan}
+          activePublicPromos={activePublicPromos}
+          appliedCoupon={appliedCoupon}
+          onApplyCoupon={handleApplyCoupon}
+          onRemoveCoupon={handleRemoveCoupon}
+          couponValidating={couponValidating}
+          couponError={couponError}
         />
 
         {/* UPI ID Payment Modal */}

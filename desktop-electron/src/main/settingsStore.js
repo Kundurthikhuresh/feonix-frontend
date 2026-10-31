@@ -18,13 +18,13 @@ const DEFAULT_SETTINGS = {
   assistantSize: 'normal',
   rememberPosition: true,
   voiceEnabled: true,
-  stealthMode: true,
+  stealthMode: false,
   autoHideOnShare: false,
-  audioSource: 'mic',
+  audioSource: 'both',
 };
 
 const ASSISTANT_SIZES = ['compact', 'normal', 'large', 'xlarge'];
-const AUDIO_SOURCES = ['mic', 'tab'];
+const AUDIO_SOURCES = ['both', 'mic', 'tab'];
 
 // A handful of safe presets rather than free-form key capture — the
 // renderer only ever offers these, and the main process re-validates

@@ -86,15 +86,26 @@ export default function InterviewControls({
         </div>
       </div>
 
-      {/* Controls */}
+      {/* Prominent End Session Button - Always clearly visible */}
       <button
-        className="pk-icon-btn pk-drag-handle"
-        onMouseDown={onDragHandleMouseDown}
-        title="Click & Drag to reposition HUD"
+        className="pk-end-btn"
+        onClick={onEndSession}
         type="button"
-        style={{ cursor: 'grab' }}
+        title="End interview session (⌘⇧Q)"
       >
-        ⊹
+        <span style={{ fontSize: '11px', lineHeight: 1 }}>⏹</span>
+        <span>End</span>
+      </button>
+
+      {/* Settings Menu */}
+      <button
+        className={`pk-icon-btn ${settingsOpen ? 'pk-action-active' : ''}`}
+        onClick={onToggleSettings}
+        title={settingsOpen ? 'Close settings menu' : 'Session History & Settings (⋮)'}
+        data-menu-trigger="settings"
+        type="button"
+      >
+        ⋮
       </button>
 
       {/* Copilot Size Controls (Decrease / Increase) */}
@@ -136,25 +147,6 @@ export default function InterviewControls({
         type="button"
       >
         ─
-      </button>
-
-      <button
-        className={`pk-icon-btn ${settingsOpen ? 'pk-action-active' : ''}`}
-        onClick={onToggleSettings}
-        title={settingsOpen ? 'Close settings menu' : 'Session History & Settings (⋮)'}
-        data-menu-trigger="settings"
-        type="button"
-      >
-        ⋮
-      </button>
-
-      <button
-        className="pk-end-btn"
-        onClick={onEndSession}
-        type="button"
-        title="End interview session (⌘⇧Q)"
-      >
-        End
       </button>
     </div>
   );

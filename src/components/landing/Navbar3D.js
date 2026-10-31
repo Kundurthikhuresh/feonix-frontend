@@ -1,14 +1,15 @@
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
-import { Sparkles, Sun, Moon, Menu, X, ArrowRight } from 'lucide-react';
+import { Sparkles, Sun, Moon, Menu, X } from 'lucide-react';
 
 export default function Navbar3D({
   user,
   themeMode,
   toggleTheme,
   onLoginClick,
-  onSignupClick,
+  onAdminClick,
+  onDashboardClick,
 }) {
   const [scrolled, setScrolled] = useState(false);
   const [hidden, setHidden] = useState(false);
@@ -54,16 +55,14 @@ export default function Navbar3D({
 
         {/* Desktop Navigation Links */}
         <nav className="navbar-desktop-nav" aria-label="Main Navigation">
-          <a href="#hero" className="nav-item-link active">
-            Home
-            <span className="nav-active-dot" />
-          </a>
-          <a href="#copilot" className="nav-item-link">Simulator</a>
-          <a href="#features" className="nav-item-link">Features</a>
-          <a href="#showcase" className="nav-item-link">3D Neural Core</a>
-          <a href="#duo" className="nav-item-link">Solutions</a>
-          <a href="#how-it-works" className="nav-item-link">How It Works</a>
+          <a href="#hero" className="nav-item-link">Home</a>
+          <a href="#video-demos" className="nav-item-link">Demos</a>
+          <a href="#dual-engine" className="nav-item-link">Dual Engine</a>
+          <a href="#career-suite" className="nav-item-link">Career Suite</a>
+          <a href="#comparison" className="nav-item-link">Compare</a>
+          <a href="#simulator" className="nav-item-link">Simulator</a>
           <a href="#pricing" className="nav-item-link">Pricing</a>
+          <a href="#faq" className="nav-item-link">FAQ</a>
         </nav>
 
         {/* Right Actions */}
@@ -76,28 +75,24 @@ export default function Navbar3D({
             type="button"
             aria-label="Toggle Theme"
           >
-            {themeMode === 'light' ? <Moon size={17} /> : <Sun size={17} />}
+            {themeMode === 'light' ? <Moon size={21} /> : <Sun size={21} />}
           </button>
 
-          {/* Login Button */}
+          {/* Always display Login only */}
           <button
             className="navbar-btn-ghost"
-            onClick={onLoginClick}
+            onClick={() => onLoginClick && onLoginClick('admin')}
             type="button"
+            style={{
+              fontSize: '14px',
+              padding: '8px 18px',
+              fontWeight: 600,
+              cursor: 'pointer'
+            }}
           >
             Login
           </button>
 
-          {/* Open Workspace CTA */}
-          <button
-            className="navbar-btn-primary"
-            onClick={onSignupClick}
-            type="button"
-          >
-            <span>Open Workspace</span>
-            <ArrowRight size={15} className="btn-arrow-icon" />
-            <div className="btn-glow-shimmer" />
-          </button>
 
           {/* Mobile Menu Toggle Button */}
           <button
@@ -116,11 +111,11 @@ export default function Navbar3D({
         <div className="navbar-mobile-drawer">
           <nav className="mobile-nav-links">
             <a href="#hero" onClick={() => setMobileMenuOpen(false)}>Home</a>
-            <a href="#copilot" onClick={() => setMobileMenuOpen(false)}>Copilot Simulator</a>
-            <a href="#features" onClick={() => setMobileMenuOpen(false)}>Features</a>
-            <a href="#showcase" onClick={() => setMobileMenuOpen(false)}>3D Neural Core</a>
-            <a href="#duo" onClick={() => setMobileMenuOpen(false)}>Dual Copilot Solutions</a>
-            <a href="#how-it-works" onClick={() => setMobileMenuOpen(false)}>How It Works</a>
+            <a href="#video-demos" onClick={() => setMobileMenuOpen(false)}>Demos</a>
+            <a href="#dual-engine" onClick={() => setMobileMenuOpen(false)}>Dual Engine</a>
+            <a href="#career-suite" onClick={() => setMobileMenuOpen(false)}>Career Suite</a>
+            <a href="#comparison" onClick={() => setMobileMenuOpen(false)}>Compare</a>
+            <a href="#simulator" onClick={() => setMobileMenuOpen(false)}>Simulator</a>
             <a href="#pricing" onClick={() => setMobileMenuOpen(false)}>Pricing</a>
             <a href="#faq" onClick={() => setMobileMenuOpen(false)}>FAQ</a>
           </nav>
@@ -129,19 +124,10 @@ export default function Navbar3D({
               className="btn-mobile-login"
               onClick={() => {
                 setMobileMenuOpen(false);
-                onLoginClick();
+                onLoginClick && onLoginClick('admin');
               }}
             >
               Login
-            </button>
-            <button
-              className="btn-mobile-signup"
-              onClick={() => {
-                setMobileMenuOpen(false);
-                onSignupClick();
-              }}
-            >
-              Open Workspace
             </button>
           </div>
         </div>
