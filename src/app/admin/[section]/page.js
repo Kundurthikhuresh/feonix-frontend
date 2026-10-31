@@ -1,5 +1,7 @@
 'use client';
 
-import AdminPage from '../page';
+import AdminPageView from '../../../components/dashboard/AdminPageView';
 
-export default AdminPage;
+export default function AdminSectionPage() {
+  return <AdminPageView />;
+}
