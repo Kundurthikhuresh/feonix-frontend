@@ -292,22 +292,41 @@
 .admin-popover-item {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   width: 100%;
-  padding: 8px 10px;
+  padding: 9px 12px;
   border-radius: var(--ad-radius-sm);
   background: transparent;
   border: none;
-  font-size: 12.5px;
+  font-size: 13px;
+  font-weight: 500;
   color: var(--ad-text);
   cursor: pointer;
   text-align: left;
-  transition: background-color 0.15s;
+  transition: all 0.15s ease;
+}
+
+.admin-popover-item svg {
+  flex-shrink: 0;
+  transition: transform 0.15s ease;
 }
 
 .admin-popover-item:hover {
-  background: var(--ad-bg);
-  color: var(--ad-purple);
+  background: rgba(124, 58, 237, 0.12);
+  color: var(--ad-purple, #a855f7);
+}
+
+.admin-popover-item:hover svg {
+  transform: scale(1.1);
+}
+
+.admin-popover-item.is-logout {
+  color: var(--ad-red, #ef4444);
+}
+
+.admin-popover-item.is-logout:hover {
+  background: rgba(239, 68, 68, 0.12);
+  color: #f87171;
 }
 
 /* ==========================================================================
@@ -1132,6 +1151,15 @@
 .admin-input-styled:focus {
   border-color: var(--ad-purple);
   box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.15);
+}
+
+/* Number fields: the browser shows the white up/down arrows only while the
+   pointer is over the field. Keep them shown all the time, so nothing
+   changes on hover. */
+.admin-input-styled[type="number"]::-webkit-inner-spin-button,
+.admin-input-styled[type="number"]::-webkit-outer-spin-button {
+  opacity: 1;
+  cursor: pointer;
 }
 
 /* Date / DateTime picker symbol & format styling for high clarity & visibility */
