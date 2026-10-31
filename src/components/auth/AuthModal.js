@@ -190,35 +190,6 @@ export default function AuthModal({
                 </div>
               </div>
 
-              {/* Role Switcher: User vs Admin */}
-              {authMode !== 'forgot' && (
-                <div className="auth-role-tabs">
-                  <button
-                    type="button"
-                    className={`auth-role-tab ${authRole === 'user' ? 'active-user' : ''}`}
-                    onClick={() => {
-                      if (setAuthRole) setAuthRole('user');
-                      setAuthMsg({ text: '', type: '' });
-                    }}
-                  >
-                    <User size={15} />
-                    <span>User / Candidate</span>
-                  </button>
-                  <button
-                    type="button"
-                    className={`auth-role-tab ${authRole === 'admin' ? 'active-admin' : ''}`}
-                    onClick={() => {
-                      if (setAuthRole) setAuthRole('admin');
-                      if (setAuthMode) setAuthMode('login');
-                      setAuthMsg({ text: '', type: '' });
-                    }}
-                  >
-                    <Shield size={15} />
-                    <span>Admin Portal</span>
-                  </button>
-                </div>
-              )}
-
               {/* Segmented Tab Switcher (Sign In vs Create Account for Users) */}
               {authMode !== 'forgot' && authRole === 'user' && (
                 <div className="auth-segmented-tabs">
