@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect } from 'react';
+import { useParams } from 'next/navigation';
 
-export default function DashboardRedirect({ params }) {
+export default function DashboardRedirect() {
+  const params = useParams();
+
   useEffect(() => {
-    Promise.resolve(params).then((p) => {
-      const pane = p?.pane?.[0] || 'sessions';
-      window.location.replace(`/?view=dash&pane=${pane}`);
-    });
+    const pane = params?.pane?.[0] || 'sessions';
+    window.location.replace(`/?view=dash&pane=${pane}`);
   }, [params]);
 
   return (

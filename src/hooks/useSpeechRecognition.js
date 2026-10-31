@@ -311,7 +311,7 @@ export function useSpeechRecognition({ sessionId, source = 'both', language = 'e
     st.ordered.fill(seq, { text, endOfUtterance: text ? endOfUtterance : true });
   }, [toast]);
 
-// Stops listening but keeps the audio sources open (see pauseRecording).
+  // Stops listening but keeps the audio sources open (see pauseRecording).
   const stopListeners = useCallback(() => {
     recordersRef.current.forEach((r) => { try { r.stop(); } catch {} });
     recordersRef.current = [];
@@ -358,7 +358,7 @@ export function useSpeechRecognition({ sessionId, source = 'both', language = 'e
       setElapsedText(`${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
     }, 1000);
 
-recordingRef.current = true;
+    recordingRef.current = true;
     setListening(true);
     recordersRef.current = channels.map(({ stream, speaker }) => {
       const recorder = createChunkedRecorder(stream, { onChunk: makeChunkHandler(speaker) });
@@ -430,7 +430,56 @@ recordingRef.current = true;
       recordingRef.current = false;
       releaseAll();
       setListening(false);
-setCaptureWarning('');
+      setCaptureWarning('');
+    } finally {
+      startingRef.current = false;
+    }
+  }, [source, toast, releaseAll, beginListening]);
+
+  // Full stop: closes the microphone and meeting-audio capture. Used when the
+  // session ends or the copilot is left.
+  const stopRecording = useCallback(async () => {
+    recordingRef.current = false;
+    startingRef.current = false;
+    setListening(false);
+    setCaptureWarning('');
+    setTranscriptionError('');
+    releaseAll();
+  }, [releaseAll]);
+
+  /* The mic button pauses and resumes; it does not close the audio sources.
+   * Closing them and opening them again on unmute is what broke listening:
+   * Windows often hands back a silent stream for a second capture of the
+   * computer's sound, and a browser asks for the tab again. Kept open, resume
+   * is instant. While paused the tracks are switched off, so nothing is heard
+   * or sent. */
+  const pauseRecording = useCallback(() => {
+    recordingRef.current = false;
+    setListening(false);
+    stopListeners();
+    rawTracksOf(channelsRef.current).forEach((t) => { t.enabled = false; });
+  }, [stopListeners]);
+
+  const resumeRecording = useCallback(async () => {
+    const channels = channelsRef.current;
+    const tracks = rawTracksOf(channels);
+    const usable = channels.length > 0
+      && channelsSourceRef.current === source
+      && tracks.length > 0
+      && tracks.every((t) => t.readyState === 'live')
+      && channels.every(({ stream }) => !stream._audioCtx || stream._audioCtx.state !== 'closed');
+    if (!usable) {
+      releaseAll();
+      return startRecording();
+    }
+    tracks.forEach((t) => { t.enabled = true; });
+    await Promise.all(channels.map(({ stream }) => (
+      stream._audioCtx && stream._audioCtx.state === 'suspended'
+        ? stream._audioCtx.resume().catch(() => {}) : null
+    )));
+    setTranscriptionError('');
+    beginListening(channels, { resetClock: false });
+  }, [source, releaseAll, startRecording, beginListening]);
 
   const toggleListening = useCallback(() => {
     if (startingRef.current) return undefined;

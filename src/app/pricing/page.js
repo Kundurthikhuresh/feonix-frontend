@@ -123,7 +123,7 @@ export default function PricingPage() {
       .catch(() => {});
   }, []);
 
-  const handleApplyCoupon = async (couponCode, targetPlan) => {
+  const handleApplyCoupon = async (couponCode, targetPlan, targetCurrency) => {
     const cleanCode = (couponCode || '').trim().toUpperCase();
     if (!cleanCode) {
       setCouponError('Please enter a promotion coupon code.');
@@ -136,7 +136,7 @@ export default function PricingPage() {
       const res = await fetch('/api/promotions/validate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: cleanCode, plan: targetPlan }),
+        body: JSON.stringify({ code: cleanCode, plan: targetPlan, currency: targetCurrency }),
       });
       const data = await res.json();
       if (res.ok && data.valid) {
@@ -228,7 +228,7 @@ export default function PricingPage() {
     }
   }
 
-  async function handleSubscribe(planId, preferredMethod = null) {
+  async function handleSubscribe(planId, preferredMethod = null, currency = null) {
     if (!planId || planId === 'free') return;
 
     // When clicking UPI, Google Pay, or PhonePe: open the UPI ID input modal directly!
@@ -246,6 +246,7 @@ export default function PricingPage() {
     setSuccessMsg('');
     try {
       const orderBody = { plan: planId };
+      if (currency) orderBody.currency = currency;
       if (appliedCoupon?.code) orderBody.coupon_code = appliedCoupon.code;
       const orderRes = await fetch('/api/razorpay/create-order', {
         method: 'POST',

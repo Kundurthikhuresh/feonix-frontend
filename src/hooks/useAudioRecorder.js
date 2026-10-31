@@ -26,14 +26,17 @@ export function useAudioRecorder(onChunkAvailable) {
   const startRecording = useCallback(async () => {
     setListening(true);
     try {
-audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: true },
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: true },
         });
       } catch {
         stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       }
       streamRef.current = stream;
 
-const pickMimeType = () => {
+      const pickMimeType = () => {
         const types = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus', ''];
         for (const t of types) {
           if (!t || (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(t))) return t;
@@ -62,7 +65,7 @@ const pickMimeType = () => {
       active.start();
 
       cycleTimerRef.current = setInterval(() => {
-try {
+        try {
           const next = makeRecorder();
           next.start();
           const prev = active;
@@ -73,7 +76,6 @@ try {
           }
         } catch (e) {
           console.warn('Recorder tick warning:', e);
-        }
         }
       }, 2500);
 

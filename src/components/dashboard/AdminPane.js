@@ -60,7 +60,7 @@ export default function AdminPane({
   const [activeSection, setActiveSection] = useState(getInitialSection);
 
   const navigateSection = (sectionKey, updateHistory = true) => {
-    navigateSection(sectionKey);
+    setActiveSection(sectionKey);
     if (updateHistory && typeof window !== 'undefined') {
       const slug = SECTION_TO_ROUTE[sectionKey] || sectionKey;
       const targetPath = slug === 'dashboard' ? '/admin/dashboard' : `/admin/${slug}`;
@@ -195,9 +195,14 @@ export default function AdminPane({
     return () => document.removeEventListener('mousedown', handleOutsideClick);
   }, []);
 
-  // Fetch overview data
-  const loadOverview = async (range = dateRange) => {
-    setLoadingOverview(true);
+  // Fetch overview data. One request at a time: on a slow database the
+  // 15-second refresh used to start new requests while earlier ones were
+  // still running, and the pile-up made every one of them slower.
+  const overviewInFlightRef = useRef(false);
+  const loadOverview = async (range = dateRange, { background = false } = {}) => {
+    if (background && overviewInFlightRef.current) return;
+    overviewInFlightRef.current = true;
+    if (!background) setLoadingOverview(true);
     try {
       const res = await fetch(`/api/admin/overview?range=${range}`);
       if (res.ok) {
@@ -207,14 +212,17 @@ export default function AdminPane({
     } catch (err) {
       console.error('Failed to load overview:', err);
     } finally {
-      setLoadingOverview(false);
+      overviewInFlightRef.current = false;
+      if (!background) setLoadingOverview(false);
     }
   };
 
   useEffect(() => {
     loadOverview(dateRange);
     const interval = setInterval(() => {
-      loadOverview(dateRange);
+      // No refresh while the admin tab is in the background.
+      if (typeof document !== 'undefined' && document.hidden) return;
+      loadOverview(dateRange, { background: true });
     }, 15000);
     return () => clearInterval(interval);
   }, [dateRange]);

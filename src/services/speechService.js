@@ -343,7 +343,7 @@ export async function getListenChannels(source = 'both') {
     try {
       return { channels: [{ stream: await mixAudioStreams([micStream]), speaker: 'unknown' }], warning };
     } catch {
-return { channels: [{ stream: micStream, speaker: 'unknown' }], warning };
+      return { channels: [{ stream: micStream, speaker: 'unknown' }], warning };
     }
   }
 
@@ -401,12 +401,17 @@ export function createChunkedRecorder(stream, {
     const options = { audioBitsPerSecond: 64000 };
     if (mimeType) options.mimeType = mimeType;
     try {
-recorder = new MediaRecorder(stream, options);
+      recorder = new MediaRecorder(stream, options);
     } catch {
       try {
-        recorder = new MediaRecorder(stream);
+        recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
       } catch {
-        recorder = null;
+        try {
+          recorder = new MediaRecorder(stream);
+        } catch (err) {
+          console.error('MediaRecorder initialization failed:', err);
+          return null;
+        }
       }
     }
     return recorder;
@@ -471,9 +476,22 @@ recorder = new MediaRecorder(stream, options);
       hadSpeechInChunk = false;
       chunkStartedAt = Date.now();
       active = makeRecorder();
-if (!active) throw new Error('Could not initialize audio recorder for stream');
+      if (!active) throw new Error('Could not initialize audio recorder for stream');
       active.start();
       if (vadMonitorTimer) clearInterval(vadMonitorTimer);
+      vadMonitorTimer = setInterval(tick, 80);
+    },
+    stop() {
+      if (vadMonitorTimer) clearInterval(vadMonitorTimer);
+      vadMonitorTimer = null;
+      // Deliver what was said right before Stop instead of discarding it.
+      if (active && active.state === 'recording' && hadSpeechInChunk) {
+        stopped = true;
+        cut(true);
+      } else if (active && active.state !== 'inactive') {
+        try { active.stop(); } catch {}
+      }
+      stopped = true;
       active = null;
     },
   };

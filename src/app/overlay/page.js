@@ -273,7 +273,7 @@ function OverlayContent() {
     }
     if (typeof triggerToast === 'function') {
       if (isTurnOn) {
-triggerToast('🛡️ Private Mode ON: Copilot is hidden from opposite person / screen share');
+        triggerToast('🛡️ Private Mode ON: Copilot is hidden from opposite person / screen share');
       } else {
         triggerToast('👥 Private Mode OFF: Copilot is visible to opposite person / screen share');
       }
@@ -337,7 +337,7 @@ triggerToast('🛡️ Private Mode ON: Copilot is hidden from opposite person / 
   const shortcutHandlersRef = useRef({});
   useEffect(() => {
     shortcutHandlersRef.current = {
-onAnswer: () => handleAnswerClick(),
+      onAnswer: () => handleAnswerClick(),
       onScreenshotMenu: () => setScreenshotMenuOpen((prev) => !prev),
       onChat: () => {
         setPromptHubOpen((prev) => !prev);
@@ -823,7 +823,7 @@ onAnswer: () => handleAnswerClick(),
   const handleCaptureScreen = async () => {
     setScreenshotMenuOpen(false);
     const visibilityBeforeCapture = visibility;
-const isPrivate = settings.stealthMode !== false;
+    const isPrivate = settings.stealthMode !== false;
     try {
       const dataUrl = await captureScreenSnapshot({
         onBeforeFrame: isPrivate ? () => { setVisibility('hidden'); } : undefined,
@@ -838,14 +838,13 @@ const isPrivate = settings.stealthMode !== false;
         triggerToast(err.code === 'CAPTURE_TIMEOUT' ? `⚠️ ${err.message}` : '⚠️ Screen capture cancelled');
       }
     } finally {
-if (isPrivate) {
+      if (isPrivate) {
         setVisibility(visibilityBeforeCapture);
       }
     }
   };
 
   const handleAnswerClick = () => {
-<<<<<<< HEAD
     if (customPromptText && customPromptText.trim()) {
       const q = customPromptText.trim();
       setCustomPromptText('');
@@ -873,24 +872,9 @@ if (isPrivate) {
     if (cueLine) {
       askQuestion(cueLine, { images: screenshots, style: answerStyle });
       return;
-=======
-    const latestQuestionText = customPromptText.trim()
-      || cueLine
-      || transcriptChips.filter((c) => c.isQuestion).pop()?.text
-      || transcriptChips[transcriptChips.length - 1]?.text;
-
-    if (latestQuestionText) {
-      askQuestion(latestQuestionText, { images: screenshots, style: answerStyle });
-      setCustomPromptText('');
-    } else if (screenshots.length > 0) {
-      askQuestion('Analyze the attached screenshot and provide the complete solution.', { images: screenshots, style: answerStyle });
-    } else {
-      setPromptHubOpen(true);
-      composeInputRef.current?.focus();
-      triggerToast('💡 Type a question in Chat to generate an answer');
->>>>>>> origin/main
     }
     setPromptHubOpen(true);
+    composeInputRef.current?.focus();
     triggerToast('💡 Type a question in Chat to generate an answer');
   };
 

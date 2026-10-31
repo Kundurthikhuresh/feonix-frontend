@@ -1,7 +1,26 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { detectCurrency, formatMoney, planAmount } from '../../lib/pricing';
 import './pricing.css';
+
+// Per-call prices assume 30 calls a month (one a day), each up to an hour.
+const CALLS_PER_MONTH = 30;
+
+const SUB_TIERS = [
+  { id: 'sub_monthly', name: 'Monthly', badge: 'Most popular', badgeClass: 'pk-badge-yellow', months: 1, unit: 'Month' },
+  { id: 'sub_yearly', name: 'Yearly', badge: 'Best value', badgeClass: 'pk-badge-amber', months: 12, unit: 'Year' },
+];
+
+const CREDIT_PACKS = [
+  { id: 'pack_3', credits: 3 },
+  { id: 'pack_6', credits: 8, paid: 6, free: 2 },
+  { id: 'pack_9', credits: 15, paid: 9, free: 6 },
+];
+
+function Radio({ checked }) {
+  return <span className={`pk-radio ${checked ? 'is-checked' : ''}`} aria-hidden="true" />;
+}
 
 export default function ParakeetPricingView({
   onSelectPlan,
@@ -13,99 +32,66 @@ export default function ParakeetPricingView({
   onRemoveCoupon = null,
   couponValidating = false,
   couponError = '',
+  currency: currencyProp = null,
 }) {
   const [inputCode, setInputCode] = useState('');
-  // Subscription Card State
-  const [subPeriod, setSubPeriod] = useState('monthly'); // 'weekly' | 'monthly' | 'yearly'
-  const [subViewMode, setSubViewMode] = useState('hourly'); // 'total' | 'monthly' | 'hourly'
+  const [planTab, setPlanTab] = useState('unlimited'); // 'unlimited' | 'credits'
+  const [subPlan, setSubPlan] = useState('sub_monthly');
+  const [subViewMode, setSubViewMode] = useState('total'); // 'total' | 'monthly' | 'call'
+  const [creditPack, setCreditPack] = useState('pack_6');
+  const [creditViewMode, setCreditViewMode] = useState('total'); // 'total' | 'credit'
 
-  // Credits Card State
-  const [creditPack, setCreditPack] = useState('pack_6'); // 'pack_3' | 'pack_6' | 'pack_9' | 'pack_1'
-  const [creditViewMode, setCreditViewMode] = useState('total'); // 'total' | 'hourly'
+  // Detected after mount: the server render cannot know the visitor's country.
+  const [detected, setDetected] = useState('USD');
+  useEffect(() => { setDetected(detectCurrency()); }, []);
+  const currency = currencyProp || detected;
+  const money = (amount, opts) => formatMoney(amount, currency, opts);
 
-  // Subscription Pricing Data (half of reference image prices)
-  const subTiers = {
-    weekly: {
-      id: 'sub_weekly',
-      name: 'Weekly',
-      totalPrice: '$39.00',
-      periodLabel: '/ Week',
-      perMonthPrice: '$156.00',
-      perHourPrice: '$5.63',
-      btnText: 'Go Unlimited · Weekly $39.00',
-    },
-    monthly: {
-      id: 'sub_monthly',
-      name: 'Monthly',
-      badge: 'Most popular',
-      totalPrice: '$74.95',
-      periodLabel: '/ Month',
-      perMonthPrice: '$74.95',
-      perHourPrice: '$2.50',
-      btnText: 'Go Unlimited · Monthly $74.95',
-    },
-    yearly: {
-      id: 'sub_yearly',
-      name: 'Yearly',
-      badge: 'Best value',
-      totalPrice: '$299.95',
-      periodLabel: '/ Year',
-      perMonthPrice: '$24.99',
-      perHourPrice: '$0.83',
-      btnText: 'Go Unlimited · Yearly $299.95',
-    },
+  const activeSub = SUB_TIERS.find((t) => t.id === subPlan) || SUB_TIERS[0];
+  const activeSubTotal = planAmount(activeSub.id, currency);
+  const weeklyTotal = planAmount('sub_weekly', currency);
+  const activePack = CREDIT_PACKS.find((p) => p.id === creditPack) || CREDIT_PACKS[1];
+  const activePackTotal = planAmount(activePack.id, currency);
+  const singleCredit = planAmount('pack_1', currency);
+
+  const selectPlan = (id, method = null) => {
+    if (onSelectPlan) onSelectPlan(id, method, currency);
   };
-
-  // Credit Packs Data (half of previous prices)
-  const creditPacks = {
-    pack_3: {
-      id: 'pack_3',
-      name: '3 Credits',
-      credits: 3,
-      totalPrice: '$29.50',
-      perHourPrice: '$4.92 / hour',
-      btnText: 'Get 3 Credits · $29.50',
-    },
-    pack_6: {
-      id: 'pack_6',
-      name: '6 Credits',
-      badge: '+2 free',
-      sub: '8 total credits',
-      credits: 8,
-      totalPrice: '$59.00',
-      perHourPrice: '$7.38 / hour',
-      btnText: 'Get 6 + 2 Credits · $59.00',
-    },
-    pack_9: {
-      id: 'pack_9',
-      name: '9 Credits',
-      badge: '+6 free',
-      sub: '15 total credits',
-      credits: 15,
-      totalPrice: '$88.50',
-      perHourPrice: '$5.90 / hour',
-      btnText: 'Get 9 + 6 Credits · $88.50',
-    },
-    pack_1: {
-      id: 'pack_1',
-      name: '1 Credit',
-      credits: 1,
-      totalPrice: '$19.00',
-      perHourPrice: '$19.00 / hour',
-      btnText: 'Get 1 Credit · $19.00',
-    },
-  };
-
-  const activeSub = subTiers[subPeriod] || subTiers.monthly;
-  const activePack = creditPacks[creditPack] || creditPacks.pack_6;
-
+  // Payment-method chips buy whatever is selected on the open tab.
   const handleSubClick = (method = null) => {
-    if (onSelectPlan) onSelectPlan(activeSub.id, method);
+    selectPlan(planTab === 'credits' ? activePack.id : activeSub.id, method);
   };
 
-  const handleCreditClick = (packId = null, method = null) => {
-    const id = packId || activePack.id;
-    if (onSelectPlan) onSelectPlan(id, method);
+  const subPrice = (tier) => {
+    const total = planAmount(tier.id, currency);
+    if (subViewMode === 'call') {
+      return { main: money(total / tier.months / CALLS_PER_MONTH, { decimals: true }), unit: '/ call*', note: `${money(total)} / ${tier.unit}` };
+    }
+    if (subViewMode === 'monthly') {
+      return { main: money(total / tier.months, { decimals: tier.months > 1 }), unit: '/ Month', note: tier.months > 1 ? `${money(total)} / ${tier.unit}` : null };
+    }
+    return { main: money(total), unit: `/ ${tier.unit}`, note: null };
+  };
+
+  const packPrice = (pack) => {
+    const total = planAmount(pack.id, currency);
+    if (creditViewMode === 'credit') {
+      return { main: money(total / pack.credits, { decimals: true }), unit: '/ credit', note: `${money(total)} total` };
+    }
+    return { main: money(total), unit: '', note: null };
+  };
+
+  const couponSuffix = (kind) => {
+    if (!appliedCoupon) return '';
+    if (kind === 'credits' && appliedCoupon.bonus_credits > 0) return ` (+ ${appliedCoupon.bonus_credits} Bonus Credits!)`;
+    return ` (Coupon ${appliedCoupon.code} Applied)`;
+  };
+
+  const selectOnKey = (e, select) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      select();
+    }
   };
 
   return (
@@ -121,263 +107,211 @@ export default function ParakeetPricingView({
         </p>
       </div>
 
-      {/* Two-Column Cards Grid */}
-      <div className="pk-pricing-grid">
-        {/* ================= LEFT: SUBSCRIPTION CARD ================= */}
-        <div className="pk-card pk-card-sub">
-          <div className="pk-card-head">
-            <div>
-              <div className="pk-card-title-wrap">
-                <h3 className="pk-card-title">Subscription</h3>
-                <span className="pk-tag-recommended">✳ Recommended</span>
+      {/* Unlimited / Credits tabs */}
+      <div className="pk-plan-tabs" role="tablist">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={planTab === 'unlimited'}
+          className={`pk-plan-tab ${planTab === 'unlimited' ? 'is-active' : ''}`}
+          onClick={() => setPlanTab('unlimited')}
+        >
+          Unlimited
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={planTab === 'credits'}
+          className={`pk-plan-tab ${planTab === 'credits' ? 'is-active' : ''}`}
+          onClick={() => setPlanTab('credits')}
+        >
+          Credits
+        </button>
+      </div>
+
+      <div className="pk-pricing-single">
+        {planTab === 'unlimited' ? (
+          /* ================= UNLIMITED ================= */
+          <div className="pk-card pk-card-sub">
+            <div className="pk-card-top">
+              <h3 className="pk-card-title">Unlimited</h3>
+              <span className="pk-tag-recommended">✳ Recommended</span>
+            </div>
+            <p className="pk-card-desc">Stop counting. Everything covered, for as long as you need it.</p>
+
+            <div className="pk-switch-row">
+              <div className="pk-segmented-pills">
+                {[['total', 'Total'], ['monthly', 'Per month'], ['call', 'Per call']].map(([mode, label]) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    className={`pk-pill-btn ${subViewMode === mode ? 'is-active' : ''}`}
+                    onClick={() => setSubViewMode(mode)}
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
-              <p className="pk-card-desc">Stop counting. Everything covered, for as long as you need it.</p>
             </div>
 
-            {/* Switcher: Total / Per month / Per hour */}
-            <div className="pk-segmented-pills">
-              <button
-                type="button"
-                className={`pk-pill-btn ${subViewMode === 'total' ? 'is-active' : ''}`}
-                onClick={() => setSubViewMode('total')}
-              >
-                Total
-              </button>
-              <button
-                type="button"
-                className={`pk-pill-btn ${subViewMode === 'monthly' ? 'is-active' : ''}`}
-                onClick={() => setSubViewMode('monthly')}
-              >
-                Per month
-              </button>
-              <button
-                type="button"
-                className={`pk-pill-btn ${subViewMode === 'hourly' ? 'is-active' : ''}`}
-                onClick={() => setSubViewMode('hourly')}
-              >
-                Per hour
-              </button>
-            </div>
-          </div>
-
-          {/* Radio Options: Weekly / Monthly / Yearly */}
-          <div className="pk-options-list">
-            {Object.keys(subTiers).map((key) => {
-              const tier = subTiers[key];
-              const isSelected = subPeriod === key;
-
-              let displayPrice = tier.totalPrice;
-              let displayPeriod = tier.periodLabel;
-
-              if (subViewMode === 'monthly') {
-                displayPrice = tier.perMonthPrice;
-                displayPeriod = '/ Month';
-              } else if (subViewMode === 'hourly') {
-                displayPrice = tier.perHourPrice;
-                displayPeriod = ' /hour*';
-              }
-
-              return (
-                <div
-                  key={key}
-                  className={`pk-option-item ${isSelected ? 'is-selected' : ''}`}
-                  onClick={() => setSubPeriod(key)}
-                >
-                  <div className="pk-option-left">
-                    <div className="pk-option-label-wrap">
+            <div className="pk-options-list" role="radiogroup">
+              {SUB_TIERS.map((tier) => {
+                const isSelected = subPlan === tier.id;
+                const price = subPrice(tier);
+                return (
+                  <div
+                    key={tier.id}
+                    role="radio"
+                    aria-checked={isSelected}
+                    tabIndex={0}
+                    className={`pk-option-item ${isSelected ? 'is-selected' : ''}`}
+                    onClick={() => setSubPlan(tier.id)}
+                    onKeyDown={(e) => selectOnKey(e, () => setSubPlan(tier.id))}
+                  >
+                    <div className="pk-option-left">
+                      <Radio checked={isSelected} />
                       <div className="pk-option-title-row">
                         <span className="pk-option-name">{tier.name}</span>
-                        {tier.badge === 'Most popular' && (
-                          <span className="pk-badge-yellow">{tier.badge}</span>
-                        )}
-                        {tier.badge === 'Best value' && (
-                          <span className="pk-badge-amber">{tier.badge}</span>
-                        )}
+                        <span className={tier.badgeClass}>{tier.badge}</span>
                       </div>
                     </div>
-                  </div>
-                  <div className="pk-option-price-wrap">
-                    <div>
-                      <span className="pk-option-price">{displayPrice}</span>
-                      <span className="pk-option-period">{displayPeriod}</span>
+                    <div className="pk-option-price-wrap">
+                      <div>
+                        <span className="pk-option-price">{price.main}</span>
+                        <span className="pk-option-period"> {price.unit}</span>
+                      </div>
+                      {price.note && <div className="pk-option-note">{price.note}</div>}
                     </div>
-                    {subViewMode === 'hourly' && (
-                      <div className="pk-option-note">
-                        {tier.totalPrice} {tier.periodLabel}
-                      </div>
-                    )}
-                    {subViewMode === 'monthly' && key !== 'monthly' && (
-                      <div className="pk-option-note">
-                        {tier.totalPrice} {tier.periodLabel}
-                      </div>
-                    )}
                   </div>
-                </div>
-              );
-            })}
-          </div>
-
-          <p className="pk-footnote-text">
-            * Assumes 30 hours of calls a month or 1 call per day
-          </p>
-
-          {/* Subscription Feature Checklist */}
-          <ul className="pk-features-list">
-            <li className="pk-feature-item">
-              <span className="pk-check-icon">✓</span>
-              <span>Unlimited call sessions (& mock)</span>
-            </li>
-            <li className="pk-feature-item">
-              <span className="pk-check-icon">✓</span>
-              <span>Full privacy mode</span>
-            </li>
-            <li className="pk-feature-item">
-              <span className="pk-check-icon">✓</span>
-              <span>20 resume PDF downloads a day</span>
-            </li>
-            <li className="pk-feature-item">
-              <span className="pk-check-icon">✓</span>
-              <span>30 headshots a day</span>
-            </li>
-            <li className="pk-feature-item">
-              <span className="pk-check-icon">✓</span>
-              <span>Full Question Bank access</span>
-            </li>
-          </ul>
-
-          {/* CTA Button */}
-          <button
-            type="button"
-            className={`pk-action-btn-main pk-btn-unlimited ${loadingPlan === activeSub.id ? 'pk-btn-loading-state' : ''}`}
-            onClick={handleSubClick}
-            disabled={loadingPlan === activeSub.id}
-          >
-            {loadingPlan === activeSub.id
-              ? 'Opening Checkout…'
-              : appliedCoupon
-              ? `${activeSub.btnText} (Coupon ${appliedCoupon.code} Applied)`
-              : activeSub.btnText}
-          </button>
-          <p className="pk-action-subnote">No lock-in. Cancel anytime.</p>
-        </div>
-
-        {/* ================= RIGHT: CREDITS CARD ================= */}
-        <div className="pk-card pk-card-credits">
-          <div className="pk-card-head">
-            <div>
-              <div className="pk-card-title-wrap">
-                <h3 className="pk-card-title">Credits</h3>
-              </div>
-              <p className="pk-card-desc">Buy a pack of credits and use them whenever.</p>
+                );
+              })}
             </div>
 
-            {/* Switcher: Total / Per hour */}
-            <div className="pk-segmented-pills">
-              <button
-                type="button"
-                className={`pk-pill-btn ${creditViewMode === 'total' ? 'is-active' : ''}`}
-                onClick={() => setCreditViewMode('total')}
-              >
-                Total
-              </button>
-              <button
-                type="button"
-                className={`pk-pill-btn ${creditViewMode === 'hourly' ? 'is-active' : ''}`}
-                onClick={() => setCreditViewMode('hourly')}
-              >
-                Per hour
-              </button>
-            </div>
-          </div>
+            {subViewMode === 'call' && (
+              <p className="pk-footnote-text">* Assumes 30 calls a month (1 a day), each up to an hour</p>
+            )}
 
-          {/* Radio Options: 3 Credits / 6 Credits / 9 Credits */}
-          <div className="pk-options-list">
-            {['pack_3', 'pack_6', 'pack_9'].map((key) => {
-              const pack = creditPacks[key];
-              const isSelected = creditPack === key;
+            <ul className="pk-features-list">
+              <li className="pk-feature-item"><span className="pk-check-icon">✓</span><span>Unlimited call sessions (& mock)</span></li>
+              <li className="pk-feature-item"><span className="pk-check-icon">✓</span><span>Full privacy mode</span></li>
+              <li className="pk-feature-item"><span className="pk-check-icon">✓</span><span>20 resume PDF downloads a day</span></li>
+              <li className="pk-feature-item"><span className="pk-check-icon">✓</span><span>30 headshots a day</span></li>
+              <li className="pk-feature-item"><span className="pk-check-icon">✓</span><span>Full Question Bank access</span></li>
+            </ul>
 
-              let displayPrice = pack.totalPrice;
-              let displayPeriod = '';
-
-              if (creditViewMode === 'hourly') {
-                displayPrice = pack.perHourPrice;
-              }
-
-              return (
-                <div
-                  key={key}
-                  className={`pk-option-item ${isSelected ? 'is-selected' : ''}`}
-                  onClick={() => setCreditPack(key)}
-                >
-                  <div className="pk-option-left">
-                    <div className="pk-option-label-wrap">
-                      <div className="pk-option-title-row">
-                        <span className="pk-option-name">{pack.name}</span>
-                        {pack.badge && <span className="pk-badge-yellow">{pack.badge}</span>}
-                      </div>
-                      {pack.sub && <span className="pk-option-sub">{pack.sub}</span>}
-                    </div>
-                  </div>
-                  <div className="pk-option-price-wrap">
-                    <span className="pk-option-price">{displayPrice}</span>
-                    {displayPeriod && <span className="pk-option-period">{displayPeriod}</span>}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Credits Feature Checklist */}
-          <ul className="pk-features-list">
-            <li className="pk-feature-item">
-              <span className="pk-check-icon">✓</span>
-              <span>0.5 Credit = 30 min call session (& mock)</span>
-            </li>
-            <li className="pk-feature-item">
-              <span className="pk-check-icon">✓</span>
-              <span>Full privacy mode</span>
-            </li>
-            <li className="pk-feature-item">
-              <span className="pk-check-icon">✓</span>
-              <span>1 Credit = 1 resume PDF download</span>
-            </li>
-            <li className="pk-feature-item">
-              <span className="pk-check-icon">✓</span>
-              <span>1 Credit = 1 headshot</span>
-            </li>
-            <li className="pk-feature-item">
-              <span className="pk-check-icon">✓</span>
-              <span>1 Credit = 1 Question Bank position</span>
-            </li>
-          </ul>
-
-          {/* CTA Button */}
-          <button
-            type="button"
-            className={`pk-action-btn-main pk-btn-credits ${loadingPlan === activePack.id ? 'pk-btn-loading-state' : ''}`}
-            onClick={() => handleCreditClick()}
-            disabled={loadingPlan === activePack.id}
-          >
-            {loadingPlan === activePack.id
-              ? 'Opening Checkout…'
-              : appliedCoupon
-              ? `${activePack.btnText} ${appliedCoupon.bonus_credits > 0 ? `(+ ${appliedCoupon.bonus_credits} Bonus Credits!)` : `(Coupon ${appliedCoupon.code})`}`
-              : activePack.btnText}
-          </button>
-          <div className="pk-action-single-credit">
-            or, just need 1 credit?{' '}
             <button
               type="button"
-              className="pk-single-link"
-              onClick={() => {
-                setCreditPack('pack_1');
-                handleCreditClick('pack_1');
-              }}
+              className={`pk-action-btn-main pk-btn-unlimited ${loadingPlan === activeSub.id ? 'pk-btn-loading-state' : ''}`}
+              onClick={() => selectPlan(activeSub.id)}
+              disabled={loadingPlan === activeSub.id}
             >
-              1 credit for $19.00
+              {loadingPlan === activeSub.id
+                ? 'Opening Checkout…'
+                : `Go Unlimited · ${activeSub.name} ${money(activeSubTotal)}${couponSuffix('sub')}`}
             </button>
+            <div className="pk-action-single-credit">
+              or, only need a week?{' '}
+              <button
+                type="button"
+                className="pk-single-link"
+                onClick={() => selectPlan('sub_weekly')}
+                disabled={loadingPlan === 'sub_weekly'}
+              >
+                {loadingPlan === 'sub_weekly' ? 'Opening Checkout…' : `Weekly plan for ${money(weeklyTotal)} / week`}
+              </button>
+            </div>
           </div>
-        </div>
+        ) : (
+          /* ================= CREDITS ================= */
+          <div className="pk-card pk-card-credits">
+            <div className="pk-card-top">
+              <h3 className="pk-card-title">Credits</h3>
+            </div>
+            <p className="pk-card-desc">Buy a pack of credits and use them whenever.</p>
+
+            <div className="pk-switch-row">
+              <div className="pk-segmented-pills">
+                {[['total', 'Total'], ['credit', 'Per credit']].map(([mode, label]) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    className={`pk-pill-btn ${creditViewMode === mode ? 'is-active' : ''}`}
+                    onClick={() => setCreditViewMode(mode)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="pk-options-list" role="radiogroup">
+              {CREDIT_PACKS.map((pack) => {
+                const isSelected = creditPack === pack.id;
+                const price = packPrice(pack);
+                return (
+                  <div
+                    key={pack.id}
+                    role="radio"
+                    aria-checked={isSelected}
+                    tabIndex={0}
+                    className={`pk-option-item ${isSelected ? 'is-selected' : ''}`}
+                    onClick={() => setCreditPack(pack.id)}
+                    onKeyDown={(e) => selectOnKey(e, () => setCreditPack(pack.id))}
+                  >
+                    <div className="pk-option-left">
+                      <Radio checked={isSelected} />
+                      <div className="pk-option-label-wrap">
+                        <span className="pk-option-name">{pack.credits} Credits</span>
+                        {pack.free > 0 && (
+                          <span className="pk-option-sub">
+                            {pack.paid} credits <span className="pk-badge-yellow">+{pack.free} free</span>
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="pk-option-price-wrap">
+                      <div>
+                        <span className="pk-option-price">{price.main}</span>
+                        {price.unit && <span className="pk-option-period"> {price.unit}</span>}
+                      </div>
+                      {price.note && <div className="pk-option-note">{price.note}</div>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <ul className="pk-features-list">
+              <li className="pk-feature-item"><span className="pk-check-icon">✓</span><span>0.5 Credit = 30 min call session (& mock)</span></li>
+              <li className="pk-feature-item"><span className="pk-check-icon">✓</span><span>Full privacy mode</span></li>
+              <li className="pk-feature-item"><span className="pk-check-icon">✓</span><span>1 Credit = 1 resume PDF download</span></li>
+              <li className="pk-feature-item"><span className="pk-check-icon">✓</span><span>1 Credit = 1 headshot</span></li>
+              <li className="pk-feature-item"><span className="pk-check-icon">✓</span><span>1 Credit = 1 Question Bank position</span></li>
+            </ul>
+
+            <button
+              type="button"
+              className={`pk-action-btn-main pk-btn-credits ${loadingPlan === activePack.id ? 'pk-btn-loading-state' : ''}`}
+              onClick={() => selectPlan(activePack.id)}
+              disabled={loadingPlan === activePack.id}
+            >
+              {loadingPlan === activePack.id
+                ? 'Opening Checkout…'
+                : `Get ${activePack.credits} Credits · ${money(activePackTotal)}${couponSuffix('credits')}`}
+            </button>
+            <div className="pk-action-single-credit">
+              or, just need 1 credit?{' '}
+              <button
+                type="button"
+                className="pk-single-link"
+                onClick={() => selectPlan('pack_1')}
+                disabled={loadingPlan === 'pack_1'}
+              >
+                {loadingPlan === 'pack_1' ? 'Opening Checkout…' : `1 credit for ${money(singleCredit)}`}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ================= COUPON CODE & PROMOTIONAL DISCOUNT BOX ================= */}
@@ -398,7 +332,7 @@ export default function ParakeetPricingView({
           onSubmit={(e) => {
             e.preventDefault();
             if (onApplyCoupon && inputCode.trim()) {
-              onApplyCoupon(inputCode.trim(), activeSub.id);
+              onApplyCoupon(inputCode.trim(), planTab === 'credits' ? activePack.id : activeSub.id, currency);
             }
           }}
         >
@@ -425,7 +359,7 @@ export default function ParakeetPricingView({
               <strong>✓ Coupon {appliedCoupon.code} Applied: </strong>
               <span>{appliedCoupon.name || 'Promotional Deal'}</span>
               {appliedCoupon.discount_amount > 0 && (
-                <span> • Saved ₹{appliedCoupon.discount_amount}</span>
+                <span> • Saved {money(Number(appliedCoupon.discount_amount))}</span>
               )}
               {appliedCoupon.bonus_credits > 0 && (
                 <span style={{ color: '#c084fc', fontWeight: 700 }}>

@@ -1,19 +1,15 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useParams } from 'next/navigation';
 import { postJSON } from '../../../lib/api';
 import AdminPane from '../../../components/dashboard/AdminPane';
 import AuthModal from '../../../components/auth/AuthModal';
 
-export default function AdminPage({ params }) {
-  const [initialSection, setInitialSection] = useState(null);
-
-  useEffect(() => {
-    Promise.resolve(params).then((p) => {
-      const s = p?.section?.[0] || null;
-      if (s) setInitialSection(s);
-    });
-  }, [params]);
+export default function AdminPage() {
+  const routeParams = useParams();
+  const rawSection = routeParams?.section;
+  const initialSection = Array.isArray(rawSection) ? rawSection[0] : (rawSection || null);
 
   const [user, setUser] = useState(() => {
     if (typeof window !== 'undefined') {
