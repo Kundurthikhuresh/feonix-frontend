@@ -459,15 +459,22 @@ export default function Page({ searchParams }) {
       setShowAuthModal(true);
     }
 
-const initialPane = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('pane') : null;
+    const initialPane = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('pane') : null;
 
-    if (initialView === 'dash' || initialPane === 'admin' || initialView === 'admin') {
-      setCurrentView(initialView === 'admin' ? 'admin' : 'dash');
+    if (initialView === 'admin' || initialPane === 'admin') {
+      if (typeof window !== 'undefined') {
+        window.location.replace('/admin');
+        return;
+      }
+    }
+
+    if (initialView === 'dash') {
+      setCurrentView('dash');
       if (initialPane) setActivePane(initialPane);
       if (typeof window !== 'undefined') {
-        if (!window.history.state || window.history.state.view !== (initialView || 'dash')) {
+        if (!window.history.state || window.history.state.view !== 'dash') {
           window.history.replaceState({ view: 'landing' }, '', '/');
-          window.history.pushState({ view: initialView || 'dash' }, '', `/?view=${initialView || 'dash'}${initialPane ? `&pane=${initialPane}` : ''}`);
+          window.history.pushState({ view: 'dash' }, '', `/?view=dash${initialPane ? `&pane=${initialPane}` : ''}`);
         }
       }
     } else if (isReload) {
@@ -478,7 +485,6 @@ const initialPane = typeof window !== 'undefined' ? new URLSearchParams(window.l
     } else if (initialView) {
       window.history.replaceState({ view: initialView }, '');
       setCurrentView(initialView);
-    }
     }
 
     const handlePopState = (e) => {
@@ -646,16 +652,13 @@ const initialPane = typeof window !== 'undefined' ? new URLSearchParams(window.l
         if (typeof window !== 'undefined') {
           const urlParams = new URLSearchParams(window.location.search);
           const sessionId = urlParams.get('session');
-const requestedView = urlParams.get('view') || (currentViewRef.current === 'dash' ? 'dash' : null);
+          const requestedView = urlParams.get('view') || (currentViewRef.current === 'dash' ? 'dash' : null);
           const requestedPane = urlParams.get('pane');
 
           if (requestedPane === 'admin' || requestedView === 'admin') {
-            if (data.user?.is_admin || data.user?.role === 'owner') {
-              if (stale()) return;
-              setActivePane('admin');
-              setCurrentView('dash');
-              return;
-            }
+            if (stale()) return;
+            window.location.replace('/admin');
+            return;
           }
 
           if (requestedView === 'dash') {
@@ -740,8 +743,11 @@ const requestedView = urlParams.get('view') || (currentViewRef.current === 'dash
     const isAdmin = Boolean(loggedInUser?.is_admin || loggedInUser?.role === 'owner');
 
     if (isAdmin) {
-      // Admins always land on the Admin Panel.
-      setActivePane('admin');
+      // Admins always land on the Admin Panel at /admin.
+      if (typeof window !== 'undefined') {
+        window.location.href = '/admin';
+        return;
+      }
     } else {
       // Normal user: strictly restricted to user dashboard; cannot access admin pane
       setActivePane('sessions');
@@ -1172,7 +1178,7 @@ const requestedView = urlParams.get('view') || (currentViewRef.current === 'dash
 
     const { ok, data } = await postJSON(
       `/api/sessions/${activeSession.id}/questions`,
-{ question: qText },
+      { question: qText },
       { timeoutMs: 90000 }
     );
     setTallyState('listening');
@@ -1184,7 +1190,7 @@ const requestedView = urlParams.get('view') || (currentViewRef.current === 'dash
       setLiveCueLine(data.question || qText);
       setLiveQType(data.kind || 'Direct Question');
 
-try {
+      try {
         const tRes = await fetch(`/api/sessions/${activeSession.id}/transcript`);
         if (tRes.ok) {
           const tData = await tRes.json();

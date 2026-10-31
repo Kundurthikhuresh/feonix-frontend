@@ -39,7 +39,11 @@ export default function Sidebar({ user, activePane, setActivePane, themeMode, to
         {(user?.is_admin || user?.role === 'owner') && (
           <button
             className={`nav-item ${activePane === 'admin' ? 'is-current' : ''}`}
-            onClick={() => setActivePane('admin')}
+            onClick={() => {
+              if (typeof window !== 'undefined') {
+                window.location.href = '/admin';
+              }
+            }}
             type="button"
           >
             Admin Panel
