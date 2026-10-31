@@ -1485,12 +1485,21 @@ export default function Page({ searchParams }) {
               setShowAuthModal(true);
             }
           }}
-          onSelectPlan={(plan) => {
+          onSelectPlan={(plan, method, currency, coupon) => {
             if (user) {
-              enterApp(user);
+              const queryParams = new URLSearchParams();
+              if (plan) queryParams.set('plan', plan);
+              if (currency) queryParams.set('currency', currency);
+              if (coupon) queryParams.set('coupon', coupon);
+              window.location.href = `/pricing?${queryParams.toString()}`;
             } else {
+              if (typeof window !== 'undefined') {
+                sessionStorage.setItem('pending_checkout', JSON.stringify({
+                  plan, currency: currency || 'INR', coupon_code: coupon || null
+                }));
+              }
               setAuthMode('register');
-              setAuthMsg({ text: '', type: '' });
+              setAuthMsg({ text: coupon ? `Create an account to complete checkout with discount code ${coupon} applied!` : 'Create an account to complete checkout.', type: 'info' });
               setShowAuthModal(true);
             }
           }}

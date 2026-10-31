@@ -170,6 +170,15 @@ export default function PricingPage() {
 
   useEffect(() => {
     refreshSubscription().catch(() => {});
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const urlCoupon = params.get('coupon');
+      const urlPlan = params.get('plan');
+      const urlCur = params.get('currency');
+      if (urlCoupon) {
+        handleApplyCoupon(urlCoupon, urlPlan || 'sub_monthly', urlCur || 'INR');
+      }
+    }
   }, []);
 
   // Countdown timer for physical device approval
@@ -228,7 +237,7 @@ export default function PricingPage() {
     }
   }
 
-  async function handleSubscribe(planId, preferredMethod = null, currency = null) {
+  async function handleSubscribe(planId, preferredMethod = null, currency = null, couponCode = null) {
     if (!planId || planId === 'free') return;
 
     // When clicking UPI, Google Pay, or PhonePe: open the UPI ID input modal directly!
@@ -244,10 +253,11 @@ export default function PricingPage() {
 
     setLoadingPlan(planId);
     setSuccessMsg('');
+    const code = couponCode || appliedCoupon?.code;
     try {
       const orderBody = { plan: planId };
       if (currency) orderBody.currency = currency;
-      if (appliedCoupon?.code) orderBody.coupon_code = appliedCoupon.code;
+      if (code) orderBody.coupon_code = code;
       const orderRes = await fetch('/api/razorpay/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -280,7 +290,7 @@ export default function PricingPage() {
                 razorpay_payment_id: response.razorpay_payment_id,
                 razorpay_signature: response.razorpay_signature,
                 plan: planId,
-                coupon_code: appliedCoupon?.code || undefined,
+                coupon_code: code || undefined,
               }),
             });
             const verifyData = await verifyRes.json();

@@ -995,3 +995,294 @@
     font-size: 14.5px;
   }
 }
+
+/* ==========================================================================
+   Checkout Modal (Matches User Design Specification)
+   ========================================================================== */
+
+.pk-checkout-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999999;
+  padding: 16px;
+  animation: pkFadeIn 0.2s ease-out;
+}
+
+@keyframes pkFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes pkModalSlideUp {
+  from { opacity: 0; transform: translateY(16px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.pk-checkout-modal {
+  position: relative;
+  background: #ffffff;
+  color: #111827;
+  width: 100%;
+  max-width: 440px;
+  border-radius: 20px;
+  padding: 26px 26px 22px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.05);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  animation: pkModalSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  box-sizing: border-box;
+}
+
+.pk-checkout-close {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  background: transparent;
+  border: none;
+  font-size: 19px;
+  line-height: 1;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s, background 0.15s;
+}
+
+.pk-checkout-close:hover {
+  color: #111827;
+  background: #f3f4f6;
+}
+
+.pk-checkout-title {
+  font-size: 21px;
+  font-weight: 700;
+  color: #111827;
+  text-align: center;
+  margin: 0 0 6px 0;
+  letter-spacing: -0.01em;
+}
+
+.pk-checkout-subtitle {
+  font-size: 14.5px;
+  color: #6b7280;
+  text-align: center;
+  margin: 0 0 22px 0;
+  font-weight: 400;
+}
+
+.pk-checkout-field {
+  margin-bottom: 18px;
+}
+
+.pk-checkout-label {
+  font-size: 14.5px;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 8px;
+  display: block;
+}
+
+.pk-checkout-label-opt {
+  font-weight: 400;
+  color: #6b7280;
+  margin-left: 4px;
+}
+
+.pk-checkout-input-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.pk-checkout-input {
+  width: 100%;
+  padding: 12px 14px;
+  padding-right: 80px;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 12px;
+  font-size: 15px;
+  color: #111827;
+  background: #ffffff;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  box-sizing: border-box;
+}
+
+.pk-checkout-input:focus {
+  border-color: #111827;
+  box-shadow: 0 0 0 3px rgba(17, 24, 39, 0.08);
+}
+
+.pk-checkout-input.has-discount {
+  border-color: #22c55e;
+  background: #f0fdf4;
+}
+
+.pk-checkout-apply-btn {
+  position: absolute;
+  right: 6px;
+  padding: 7px 14px;
+  background: #18181b;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s, opacity 0.15s;
+}
+
+.pk-checkout-apply-btn:hover:not(:disabled) {
+  background: #27272a;
+}
+
+.pk-checkout-apply-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.pk-checkout-discount-badge {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 12px;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #065f46;
+  font-weight: 600;
+}
+
+.pk-checkout-remove-code {
+  background: none;
+  border: none;
+  color: #dc2626;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+}
+
+.pk-checkout-error-msg {
+  margin-top: 6px;
+  font-size: 13px;
+  color: #dc2626;
+  font-weight: 500;
+}
+
+.pk-checkout-currency-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 18px;
+  margin-bottom: 22px;
+}
+
+.pk-checkout-currency-label {
+  font-size: 14.5px;
+  font-weight: 500;
+  color: #1f2937;
+}
+
+.pk-checkout-currency-tabs {
+  background: #f3f4f6;
+  border-radius: 10px;
+  padding: 3px;
+  display: inline-flex;
+  gap: 3px;
+}
+
+.pk-checkout-currency-tab {
+  background: transparent;
+  color: #6b7280;
+  font-weight: 500;
+  border-radius: 8px;
+  padding: 7px 18px;
+  font-size: 14px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.pk-checkout-currency-tab.is-active {
+  background: #ffffff;
+  color: #111827;
+  font-weight: 700;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.pk-checkout-actions {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.pk-checkout-btn-close {
+  flex: 1;
+  padding: 13px 20px;
+  border-radius: 12px;
+  background: #f3f4f6;
+  color: #111827;
+  font-size: 14.5px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.15s;
+}
+
+.pk-checkout-btn-close:hover {
+  background: #e5e7eb;
+}
+
+.pk-checkout-btn-submit {
+  flex: 1.4;
+  padding: 13px 20px;
+  border-radius: 12px;
+  background: #18181b;
+  color: #ffffff;
+  font-size: 14.5px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: background 0.15s, transform 0.1s;
+}
+
+.pk-checkout-btn-submit:hover:not(:disabled) {
+  background: #27272a;
+}
+
+.pk-checkout-btn-submit:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.pk-checkout-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: #6b7280;
+  margin-top: 4px;
+}
+
+.pk-checkout-lock-icon {
+  font-size: 12px;
+}

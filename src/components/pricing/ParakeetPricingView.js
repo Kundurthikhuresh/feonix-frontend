@@ -18,6 +18,16 @@ const CREDIT_PACKS = [
   { id: 'pack_9', credits: 15, paid: 9, free: 6 },
 ];
 
+const PLAN_SUBTITLES = {
+  sub_monthly: 'Monthly — Unlimited Calls.',
+  sub_weekly: 'Weekly — Unlimited Calls.',
+  sub_yearly: 'Yearly — Unlimited Calls.',
+  pack_1: '1 Credit — Quick Assessment Session.',
+  pack_3: '3 Credits — Call & Analysis Pack.',
+  pack_6: '6 + 2 Free Credits — Call & Analysis Pack.',
+  pack_9: '9 + 6 Free Credits — Call & Analysis Pack.',
+};
+
 function Radio({ checked }) {
   return <span className={`pk-radio ${checked ? 'is-checked' : ''}`} aria-hidden="true" />;
 }
@@ -33,6 +43,7 @@ export default function ParakeetPricingView({
   couponValidating = false,
   couponError = '',
   currency: currencyProp = null,
+  onSignupClick = null,
 }) {
   const [inputCode, setInputCode] = useState('');
   const [planTab, setPlanTab] = useState('unlimited'); // 'unlimited' | 'credits'
@@ -40,6 +51,16 @@ export default function ParakeetPricingView({
   const [subViewMode, setSubViewMode] = useState('total'); // 'total' | 'monthly' | 'call'
   const [creditPack, setCreditPack] = useState('pack_6');
   const [creditViewMode, setCreditViewMode] = useState('total'); // 'total' | 'credit'
+
+  // Dedicated Checkout Modal State (matches user specification)
+  const [checkoutModalOpen, setCheckoutModalOpen] = useState(false);
+  const [checkoutPlanId, setCheckoutPlanId] = useState('sub_monthly');
+  const [modalCurrency, setModalCurrency] = useState('INR');
+  const [referralInput, setReferralInput] = useState('');
+  const [modalCoupon, setModalCoupon] = useState(null);
+  const [isValidatingCode, setIsValidatingCode] = useState(false);
+  const [codeError, setCodeError] = useState('');
+  const [isProcessingCheckout, setIsProcessingCheckout] = useState(false);
 
   // Detected after mount: the server render cannot know the visitor's country.
   const [detected, setDetected] = useState('USD');
@@ -54,12 +75,189 @@ export default function ParakeetPricingView({
   const activePackTotal = planAmount(activePack.id, currency);
   const singleCredit = planAmount('pack_1', currency);
 
-  const selectPlan = (id, method = null) => {
-    if (onSelectPlan) onSelectPlan(id, method, currency);
+  // Opens the dedicated Checkout Modal with the selected plan details
+  const openCheckout = (planId) => {
+    const target = planId || (planTab === 'credits' ? activePack.id : activeSub.id);
+    setCheckoutPlanId(target);
+    setModalCurrency(currency === 'USD' ? 'USD' : 'INR');
+    setCodeError('');
+    if (appliedCoupon) {
+      setModalCoupon(appliedCoupon);
+      setReferralInput(appliedCoupon.code || '');
+    }
+    setCheckoutModalOpen(true);
   };
+
+  const selectPlan = (id, method = null) => {
+    openCheckout(id);
+  };
+
   // Payment-method chips buy whatever is selected on the open tab.
   const handleSubClick = (method = null) => {
     selectPlan(planTab === 'credits' ? activePack.id : activeSub.id, method);
+  };
+
+  // Live validate discount / referral code
+  const validateModalCode = async (codeToValidate, cur = modalCurrency, targetPlan = checkoutPlanId) => {
+    const clean = (codeToValidate || referralInput).trim().toUpperCase();
+    if (!clean) {
+      setCodeError('Please enter a promotion or referral code.');
+      return;
+    }
+    setIsValidatingCode(true);
+    setCodeError('');
+    try {
+      const res = await fetch('/api/promotions/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code: clean,
+          plan: targetPlan,
+          currency: cur,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.valid) {
+        setModalCoupon(data);
+        setCodeError('');
+        if (onApplyCoupon) onApplyCoupon(clean, targetPlan, cur);
+      } else {
+        setModalCoupon(null);
+        setCodeError(data.message || 'Invalid or expired code.');
+      }
+    } catch {
+      setCodeError('Could not validate code. Please check connection.');
+    } finally {
+      setIsValidatingCode(false);
+    }
+  };
+
+  // Currency toggle inside modal
+  const handleCurrencySwitch = (newCur) => {
+    setModalCurrency(newCur);
+    if (modalCoupon && modalCoupon.valid && modalCoupon.promotion?.code) {
+      validateModalCode(modalCoupon.promotion.code, newCur, checkoutPlanId);
+    }
+  };
+
+  // Live price & discount calculations for the modal
+  const baseCheckoutAmount = planAmount(checkoutPlanId, modalCurrency);
+  let finalCheckoutAmount = baseCheckoutAmount;
+  let discountAmount = 0;
+  if (modalCoupon && modalCoupon.valid) {
+    if (modalCoupon.final_amount !== undefined && modalCoupon.currency === modalCurrency) {
+      finalCheckoutAmount = modalCoupon.final_amount;
+      discountAmount = modalCoupon.discount_amount || (baseCheckoutAmount - finalCheckoutAmount);
+    } else if (modalCoupon.promotion?.discount_percent > 0) {
+      discountAmount = (baseCheckoutAmount * modalCoupon.promotion.discount_percent) / 100;
+      finalCheckoutAmount = Math.max(1, baseCheckoutAmount - discountAmount);
+    } else if (modalCoupon.discount_amount > 0) {
+      discountAmount = modalCoupon.discount_amount;
+      finalCheckoutAmount = Math.max(1, baseCheckoutAmount - discountAmount);
+    }
+  }
+
+  // Handle Checkout Click: launches payment gateway with applied discount
+  const handleProceedCheckout = async () => {
+    setIsProcessingCheckout(true);
+    setCodeError('');
+    const targetPlan = checkoutPlanId;
+    const targetCurrency = modalCurrency;
+    const appliedCode = modalCoupon?.valid ? modalCoupon.promotion?.code : (referralInput.trim() ? referralInput.trim().toUpperCase() : null);
+
+    if (onSelectPlan) {
+      onSelectPlan(targetPlan, null, targetCurrency, appliedCode);
+      setCheckoutModalOpen(false);
+      setIsProcessingCheckout(false);
+      return;
+    }
+
+    try {
+      const orderRes = await fetch('/api/razorpay/create-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          plan: targetPlan,
+          currency: targetCurrency,
+          coupon_code: appliedCode,
+        }),
+      });
+
+      const order = await orderRes.json();
+      if (!orderRes.ok) {
+        if (orderRes.status === 401) {
+          if (typeof window !== 'undefined') {
+            sessionStorage.setItem('pending_checkout', JSON.stringify({
+              plan: targetPlan,
+              currency: targetCurrency,
+              coupon_code: appliedCode,
+            }));
+          }
+          setCheckoutModalOpen(false);
+          if (onSignupClick) onSignupClick();
+          else window.location.href = '/?auth=register';
+          return;
+        }
+        throw new Error(order.message || 'Payment server not ready.');
+      }
+
+      if (typeof window !== 'undefined') {
+        if (!window.Razorpay) {
+          await new Promise((resolve, reject) => {
+            const s = document.createElement('script');
+            s.src = 'https://checkout.razorpay.com/v1/checkout.js';
+            s.onload = resolve;
+            s.onerror = () => reject(new Error('Failed to load Razorpay payment gateway'));
+            document.body.appendChild(s);
+          });
+        }
+
+        const rzp = new window.Razorpay({
+          key: order.key_id,
+          amount: order.amount,
+          currency: order.currency,
+          order_id: order.order_id,
+          name: 'Feonix AI',
+          description: `${PLAN_SUBTITLES[targetPlan] || targetPlan.toUpperCase()} Checkout`,
+          theme: { color: '#22c55e' },
+          handler: async (resp) => {
+            try {
+              const vRes = await fetch('/api/razorpay/verify-payment', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  razorpay_order_id: resp.razorpay_order_id,
+                  razorpay_payment_id: resp.razorpay_payment_id,
+                  razorpay_signature: resp.razorpay_signature,
+                  plan: targetPlan,
+                  coupon_code: appliedCode,
+                }),
+              });
+              const vData = await vRes.json();
+              if (vRes.ok && vData.success) {
+                alert(`🎉 Payment Successful! Your ${targetPlan} plan has been activated.`);
+                window.location.reload();
+              } else {
+                alert(vData.message || 'Payment verification failed.');
+              }
+            } catch {
+              alert('Could not verify payment.');
+            }
+          },
+          modal: {
+            ondismiss: () => {
+              setIsProcessingCheckout(false);
+            },
+          },
+        });
+        rzp.open();
+        setCheckoutModalOpen(false);
+      }
+    } catch (err) {
+      setCodeError(err.message || 'Could not connect to payment gateway.');
+    } finally {
+      setIsProcessingCheckout(false);
+    }
   };
 
   const subPrice = (tier) => {
@@ -513,7 +711,148 @@ export default function ParakeetPricingView({
         </div>
       </div>
 
+      {/* ================= EXACT CHECKOUT POPUP MODAL ================= */}
+      {checkoutModalOpen && (
+        <div
+          className="pk-checkout-backdrop"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setCheckoutModalOpen(false);
+          }}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="pk-checkout-modal">
+            {/* Top Close Button (✕) */}
+            <button
+              type="button"
+              className="pk-checkout-close"
+              onClick={() => setCheckoutModalOpen(false)}
+              aria-label="Close"
+            >
+              ✕
+            </button>
 
+            {/* Title & Dynamic Plan Subtitle */}
+            <h3 className="pk-checkout-title">Checkout</h3>
+            <p className="pk-checkout-subtitle">
+              {PLAN_SUBTITLES[checkoutPlanId] || 'Monthly — Unlimited Calls.'}
+            </p>
+
+            {/* Discount or Referral Code (Optional) Input */}
+            <div className="pk-checkout-field">
+              <label className="pk-checkout-label" htmlFor="pk-referral-input">
+                Discount or Referral Code <span className="pk-checkout-label-opt">(Optional)</span>
+              </label>
+              <div className="pk-checkout-input-row">
+                <input
+                  id="pk-referral-input"
+                  type="text"
+                  className={`pk-checkout-input ${modalCoupon?.valid ? 'has-discount' : ''}`}
+                  placeholder="Enter code"
+                  value={referralInput}
+                  onChange={(e) => {
+                    setReferralInput(e.target.value);
+                    if (codeError) setCodeError('');
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      validateModalCode(referralInput);
+                    }
+                  }}
+                  disabled={isValidatingCode}
+                  autoComplete="off"
+                />
+                <button
+                  type="button"
+                  className="pk-checkout-apply-btn"
+                  onClick={() => validateModalCode(referralInput)}
+                  disabled={isValidatingCode || !referralInput.trim()}
+                >
+                  {isValidatingCode ? 'Checking…' : 'Apply'}
+                </button>
+              </div>
+
+              {/* Dynamic Discount Applied Message */}
+              {modalCoupon?.valid && (
+                <div className="pk-checkout-discount-badge">
+                  <span>
+                    ✓ Code <strong>{modalCoupon.promotion?.code}</strong> applied!
+                    {discountAmount > 0 && ` Saved ${formatMoney(discountAmount, modalCurrency)}`}
+                    {modalCoupon.promotion?.discount_percent > 0 && ` (${modalCoupon.promotion.discount_percent}% Off)`}
+                  </span>
+                  <button
+                    type="button"
+                    className="pk-checkout-remove-code"
+                    onClick={() => {
+                      setModalCoupon(null);
+                      setReferralInput('');
+                      if (onRemoveCoupon) onRemoveCoupon();
+                    }}
+                  >
+                    Remove
+                  </button>
+                </div>
+              )}
+
+              {/* Validation Error Message */}
+              {codeError && (
+                <div className="pk-checkout-error-msg">
+                  ⚠️ {codeError}
+                </div>
+              )}
+            </div>
+
+            {/* Currency Selector Row */}
+            <div className="pk-checkout-currency-row">
+              <span className="pk-checkout-currency-label">Currency</span>
+              <div className="pk-checkout-currency-tabs" role="group" aria-label="Select Currency">
+                <button
+                  type="button"
+                  className={`pk-checkout-currency-tab ${modalCurrency === 'INR' ? 'is-active' : ''}`}
+                  onClick={() => handleCurrencySwitch('INR')}
+                >
+                  ₹ INR
+                </button>
+                <button
+                  type="button"
+                  className={`pk-checkout-currency-tab ${modalCurrency === 'USD' ? 'is-active' : ''}`}
+                  onClick={() => handleCurrencySwitch('USD')}
+                >
+                  $ USD
+                </button>
+              </div>
+            </div>
+
+            {/* Action Buttons: [ Close ] and [ Checkout ₹... ] */}
+            <div className="pk-checkout-actions">
+              <button
+                type="button"
+                className="pk-checkout-btn-close"
+                onClick={() => setCheckoutModalOpen(false)}
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                className="pk-checkout-btn-submit"
+                onClick={handleProceedCheckout}
+                disabled={isProcessingCheckout}
+              >
+                {isProcessingCheckout
+                  ? 'Redirecting…'
+                  : `Checkout ${formatMoney(finalCheckoutAmount, modalCurrency)}`}
+              </button>
+            </div>
+
+            {/* Footer Trust Note */}
+            <div className="pk-checkout-footer">
+              <span className="pk-checkout-lock-icon">🔒</span>
+              <span>Card or UPI payment via Stripe</span>
+            </div>
+          </div>
+        </div>
+      )}
 
     </section>
   );
