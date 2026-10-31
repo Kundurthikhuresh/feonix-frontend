@@ -4,14 +4,100 @@ import './AdminDashboard.css';
 import AdminPromotionsSection from './AdminPromotionsSection';
 import AdminAuditLogsSection from './AdminAuditLogsSection';
 
+export const SECTION_TO_ROUTE = {
+  dashboard: 'dashboard',
+  users: 'users',
+  sessions: 'call-sessions',
+  ai_usage: 'ai-usage',
+  documents: 'resumes',
+  credits: 'credits',
+  subscriptions: 'subscriptions',
+  promotions: 'promotions',
+  audit_logs: 'audit-logs',
+  settings: 'settings',
+};
+
+export const ROUTE_TO_SECTION = {
+  dashboard: 'dashboard',
+  users: 'users',
+  sessions: 'sessions',
+  'call-sessions': 'sessions',
+  'ai-usage': 'ai_usage',
+  ai_usage: 'ai_usage',
+  resumes: 'documents',
+  documents: 'documents',
+  credits: 'credits',
+  'credits-trials': 'credits',
+  subscriptions: 'subscriptions',
+  promotions: 'promotions',
+  'audit-logs': 'audit_logs',
+  audit_logs: 'audit_logs',
+  settings: 'settings',
+};
+
 export default function AdminPane({
   user,
   onExitAdmin,
   themeMode,
   toggleTheme,
   handleLogout,
+  initialSection,
 }) {
-  const [activeSection, setActiveSection] = useState('dashboard');
+  const getInitialSection = () => {
+    if (initialSection && ROUTE_TO_SECTION[initialSection.toLowerCase()]) {
+      return ROUTE_TO_SECTION[initialSection.toLowerCase()];
+    }
+    if (typeof window !== 'undefined') {
+      const parts = window.location.pathname.split('/').filter(Boolean);
+      if (parts[0] === 'admin' && parts[1]) {
+        const mapped = ROUTE_TO_SECTION[parts[1].toLowerCase()];
+        if (mapped) return mapped;
+      }
+    }
+    return 'dashboard';
+  };
+
+  const [activeSection, setActiveSection] = useState(getInitialSection);
+
+  const navigateSection = (sectionKey, updateHistory = true) => {
+    navigateSection(sectionKey);
+    if (updateHistory && typeof window !== 'undefined') {
+      const slug = SECTION_TO_ROUTE[sectionKey] || sectionKey;
+      const targetPath = slug === 'dashboard' ? '/admin/dashboard' : `/admin/${slug}`;
+      if (window.location.pathname !== targetPath) {
+        window.history.pushState({ section: sectionKey }, '', targetPath);
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const currentPath = window.location.pathname;
+    const parts = currentPath.split('/').filter(Boolean);
+    if (parts[0] === 'admin') {
+      if (!parts[1]) {
+        window.history.replaceState({ section: 'dashboard' }, '', '/admin/dashboard');
+      } else {
+        const mapped = ROUTE_TO_SECTION[parts[1].toLowerCase()];
+        if (mapped && mapped !== activeSection) {
+          navigateSection(mapped);
+        }
+      }
+    }
+
+    const handlePopState = () => {
+      const p = window.location.pathname.split('/').filter(Boolean);
+      if (p[0] === 'admin') {
+        const targetSlug = p[1] ? p[1].toLowerCase() : 'dashboard';
+        const mapped = ROUTE_TO_SECTION[targetSlug] || 'dashboard';
+        navigateSection(mapped);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
   const [dateRange, setDateRange] = useState('30d');
   const [dateRangeLabel, setDateRangeLabel] = useState('Last 30 Days');
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -629,7 +715,7 @@ export default function AdminPane({
     <div className="admin-shell">
       {/* 1. Left Sidebar Navigation */}
       <aside className="admin-sidebar">
-        <div className="admin-sidebar-brand" onClick={() => setActiveSection('dashboard')}>
+        <div className="admin-sidebar-brand" onClick={() => navigateSection('dashboard')}>
           <div className="admin-brand-icon">F</div>
           <span className="admin-brand-text">FeonixAI</span>
         </div>
@@ -637,7 +723,7 @@ export default function AdminPane({
         <nav className="admin-sidebar-menu">
           <button
             className={`admin-menu-link ${activeSection === 'dashboard' ? 'is-active' : ''}`}
-            onClick={() => setActiveSection('dashboard')}
+            onClick={() => navigateSection('dashboard')}
             type="button"
           >
             <span className="admin-menu-icon">
@@ -653,7 +739,7 @@ export default function AdminPane({
 
           <button
             className={`admin-menu-link ${activeSection === 'users' ? 'is-active' : ''}`}
-            onClick={() => setActiveSection('users')}
+            onClick={() => navigateSection('users')}
             type="button"
           >
             <span className="admin-menu-icon">
@@ -669,7 +755,7 @@ export default function AdminPane({
 
           <button
             className={`admin-menu-link ${activeSection === 'sessions' ? 'is-active' : ''}`}
-            onClick={() => setActiveSection('sessions')}
+            onClick={() => navigateSection('sessions')}
             type="button"
           >
             <span className="admin-menu-icon">
@@ -682,7 +768,7 @@ export default function AdminPane({
 
           <button
             className={`admin-menu-link ${activeSection === 'ai_usage' ? 'is-active' : ''}`}
-            onClick={() => setActiveSection('ai_usage')}
+            onClick={() => navigateSection('ai_usage')}
             type="button"
           >
             <span className="admin-menu-icon">
@@ -696,7 +782,7 @@ export default function AdminPane({
 
           <button
             className={`admin-menu-link ${activeSection === 'documents' ? 'is-active' : ''}`}
-            onClick={() => setActiveSection('documents')}
+            onClick={() => navigateSection('documents')}
             type="button"
           >
             <span className="admin-menu-icon">
@@ -710,7 +796,7 @@ export default function AdminPane({
 
           <button
             className={`admin-menu-link ${activeSection === 'credits' ? 'is-active' : ''}`}
-            onClick={() => setActiveSection('credits')}
+            onClick={() => navigateSection('credits')}
             type="button"
           >
             <span className="admin-menu-icon">
@@ -725,7 +811,7 @@ export default function AdminPane({
 
           <button
             className={`admin-menu-link ${activeSection === 'subscriptions' ? 'is-active' : ''}`}
-            onClick={() => setActiveSection('subscriptions')}
+            onClick={() => navigateSection('subscriptions')}
             type="button"
           >
             <span className="admin-menu-icon">
@@ -739,7 +825,7 @@ export default function AdminPane({
 
           <button
             className={`admin-menu-link ${activeSection === 'promotions' ? 'is-active' : ''}`}
-            onClick={() => setActiveSection('promotions')}
+            onClick={() => navigateSection('promotions')}
             type="button"
           >
             <span className="admin-menu-icon">
@@ -755,7 +841,7 @@ export default function AdminPane({
 
           <button
             className={`admin-menu-link ${activeSection === 'audit_logs' ? 'is-active' : ''}`}
-            onClick={() => setActiveSection('audit_logs')}
+            onClick={() => navigateSection('audit_logs')}
             type="button"
           >
             <span className="admin-menu-icon">
@@ -768,7 +854,7 @@ export default function AdminPane({
 
           <button
             className={`admin-menu-link ${activeSection === 'settings' ? 'is-active' : ''}`}
-            onClick={() => setActiveSection('settings')}
+            onClick={() => navigateSection('settings')}
             type="button"
           >
             <span className="admin-menu-icon">
@@ -1002,7 +1088,7 @@ export default function AdminPane({
                       <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
                     </svg>
                   </div>
-                  <button type="button" className="admin-kpi-dots-btn" onClick={() => setActiveSection('users')}>⋮</button>
+                  <button type="button" className="admin-kpi-dots-btn" onClick={() => navigateSection('users')}>⋮</button>
                 </div>
                 <span className="admin-kpi-label">Total users</span>
                 <div className="admin-kpi-value">{totalUsersCount.toLocaleString()}</div>
@@ -1020,7 +1106,7 @@ export default function AdminPane({
                       <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
                     </svg>
                   </div>
-                  <button type="button" className="admin-kpi-dots-btn" onClick={() => setActiveSection('sessions')}>⋮</button>
+                  <button type="button" className="admin-kpi-dots-btn" onClick={() => navigateSection('sessions')}>⋮</button>
                 </div>
                 <span className="admin-kpi-label">AI sessions</span>
                 <div className="admin-kpi-value">{totalSessionsCount.toLocaleString()}</div>
@@ -1039,7 +1125,7 @@ export default function AdminPane({
                       <path d="M14.8 9A2 2 0 0 0 13 8h-2a2 2 0 0 0 0 4h2a2 2 0 0 1 0 4h-2a2 2 0 0 1-1.8-1"></path>
                     </svg>
                   </div>
-                  <button type="button" className="admin-kpi-dots-btn" onClick={() => setActiveSection('credits')}>⋮</button>
+                  <button type="button" className="admin-kpi-dots-btn" onClick={() => navigateSection('credits')}>⋮</button>
                 </div>
                 <span className="admin-kpi-label">Credits consumed</span>
                 <div className="admin-kpi-value">{creditsConsumedCount.toLocaleString()}</div>
@@ -1058,7 +1144,7 @@ export default function AdminPane({
               <div className="admin-chart-card">
                 <div className="admin-chart-header">
                   <h3 className="admin-chart-title">Session outcomes</h3>
-                  <button type="button" className="admin-kpi-dots-btn" onClick={() => setActiveSection('sessions')}>⋮</button>
+                  <button type="button" className="admin-kpi-dots-btn" onClick={() => navigateSection('sessions')}>⋮</button>
                 </div>
 
                 <div className="admin-donut-wrapper">
@@ -1154,7 +1240,7 @@ export default function AdminPane({
               <div className="admin-chart-card">
                 <div className="admin-chart-header">
                   <h3 className="admin-chart-title">AI usage over time</h3>
-                  <button type="button" className="admin-kpi-dots-btn" onClick={() => setActiveSection('ai_usage')}>⋮</button>
+                  <button type="button" className="admin-kpi-dots-btn" onClick={() => navigateSection('ai_usage')}>⋮</button>
                 </div>
 
                 <div className="admin-bar-chart-container">
@@ -1202,7 +1288,7 @@ export default function AdminPane({
               <div className="admin-table-card">
                 <div className="admin-table-header">
                   <h3 className="admin-chart-title">Recent user activity</h3>
-                  <button type="button" className="admin-table-view-all" onClick={() => setActiveSection('audit_logs')}>
+                  <button type="button" className="admin-table-view-all" onClick={() => navigateSection('audit_logs')}>
                     View all →
                   </button>
                 </div>
@@ -1262,7 +1348,7 @@ export default function AdminPane({
               <div className="admin-table-card">
                 <div className="admin-table-header">
                   <h3 className="admin-chart-title">Recent sessions</h3>
-                  <button type="button" className="admin-table-view-all" onClick={() => setActiveSection('sessions')}>
+                  <button type="button" className="admin-table-view-all" onClick={() => navigateSection('sessions')}>
                     View all →
                   </button>
                 </div>

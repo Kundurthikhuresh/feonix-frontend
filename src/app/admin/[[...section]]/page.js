@@ -1,11 +1,20 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { postJSON } from '../../lib/api';
-import AdminPane from '../../components/dashboard/AdminPane';
-import AuthModal from '../../components/auth/AuthModal';
+import { postJSON } from '../../../lib/api';
+import AdminPane from '../../../components/dashboard/AdminPane';
+import AuthModal from '../../../components/auth/AuthModal';
 
-export default function AdminPage() {
+export default function AdminPage({ params }) {
+  const [initialSection, setInitialSection] = useState(null);
+
+  useEffect(() => {
+    Promise.resolve(params).then((p) => {
+      const s = p?.section?.[0] || null;
+      if (s) setInitialSection(s);
+    });
+  }, [params]);
+
   const [user, setUser] = useState(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -65,7 +74,6 @@ export default function AdminPage() {
         setUser(null);
       }
     } catch {
-      // If aborted or network fails and no cached user, keep user null
       setUser((prev) => (prev?.is_admin || prev?.role === 'owner' ? prev : null));
     }
   };
@@ -150,7 +158,7 @@ export default function AdminPage() {
     setAuthMsg({ text: '', type: '' });
   };
 
-  // If authenticated as admin, render AdminPane at /admin
+  // If authenticated as admin, render AdminPane
   if (user && (user.is_admin || user.role === 'owner')) {
     return (
       <div style={{ minHeight: '100vh', background: 'var(--ad-bg, #0b0f17)' }}>
@@ -162,6 +170,7 @@ export default function AdminPage() {
           onExitAdmin={() => {
             window.location.href = '/';
           }}
+          initialSection={initialSection}
         />
       </div>
     );
@@ -198,3 +207,4 @@ export default function AdminPage() {
     </div>
   );
 }
+

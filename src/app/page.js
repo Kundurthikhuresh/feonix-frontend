@@ -198,7 +198,12 @@ export default function Page({ searchParams }) {
   const changeView = (nextView, replace = false) => {
     setCurrentView(nextView);
     if (typeof window !== 'undefined') {
-      const url = nextView === 'landing' ? '/' : `/?view=${nextView}`;
+      let url = '/';
+      if (nextView === 'dash') {
+        url = '/dashboard';
+      } else if (nextView !== 'landing') {
+        url = `/?view=${nextView}`;
+      }
       if (replace) {
         window.history.replaceState({ view: nextView }, '', url);
       } else {
@@ -209,6 +214,26 @@ export default function Page({ searchParams }) {
 
   // Auth Modal State
   const [showAuthModal, setShowAuthModal] = useState(false);
+
+  // The Sign In page gets its own history entry, so the browser Back button
+  // closes it (see handlePopState) instead of leaving the page beneath it.
+  useEffect(() => {
+    if (!showAuthModal || typeof window === 'undefined') return;
+    if (!window.history.state?.auth) {
+      window.history.pushState({ ...(window.history.state || {}), auth: true }, '');
+    }
+  }, [showAuthModal]);
+
+  // "Back to Home" on the Sign In page: step back over its history entry,
+  // so a later Back does not reopen it.
+  const closeAuthModal = (open) => {
+    if (open) return setShowAuthModal(true);
+    if (typeof window !== 'undefined' && window.history.state?.auth) {
+      window.history.back();
+    } else {
+      setShowAuthModal(false);
+    }
+  };
   const [authMode, setAuthMode] = useState('login'); // 'login', 'register', 'forgot'
   const [authRole, setAuthRole] = useState('user'); // 'user', 'admin'
   const [authEmail, setAuthEmail] = useState('');
@@ -468,26 +493,40 @@ export default function Page({ searchParams }) {
       }
     }
 
+    // Next.js patches history.pushState/replaceState, so each entry keeps its
+    // router marker, in an effect that runs after this one. An entry written
+    // before that loses the marker, and going Back to it makes Next.js reload
+    // the whole page (which then lands on the landing page). So these first
+    // writes wait a tick.
+    const afterRouterReady = (write) => setTimeout(write, 0);
+
     if (initialView === 'dash') {
       setCurrentView('dash');
       if (initialPane) setActivePane(initialPane);
       if (typeof window !== 'undefined') {
         if (!window.history.state || window.history.state.view !== 'dash') {
-          window.history.replaceState({ view: 'landing' }, '', '/');
-          window.history.pushState({ view: 'dash' }, '', `/?view=dash${initialPane ? `&pane=${initialPane}` : ''}`);
+          afterRouterReady(() => {
+            const paneSlug = initialPane && initialPane !== 'sessions' ? `/${initialPane}` : '';
+            window.history.replaceState({ view: 'landing' }, '', '/');
+            window.history.pushState({ view: 'dash' }, '', `/dashboard${paneSlug}`);
+          });
         }
       }
     } else if (isReload) {
       if (typeof window !== 'undefined') {
-        window.history.replaceState({ view: 'landing' }, '', '/');
+        afterRouterReady(() => window.history.replaceState({ view: 'landing' }, '', '/'));
       }
       setCurrentView('landing');
     } else if (initialView) {
-      window.history.replaceState({ view: initialView }, '');
+      afterRouterReady(() => window.history.replaceState({ view: initialView }, ''));
       setCurrentView(initialView);
     }
 
     const handlePopState = (e) => {
+      // Back from the Sign In page returns to the entry beneath it: close
+      // Sign In and keep the page that was open.
+      if (!e.state?.auth) setShowAuthModal(false);
+
       const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
       const queryView = urlParams ? urlParams.get('view') : null;
 
@@ -502,6 +541,9 @@ export default function Page({ searchParams }) {
 
       if (e.state && e.state.view) {
         if (e.state.view === 'dash' && !userRef.current) {
+          // Logged out: this dashboard entry becomes the landing page, so
+          // closing Sign In does not step back onto it and reopen Sign In.
+          window.history.replaceState({ view: 'landing' }, '', '/');
           setCurrentView('landing');
           setShowAuthModal(true);
           setAuthMode('login');
@@ -510,6 +552,9 @@ export default function Page({ searchParams }) {
         setCurrentView(e.state.view);
       } else if (queryView === 'dash') {
         if (!userRef.current) {
+          // Logged out: this dashboard entry becomes the landing page, so
+          // closing Sign In does not step back onto it and reopen Sign In.
+          window.history.replaceState({ view: 'landing' }, '', '/');
           setCurrentView('landing');
           setShowAuthModal(true);
           setAuthMode('login');
@@ -664,9 +709,12 @@ export default function Page({ searchParams }) {
           if (requestedView === 'dash') {
             if (stale()) return;
             try {
+              const paneSlug = requestedPane && requestedPane !== 'sessions' ? `/${requestedPane}` : '';
               if (window.history.length <= 1 || !window.history.state || window.history.state.view !== 'dash') {
                 window.history.replaceState({ view: 'landing' }, '', '/');
-                window.history.pushState({ view: 'dash' }, '', '/?view=dash');
+                window.history.pushState({ view: 'dash' }, '', `/dashboard${paneSlug}`);
+              } else {
+                window.history.replaceState({ view: 'dash' }, '', `/dashboard${paneSlug}`);
               }
             } catch { }
             setCurrentView('dash');
@@ -745,7 +793,7 @@ export default function Page({ searchParams }) {
     if (isAdmin) {
       // Admins always land on the Admin Panel at /admin.
       if (typeof window !== 'undefined') {
-        window.location.href = '/admin';
+        window.location.replace('/admin');
         return;
       }
     } else {
@@ -1007,7 +1055,9 @@ export default function Page({ searchParams }) {
       }
     }
 
-    enterApp(data.user, authRole);
+    // Replace the landing/login history entry, so Back from the dashboard
+    // does not return to the login screen just used.
+    enterApp(data.user, authRole, true);
   };
 
   const handleLogout = async () => {
@@ -1488,7 +1538,7 @@ export default function Page({ searchParams }) {
             authMsg={authMsg}
             setAuthMsg={setAuthMsg}
             handleAuthSubmit={handleAuthSubmit}
-            setShowAuthModal={setShowAuthModal}
+            setShowAuthModal={closeAuthModal}
           />
         )}
       </div>

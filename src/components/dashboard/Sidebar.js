@@ -17,21 +17,36 @@ export default function Sidebar({ user, activePane, setActivePane, themeMode, to
         <h2>Workspace</h2>
         <button
           className={`nav-item ${activePane === 'sessions' ? 'is-current' : ''}`}
-          onClick={() => setActivePane('sessions')}
+          onClick={() => {
+            setActivePane('sessions');
+            if (typeof window !== 'undefined') {
+              window.history.pushState({ pane: 'sessions' }, '', '/dashboard');
+            }
+          }}
           type="button"
         >
           Call sessions
         </button>
         <button
           className={`nav-item ${activePane === 'resumes' ? 'is-current' : ''}`}
-          onClick={() => setActivePane('resumes')}
+          onClick={() => {
+            setActivePane('resumes');
+            if (typeof window !== 'undefined') {
+              window.history.pushState({ pane: 'resumes' }, '', '/dashboard/resumes');
+            }
+          }}
           type="button"
         >
           CVs &amp; resumes
         </button>
         <button
           className={`nav-item ${activePane === 'documents' ? 'is-current' : ''}`}
-          onClick={() => setActivePane('documents')}
+          onClick={() => {
+            setActivePane('documents');
+            if (typeof window !== 'undefined') {
+              window.history.pushState({ pane: 'documents' }, '', '/dashboard/documents');
+            }
+          }}
           type="button"
         >
           Documents
@@ -41,7 +56,7 @@ export default function Sidebar({ user, activePane, setActivePane, themeMode, to
             className={`nav-item ${activePane === 'admin' ? 'is-current' : ''}`}
             onClick={() => {
               if (typeof window !== 'undefined') {
-                window.location.href = '/admin';
+                window.location.href = '/admin/dashboard';
               }
             }}
             type="button"

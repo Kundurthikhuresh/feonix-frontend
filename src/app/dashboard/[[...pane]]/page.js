@@ -2,10 +2,13 @@
 
 import { useEffect } from 'react';
 
-export default function DashboardRedirect() {
+export default function DashboardRedirect({ params }) {
   useEffect(() => {
-    window.location.replace('/?view=dash');
-  }, []);
+    Promise.resolve(params).then((p) => {
+      const pane = p?.pane?.[0] || 'sessions';
+      window.location.replace(`/?view=dash&pane=${pane}`);
+    });
+  }, [params]);
 
   return (
     <div style={{
@@ -21,3 +24,4 @@ export default function DashboardRedirect() {
     </div>
   );
 }
+
