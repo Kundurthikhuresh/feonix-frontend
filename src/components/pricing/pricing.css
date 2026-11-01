@@ -413,65 +413,163 @@
    Bottom Trust Highlights & Payment Logos (Compact)
    ========================================================================== */
 
-.pk-trust-row {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-  margin-bottom: 24px;
-}
+/* ==========================================================================
+   Trust & Guarantee Row (Production-Level Matching User Specification)
+   ========================================================================== */
 
-@media (max-width: 768px) {
-  .pk-trust-row {
-    grid-template-columns: 1fr;
-    gap: 10px;
-  }
+.pk-trust-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 32px auto 26px;
+  max-width: 840px;
+  width: 100%;
 }
 
 .pk-trust-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 8px 16px;
+  background: transparent;
+  border: none;
+}
+
+.pk-trust-divider {
+  width: 1px;
+  height: 52px;
+  background: rgba(255, 255, 255, 0.12);
+  flex-shrink: 0;
+}
+
+[data-theme="light"] .pk-trust-divider {
+  background: #e5e7eb;
+}
+
+.pk-model-stack {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 8px;
+}
+
+.pk-model-circle {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 1.5px solid #e5e7eb;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  justify-content: center;
+  margin-left: -7px;
+  position: relative;
+  transition: transform 0.15s ease, z-index 0.15s ease;
+}
+
+.pk-model-circle:first-child {
+  margin-left: 0;
+  z-index: 3;
+}
+
+.pk-model-circle:nth-child(2) {
+  z-index: 2;
+}
+
+.pk-model-circle:nth-child(3) {
+  z-index: 1;
+}
+
+.pk-model-circle:hover {
+  transform: translateY(-2px) scale(1.1);
+  z-index: 10;
+}
+
+.pk-model-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.pk-trust-card-icon {
+  width: 40px;
+  height: 40px;
   border-radius: 12px;
-  transition: all 0.15s ease;
+  background: #ffffff;
+  border: 1.5px solid #e5e7eb;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 8px;
+  transition: transform 0.15s ease, border-color 0.15s ease;
 }
 
-.pk-trust-item:hover {
-  background: rgba(255, 255, 255, 0.05);
-  border-color: rgba(255, 255, 255, 0.15);
-}
-
-.pk-trust-icon {
-  font-size: 18px;
-  flex-shrink: 0;
+.pk-trust-card-icon:hover {
+  transform: translateY(-2px);
+  border-color: #22c55e;
 }
 
 .pk-trust-text {
   display: flex;
   flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 3px;
 }
 
 .pk-trust-title {
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 700;
   color: #ffffff;
+  letter-spacing: -0.01em;
+}
+
+[data-theme="light"] .pk-trust-title {
+  color: #111827;
 }
 
 .pk-trust-sub {
-  font-size: 11.5px;
+  font-size: 13px;
   color: #94a3b8;
+  font-weight: 400;
+}
+
+[data-theme="light"] .pk-trust-sub {
+  color: #6b7280;
 }
 
 .pk-trust-link {
-  color: #38bdf8;
-  text-decoration: none;
-  font-weight: 600;
+  color: #94a3b8;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: rgba(148, 163, 184, 0.4);
+  font-size: 13px;
+  font-weight: 500;
+  transition: color 0.15s, text-decoration-color 0.15s;
+}
+
+[data-theme="light"] .pk-trust-link {
+  color: #6b7280;
+  text-decoration-color: rgba(107, 114, 128, 0.4);
 }
 
 .pk-trust-link:hover {
-  text-decoration: underline;
+  color: #22c55e;
+  text-decoration-color: #22c55e;
+}
+
+@media (max-width: 700px) {
+  .pk-trust-row {
+    flex-direction: column;
+    gap: 20px;
+  }
+  .pk-trust-divider {
+    display: none;
+  }
 }
 
 /* Payment Methods Bar */

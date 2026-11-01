@@ -608,16 +608,53 @@ export default function ParakeetPricingView({
 
       {/* ================= BOTTOM TRUST HIGHLIGHTS ================= */}
       <div className="pk-trust-row">
+        {/* 1. Top Models (ChatGPT, Claude, Gemini/Antigravity) */}
         <div className="pk-trust-item">
-          <div className="pk-trust-icon">🌐</div>
+          <div className="pk-model-stack" aria-label="Supported AI Models">
+            {/* OpenAI / ChatGPT */}
+            <div className="pk-model-circle" title="OpenAI / ChatGPT">
+              <svg viewBox="0 0 24 24" className="pk-model-icon" fill="#111827">
+                <path d="M22.28 9.5a5.98 5.98 0 0 0-.52-4.92 6.05 6.05 0 0 0-6.5-2.82A6.07 6.07 0 0 0 10.7.34a6.04 6.04 0 0 0-5.77 4.22 6.07 6.07 0 0 0-3.9 2.83 6.04 6.04 0 0 0 .74 7.07 6.03 6.03 0 0 0 .52 4.93 6.05 6.05 0 0 0 6.5 2.82 6.05 6.05 0 0 0 4.56 1.41 6.05 6.05 0 0 0 5.77-4.22 6.08 6.08 0 0 0 3.9-2.83 6.05 6.05 0 0 0-.74-7.06zm-9.02 12.3a4.57 4.57 0 0 1-2.92-1.05l.14-.08 4.84-2.8a.78.78 0 0 0 .4-.68v-6.84l2.17 1.25a.07.07 0 0 1 .04.06v5.58a4.58 4.58 0 0 1-4.67 4.56zm-8.8-4.2a4.54 4.54 0 0 1-.61-3.04l.15.09 4.84 2.8c.24.13.39.38.39.66v2.73a4.56 4.56 0 0 1-2.82-.9l-1.95-2.34zm-1.8-8.52a4.53 4.53 0 0 1 2.3-2l.01.16v5.6c0 .28.15.53.39.67l4.84 2.8-2.17 1.25a.07.07 0 0 1-.07 0L2.83 9.42a4.6 4.6 0 0 1-.17-.34zm13.78 2.81-4.84-2.8a.78.78 0 0 0-.79 0L7.1 11.45V8.95c0-.02.01-.05.03-.06l4.84-2.8a4.58 4.58 0 0 1 6.87 4.7l-.4-.2zm3.32 5.06a4.58 4.58 0 0 1-2.31 2.02v-5.6c0-.28-.15-.53-.39-.67l-4.84-2.8 2.17-1.25a.07.07 0 0 1 .07 0l4.84 2.8a4.58 4.58 0 0 1 .46 5.5zm-9.98-1.57-2.17-1.25 4.84-2.8 2.17 1.25-4.84 2.8z"/>
+              </svg>
+            </div>
+            {/* Anthropic / Claude */}
+            <div className="pk-model-circle" title="Anthropic / Claude">
+              <svg viewBox="0 0 24 24" className="pk-model-icon">
+                <path d="M12.5 3L14 7.5L18.5 6.5L16 10.5L20 13L15.5 14.5L17 19L12.5 16.5L10.5 21L9.5 16.5L5 19L6.5 14.5L2 13L6 10.5L3.5 6.5L8 7.5L9.5 3L11 7.5L12.5 3Z" fill="#d97706" />
+              </svg>
+            </div>
+            {/* Google Gemini / Antigravity */}
+            <div className="pk-model-circle" title="Google Gemini / Antigravity">
+              <svg viewBox="0 0 24 24" className="pk-model-icon">
+                <defs>
+                  <linearGradient id="pk-gemini-trust-sparkle" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#4285F4" />
+                    <stop offset="35%" stopColor="#9B72CB" />
+                    <stop offset="70%" stopColor="#D96570" />
+                    <stop offset="100%" stopColor="#F4B400" />
+                  </linearGradient>
+                </defs>
+                <path d="M12 2C12 7.52 7.52 12 2 12c5.48 0 10 4.48 10 10 0-5.52 4.48-10 10-10-5.52 0-10-4.48-10-10z" fill="url(#pk-gemini-trust-sparkle)" />
+              </svg>
+            </div>
+          </div>
           <div className="pk-trust-text">
             <span className="pk-trust-title">Top Models</span>
             <span className="pk-trust-sub">From OpenAI, Anthropic & Google</span>
           </div>
         </div>
 
+        {/* Divider 1 */}
+        <div className="pk-trust-divider" aria-hidden="true" />
+
+        {/* 2. Refund policy */}
         <div className="pk-trust-item">
-          <div className="pk-trust-icon">🛡️</div>
+          <div className="pk-trust-card-icon" title="Refund Policy">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#16a34a" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+              <path d="m9 12 2 2 4-4" />
+            </svg>
+          </div>
           <div className="pk-trust-text">
             <span className="pk-trust-title">Refund policy</span>
             <span className="pk-trust-sub">
@@ -626,8 +663,20 @@ export default function ParakeetPricingView({
           </div>
         </div>
 
+        {/* Divider 2 */}
+        <div className="pk-trust-divider" aria-hidden="true" />
+
+        {/* 3. How do credits work? */}
         <div className="pk-trust-item">
-          <div className="pk-trust-icon">🔄</div>
+          <div className="pk-trust-card-icon" title="How do credits work?">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#16a34a" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              {/* Top coin with '1' inside */}
+              <circle cx="8.5" cy="8.5" r="5.5" />
+              <path d="M8 7.2h.75v2.8" strokeWidth="1.8" />
+              {/* Second overlapping coin */}
+              <path d="M14.5 9.5a5.5 5.5 0 1 1-6 6" />
+            </svg>
+          </div>
           <div className="pk-trust-text">
             <span className="pk-trust-title">How do credits work?</span>
             <span className="pk-trust-sub">
