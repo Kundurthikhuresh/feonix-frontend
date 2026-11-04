@@ -1,5 +1,6 @@
-const { BrowserWindow, app, shell } = require('electron');
+const { BrowserWindow, app, shell, screen } = require('electron');
 const path = require('path');
+const { syncPrivateMode } = require('./privateMode');
 
 // Point this at your deployed web app before building a real release —
 // defaults to the local dev server for testing against `npm run dev`.
@@ -61,20 +62,41 @@ function hardenWindow(win) {
   }
 }
 
+/* The main window is transparent: the start page draws only its card
+ * (440px wide plus a 16px margin each side for its shadow), so the window is
+ * sized to that card and nothing around it is visible. Tall enough that the
+ * card does not need to scroll, within the screen. */
+function mainWindowSize() {
+  const width = 472;
+  let height = 800;
+  try {
+    height = Math.min(height, screen.getPrimaryDisplay().workAreaSize.height - 40);
+  } catch { }
+  return { width, height: Math.max(520, height) };
+}
+
 function createMainWindow(routePath, settingsStore) {
+  const size = mainWindowSize();
   if (mainWindow && !mainWindow.isDestroyed()) {
+    try {
+      if (routePath.startsWith('/session-type')) {
+        mainWindow.setSize(size.width, size.height);
+        mainWindow.center();
+      }
+    } catch { }
     mainWindow.loadURL(`${WEB_URL}${routePath}`);
     bringToFront(mainWindow);
     return mainWindow;
   }
 
   mainWindow = new BrowserWindow({
-    width: 760,
-    height: 600,
-    minWidth: 640,
-    minHeight: 480,
+    width: size.width,
+    height: size.height,
+    minWidth: 400,
+    minHeight: 520,
     frame: false,
-    backgroundColor: '#2C2C2C',
+    transparent: true,
+    backgroundColor: '#00000000',
     webPreferences: {
       preload: path.join(__dirname, '..', 'preload.js'),
       contextIsolation: true,
@@ -85,13 +107,7 @@ function createMainWindow(routePath, settingsStore) {
   });
 
   hardenWindow(mainWindow);
-  try {
-const mainStealth = settingsStore ? (settingsStore.get('stealthMode') === true) : false;
-    mainWindow.setContentProtection(mainStealth);
-    console.log(`🛡️ Screen share stealth set to ${mainStealth} on mainWindow`);
-  } catch (err) {
-    console.warn('Could not set content protection on mainWindow:', err.message);
-  }
+  syncPrivateMode(settingsStore, { win: mainWindow, force: true });
   mainWindow.loadURL(`${WEB_URL}${routePath}`);
   bringToFront(mainWindow);
 
@@ -108,10 +124,7 @@ function createOverlayWindow(routePath, settingsStore) {
   if (overlayWindow && !overlayWindow.isDestroyed()) {
     overlayWindow.loadURL(`${WEB_URL}${routePath}`);
     bringToFront(overlayWindow, alwaysOnTop);
-    try {
-      const stealth = settingsStore ? (settingsStore.get('stealthMode') === true) : false;
-      overlayWindow.setContentProtection(stealth);
-    } catch { }
+    syncPrivateMode(settingsStore, { win: overlayWindow });
     return overlayWindow;
   }
 
@@ -174,13 +187,7 @@ function createOverlayWindow(routePath, settingsStore) {
   // 7. GoTo Meeting (screen/application sharing)
   // 8. Whereby (screen/window/tab sharing)
   // 9. Google Meet, 10. Zoom, 11. Microsoft Teams, OBS, and OS screen recorders.
-  const stealthEnabled = settingsStore ? (settingsStore.get('stealthMode') === true) : false;
-  try {
-    overlayWindow.setContentProtection(stealthEnabled);
-    console.log(`🛡️ Screen share stealth set to ${stealthEnabled}: overlayWindow.setContentProtection(${stealthEnabled})`);
-  } catch (err) {
-    console.warn('Could not set content protection on overlay window:', err.message);
-  }
+  syncPrivateMode(settingsStore, { win: overlayWindow, force: true });
 
   overlayWindow.webContents.on('did-fail-load', (_e, errorCode, errorDescription, validatedURL) => {
     console.error('overlay failed to load:', errorCode, errorDescription, validatedURL);
@@ -200,10 +207,7 @@ function createOverlayWindow(routePath, settingsStore) {
     // changed since this window was first created.
     const currentAlwaysOnTop = settingsStore ? Boolean(settingsStore.get('alwaysOnTop')) : alwaysOnTop;
     bringToFront(overlayWindow, currentAlwaysOnTop);
-    try {
-      const currentStealth = settingsStore ? (settingsStore.get('stealthMode') === true) : false;
-      overlayWindow.setContentProtection(currentStealth);
-    } catch { }
+    syncPrivateMode(settingsStore, { win: overlayWindow });
     overlayWindow.webContents.focus();
   });
   overlayWindow.loadURL(`${WEB_URL}${routePath}`);

@@ -26,68 +26,50 @@ function LaunchContent() {
     setLaunching(true);
     setPulsing(true);
 
+    let deepLink = null;
     try {
       const res = await fetch(`/api/sessions/${sessionId}/handoff`, { method: 'POST' });
-      if (!res.ok) {
-        setLaunching(false);
-        setPulsing(false);
-        setMsg({ text: 'Unable to start desktop handoff. Please try again.', type: 'err' });
-        return;
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        deepLink = data?.deep_link || data?.deepLink || (data?.token ? `feonixai://launch?token=${data.token}&session=${sessionId}` : null);
       }
-
-      const { deep_link: deepLink } = await res.json();
-
-      let appOpened = false;
-      const onBlur = () => {
-        appOpened = true;
-      };
-      const onVisibility = () => {
-        if (document.hidden) {
-          appOpened = true;
-        }
-      };
-
-      window.addEventListener('blur', onBlur);
-      document.addEventListener('visibilitychange', onVisibility);
-
-      // Trigger the OS deep link
-      window.location.href = deepLink;
-
-      // Monitor if the browser window lost focus (OS opened the app or prompted)
-      setTimeout(() => {
-        window.removeEventListener('blur', onBlur);
-        document.removeEventListener('visibilitychange', onVisibility);
-
-        setLaunching(false);
-        setPulsing(false);
-
-        if (!appOpened) {
-          // Desktop app is NOT installed
-          setMsg({
-            text: `FeonixAI Desktop is not installed on this ${isMacOS ? 'Mac' : 'Windows PC'}. Please download and install the setup below first.`,
-            type: 'err',
-          });
-          setShowFallback(true);
-          const fallbackEl = document.getElementById('fallback');
-          if (fallbackEl) {
-            fallbackEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-          }
-        } else {
-          setMsg({ text: '', type: '' });
-        }
-      }, 2500);
-
     } catch (err) {
-      console.error('Launch handoff error:', err);
+      console.warn('Launch handoff note:', err);
+    }
+
+    if (deepLink) {
+      try {
+        const iframe = document.createElement('iframe');
+        iframe.style.display = 'none';
+        iframe.src = deepLink;
+        document.body.appendChild(iframe);
+        setTimeout(() => {
+          try { document.body.removeChild(iframe); } catch { }
+        }, 1500);
+      } catch { }
+      // The desktop app opens its own Start Interview window, so this tab
+      // stays here: opening the same screen in the browser too showed two
+      // Start Interview windows at once.
       setLaunching(false);
       setPulsing(false);
-      setMsg({ text: 'Error connecting to server. Please try again.', type: 'err' });
+      setTitle('Continue in FeonixAI Desktop');
+      setLede('Your session is opening in the desktop app. If nothing opened, download the app below or run the session in this browser.');
+      return;
     }
+
+    // No desktop hand-off could be made: run the session in this browser.
+    window.location.href = `/session-type?session=${encodeURIComponent(sessionId)}`;
   };
 
   useEffect(() => {
     if (!sessionId) {
       router.replace('/');
+      return;
+    }
+
+    // If already inside the desktop app, go directly to Start Interview without delay
+    if (typeof window !== 'undefined' && window.feonix) {
+      window.location.href = `/session-type?session=${encodeURIComponent(sessionId)}`;
       return;
     }
 
@@ -122,7 +104,9 @@ function LaunchContent() {
       const res = await fetch(`/api/sessions/${sessionId}`);
       if (!res.ok) return;
       const { session } = await res.json();
-      setSessionName(session.company + (session.role ? ' · ' + session.role : ''));
+      if (session) {
+        setSessionName(session.company + (session.role ? ' · ' + session.role : ''));
+      }
     } catch (err) {
       console.error('Failed to load session details:', err);
     }

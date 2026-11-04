@@ -54,6 +54,11 @@ export default function SessionsPane({
     const isEnded = getSessionRemainingInfo(s, now).isEnded;
     if (isEnded) return;
 
+    if (typeof window !== 'undefined' && window.feonix) {
+      window.location.href = `/session-type?session=${encodeURIComponent(s.id)}`;
+      return;
+    }
+
     goToLaunch(s.id);
   };
 

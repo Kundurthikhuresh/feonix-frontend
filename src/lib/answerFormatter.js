@@ -337,8 +337,40 @@ function escapeHtml(str) {
  * blocks kept for coding questions). The [POINTS] bullets are left out — on
  * the card they read as a sparse list instead of an answer to say out loud.
  */
+function cleanSpokenNarrative(text) {
+  if (!text || typeof text !== 'string') return '';
+  // Preserve fenced code blocks untouched
+  const parts = text.split(/(\`\`\`[\s\S]*?\`\`\`)/g);
+  return parts.map((part) => {
+    if (part.startsWith('```') && part.endsWith('```')) return part;
+    // Strip bold/italic markdown symbols
+    let cleaned = part.replace(/\*\*(.*?)\*\*/g, '$1').replace(/\*(.*?)\*/g, '$1');
+    const lines = cleaned.split('\n');
+    const narrativeParas = [];
+    let currentPara = [];
+
+    for (let line of lines) {
+      let l = line.trim();
+      if (!l) {
+        if (currentPara.length > 0) {
+          narrativeParas.push(currentPara.join(' '));
+          currentPara = [];
+        }
+        continue;
+      }
+      // Remove leading bullet dashes/bullets/numbers: "- ", "* ", "• "
+      l = l.replace(/^[-*•]\s+/, '');
+      currentPara.push(l);
+    }
+    if (currentPara.length > 0) {
+      narrativeParas.push(currentPara.join(' '));
+    }
+    return narrativeParas.join('\n\n');
+  }).join('\n\n');
+}
+
 function spokenAnswerHtml(text) {
-  return `<div class="parakeet-answer-container fe-spoken-answer">${formatBodyWithCodeBlocks(text)}</div>`;
+  return `<div class="parakeet-answer-container fe-spoken-answer">${formatBodyWithCodeBlocks(cleanSpokenNarrative(text))}</div>`;
 }
 
 export function formatSpokenAnswer(rawText) {
@@ -349,7 +381,7 @@ export function formatSpokenAnswer(rawText) {
   const text = answer || points.join(' ');
   if (!text) return '';
   // Plain text only — no glowing typing cursor while it streams.
-  return `<div class="fe-spoken-answer">${formatBodyWithCodeBlocks(text)}</div>`;
+  return `<div class="fe-spoken-answer">${formatBodyWithCodeBlocks(cleanSpokenNarrative(text))}</div>`;
 }
 
 export function formatStreamingAnswer(accumulatedText) {

@@ -1908,7 +1908,28 @@ export default function AdminPane({
                       <td>
                         <span className="admin-badge member">{d.kind}</span>
                       </td>
-                      <td><strong>{d.filename}</strong></td>
+                      <td>
+                        {d.has_original ? (
+                          <a
+                            href={`/api/admin/documents/${d.id}/file`}
+                            download
+                            title="Download the file exactly as the customer uploaded it"
+                            style={{ color: 'inherit', textDecoration: 'underline', textUnderlineOffset: '3px' }}
+                          >
+                            <strong>{d.filename}</strong>
+                          </a>
+                        ) : (
+                          <>
+                            <strong>{d.filename}</strong>
+                            <span
+                              style={{ marginLeft: '8px', color: 'var(--ad-text-muted)', fontSize: '11px' }}
+                              title="Uploaded before files were saved: only its text was kept. Ask the customer to upload it again."
+                            >
+                              original not saved
+                            </span>
+                          </>
+                        )}
+                      </td>
                       <td>
                         <span className={`admin-badge ${d.is_active ? 'completed' : 'member'}`}>
                           {d.is_active ? 'Active' : 'Inactive'}

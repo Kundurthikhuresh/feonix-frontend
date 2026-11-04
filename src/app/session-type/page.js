@@ -4,6 +4,28 @@ import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import './session-type.css';
 
+/* A hand-off link works once. The same one can arrive twice (the desktop app's
+ * pending hand-off and its hand-off event, or this page starting twice in
+ * development), and the second redeem was refused as "already used" and its
+ * error replaced the session that had just opened. Each token is redeemed
+ * once; a repeat gets the first result. */
+const redeemRequests = new Map();
+function redeemOnce(token) {
+  if (!redeemRequests.has(token)) {
+    redeemRequests.set(token, fetch('/api/sessions/redeem', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token }),
+    }).then(async (res) => ({ ok: res.ok, data: await res.json().catch(() => ({})) }))
+      .catch((err) => {
+        // Not reached the server: a later try may redeem it.
+        redeemRequests.delete(token);
+        throw err;
+      }));
+  }
+  return redeemRequests.get(token);
+}
+
 function SessionTypeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -12,12 +34,23 @@ function SessionTypeContent() {
   const [sessionId, setSessionId] = useState(null);
   const [session, setSession] = useState(null);
   const [redeemed, setRedeemed] = useState(false);
+  const [isPrivate, setIsPrivate] = useState(true);
+  const [isUnlimited, setIsUnlimited] = useState(false);
   const [autoAnswer, setAutoAnswer] = useState(true);
   const [creditsText, setCreditsText] = useState('— Credits');
   const [message, setMessage] = useState({ text: '', isError: false, busy: false });
   const [toastMsg, setToastMsg] = useState('');
   const [showToast, setShowToast] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [buttonsDisabled, setButtonsDisabled] = useState(false);
+
+  // In the desktop app the window is transparent: only the card shows, with
+  // no dark backdrop around it. A normal browser tab keeps the backdrop.
+  useEffect(() => {
+    if (!window.feonix) return undefined;
+    document.documentElement.classList.add('st-desktop');
+    return () => document.documentElement.classList.remove('st-desktop');
+  }, []);
 
   // Initialize and load configurations
   useEffect(() => {
@@ -26,9 +59,21 @@ function SessionTypeContent() {
     const autoOn = storedAuto === null ? true : storedAuto === '1';
     setAutoAnswer(autoOn);
 
+    if (window.feonix && typeof window.feonix.getSettings === 'function') {
+      window.feonix.getSettings().then((s) => {
+        if (s && typeof s.stealthMode === 'boolean') {
+          setIsPrivate(s.stealthMode);
+        }
+      }).catch(() => { });
+    }
+
     // If an overlay was left open from a previous run, close it so it never floats before Start Interview
     if (window.feonix && typeof window.feonix.closeOverlay === 'function') {
       window.feonix.closeOverlay();
+    }
+
+    if (window.feonix && typeof window.feonix.resize === 'function') {
+      window.feonix.resize(460, 680);
     }
 
     // Initial boot sequence
@@ -82,7 +127,7 @@ function SessionTypeContent() {
           active = await loadSession(urlSession);
         }
         if (!active) {
-          active = await fetchActiveOrCreateSession();
+          active = await fetchActiveSession();
         }
 
         if (!active) {
@@ -106,14 +151,9 @@ function SessionTypeContent() {
     say('Connecting…', false, true);
 
     try {
-      const res = await fetch('/api/sessions/redeem', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: handoff.token }),
-      });
-      const data = await res.json().catch(() => ({}));
+      const { ok, data } = await redeemOnce(handoff.token);
 
-      if (!res.ok) {
+      if (!ok) {
         if (handoff.session) {
           setSessionId(Number(handoff.session));
           const loaded = await loadSession(Number(handoff.session));
@@ -129,7 +169,7 @@ function SessionTypeContent() {
         if (me.ok) {
           const meData = await me.json();
           showBalance(meData.user);
-          const active = await fetchActiveOrCreateSession();
+          const active = await fetchActiveSession();
           if (active) {
             setSessionId(active.id);
             setRedeemed(true);
@@ -167,6 +207,12 @@ function SessionTypeContent() {
       if (res.ok) {
         const data = await res.json();
         const acc = data.account || {};
+        if (acc.unlimited) {
+          setIsUnlimited(true);
+          setCreditsText('Unlimited');
+          return;
+        }
+        setIsUnlimited(false);
         const creds = acc.credits !== undefined && acc.credits !== null && Number(acc.credits) > 0
           ? Number(acc.credits).toFixed(1)
           : (acc.trials_remaining ?? 5);
@@ -190,25 +236,17 @@ function SessionTypeContent() {
     }
   };
 
-  const fetchActiveOrCreateSession = async () => {
+  // Only sessions the user created on the dashboard are used: none is ever
+  // created here.
+  const fetchActiveSession = async () => {
     try {
       const listRes = await fetch('/api/sessions');
       if (!listRes.ok) return null;
       const list = await listRes.json();
       const sessions = list.sessions || [];
-      const active = sessions.find((s) => s.status === 'active')
+      return sessions.find((s) => s.status === 'active')
         || sessions.find((s) => s.status === 'ready')
-        || sessions[0];
-      if (active) return active;
-
-      const madeRes = await fetch('/api/sessions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ company: 'Interview Session', role: '', mode: 'interview' }),
-      });
-      if (!madeRes.ok) return null;
-      const madeData = await madeRes.json().catch(() => ({}));
-      return madeData.session || null;
+        || null;
     } catch {
       return null;
     }
@@ -221,7 +259,7 @@ function SessionTypeContent() {
     try {
       let activeId = sessionId;
       if (!activeId) {
-        const activeSession = await fetchActiveOrCreateSession();
+        const activeSession = await fetchActiveSession();
         if (activeSession) {
           activeId = activeSession.id;
           setSessionId(activeId);
@@ -290,6 +328,15 @@ function SessionTypeContent() {
     }
   };
 
+  const togglePrivate = () => {
+    const nextPrivate = !isPrivate;
+    setIsPrivate(nextPrivate);
+    if (window.feonix && typeof window.feonix.setStealthMode === 'function') {
+      window.feonix.setStealthMode(nextPrivate);
+    }
+    triggerToast(nextPrivate ? '✓ Private Mode Enabled' : '✓ Private Mode Disabled');
+  };
+
   const handleToggleAutoAnswer = () => {
     const nextAuto = !autoAnswer;
     setAutoAnswer(nextAuto);
@@ -335,9 +382,27 @@ function SessionTypeContent() {
               <span>FeonixAI</span>
             </div>
 
-            <div className="credits-pill">
-              <span className="credits-dot"></span>
-              <span>{creditsText}</span>
+            <div className="tool-actions">
+              <div className="credits-pill">
+                <span className="credits-dot"></span>
+                <span>{isUnlimited ? 'Unlimited' : creditsText}</span>
+              </div>
+              <button
+                className={`priv-toggle ${isPrivate ? 'is-on' : 'is-off'}`}
+                onClick={togglePrivate}
+                type="button"
+                title={isPrivate ? 'Private Mode ON (Click to toggle)' : 'Private Mode OFF (Click to toggle)'}
+              >
+                {isPrivate ? 'PRIV ON' : 'PRIV OFF'}
+              </button>
+              <button
+                className="icon-btn"
+                onClick={() => setSettingsOpen((prev) => !prev)}
+                title="Settings"
+                type="button"
+              >
+                ⚙
+              </button>
             </div>
           </div>
 
@@ -348,20 +413,22 @@ function SessionTypeContent() {
               <p>Choose your session type to launch the live copilot overlay.</p>
               {session && (
                 <div className="session-title">
-                  {session.company} {session.role && `· ${session.role}`}
+                  {session.company || 'tcs'} {session.role ? `· ${session.role}` : '· engineer'}
                 </div>
               )}
             </div>
 
             <div className="cards-stack">
-              {/* Option 1: Start Interview */}
+              {/* Option 1: Full Session */}
               <div className="option-card">
                 <div className="card-top">
-                  <h3>Start Interview Session</h3>
-                  <span className="tag green">1 credit</span>
+                  <h3>Full Session</h3>
+                  <span className="tag green">{isUnlimited ? 'Unlimited' : '1 credit'}</span>
                 </div>
                 <p className="card-desc">
-                  Live stealth copilot with real-time question capture, STAR answer generation, and code problem solver.
+                  {isUnlimited
+                    ? 'Full interview session. This account runs without using credits.'
+                    : 'Live stealth copilot with real-time question capture, STAR answer generation, and code problem solver.'}
                 </p>
                 <button className="btn-primary" onClick={() => handleStart('full')} disabled={buttonsDisabled} type="button">
                   ▶ Start Interview
@@ -372,10 +439,10 @@ function SessionTypeContent() {
               <div className="option-card">
                 <div className="card-top">
                   <h3>Free Session</h3>
-                  <span className="tag">Free</span>
+                  <span className="tag">{isUnlimited ? 'Not needed' : 'Free'}</span>
                 </div>
                 <p className="card-desc">
-                  Trial session. Great for testing your setup before a real interview.
+                  10-minute trial session. Great for testing your setup before a real interview.
                 </p>
                 <button className="btn-secondary" onClick={() => handleStart('free')} disabled={buttonsDisabled} type="button">
                   Start Free Session
@@ -388,7 +455,6 @@ function SessionTypeContent() {
                 className="btn-secondary"
                 onClick={handleGoBack}
                 type="button"
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="19" y1="12" x2="5" y2="12"></line>
@@ -401,6 +467,26 @@ function SessionTypeContent() {
             <div className={`msg-banner ${message.isError ? 'err' : ''}`}>
               {message.busy && <span className="spinner"></span>}
               {message.text}
+            </div>
+          </div>
+
+          {/* Sliding Drawer Panel */}
+          <div className={`settings-panel ${settingsOpen ? 'open' : ''}`}>
+            <div className="settings-head">
+              <h2>Settings</h2>
+              <button className="icon-btn" onClick={() => setSettingsOpen(false)} type="button">✕</button>
+            </div>
+            <div className="setting-item">
+              <span className="setting-label">Automatic Answering</span>
+              <button className={`priv-toggle ${autoAnswer ? 'is-on' : 'is-off'}`} onClick={handleToggleAutoAnswer} type="button">
+                {autoAnswer ? 'Auto: ON' : 'Auto: OFF'}
+              </button>
+            </div>
+            <div className="setting-item">
+              <span className="setting-label">Privacy Shield</span>
+              <button className={`priv-toggle ${isPrivate ? 'is-on' : 'is-off'}`} onClick={togglePrivate} type="button">
+                {isPrivate ? 'PRIV ON' : 'PRIV OFF'}
+              </button>
             </div>
           </div>
 
@@ -418,7 +504,7 @@ function SessionTypeContent() {
 
 export default function SessionTypePage() {
   return (
-    <Suspense fallback={<div className="session-picker-container" style={{ background: '#08090d', color: '#888', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Loading…</div>}>
+    <Suspense fallback={<div className="session-picker-container" style={{ background: 'transparent', color: '#888', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Loading…</div>}>
       <SessionTypeContent />
     </Suspense>
   );

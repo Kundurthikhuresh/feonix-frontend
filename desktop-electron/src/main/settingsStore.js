@@ -23,6 +23,11 @@ const DEFAULT_SETTINGS = {
   audioSource: 'both',
 };
 
+// Saved with the settings. Files without it come from builds before 2: those
+// offered only 'mic' and 'tab' and saved 'mic' as the default, which then kept
+// newer builds from ever capturing the interviewer's (system) audio.
+const SETTINGS_VERSION = 2;
+
 const ASSISTANT_SIZES = ['compact', 'normal', 'large', 'xlarge'];
 const AUDIO_SOURCES = ['both', 'mic', 'tab'];
 
@@ -106,26 +111,38 @@ function sanitize(key, value) {
 class SettingsStore {
   constructor(userDataDir) {
     this.file = path.join(userDataDir, 'settings.json');
-    this.data = { ...DEFAULT_SETTINGS, ...this._readFromDisk() };
+    const { values, version } = this._readFromDisk();
+    this.data = { ...DEFAULT_SETTINGS, ...values };
+    // One-time upgrade of a settings file from an older build: its 'mic' was
+    // that build's default, not a choice, so listen to both sides. A user who
+    // picks "Microphone only" now keeps it (the file then carries a version).
+    if (version !== null && version < SETTINGS_VERSION && this.data.audioSource === 'mic') {
+      this.data.audioSource = 'both';
+      this._writeToDisk();
+    }
   }
 
+  // values: the saved settings that are still valid; version: the saved
+  // SETTINGS_VERSION (1 for files from before it existed), or null if there
+  // is no settings file yet.
   _readFromDisk() {
     try {
       const parsed = JSON.parse(fs.readFileSync(this.file, 'utf8'));
-      const clean = {};
+      const values = {};
       for (const key of ALLOWED_KEYS) {
-        if (key in parsed) clean[key] = sanitize(key, parsed[key]);
+        if (key in parsed) values[key] = sanitize(key, parsed[key]);
       }
-      return clean;
+      const version = Number.isInteger(parsed.settingsVersion) ? parsed.settingsVersion : 1;
+      return { values, version };
     } catch {
-      return {};
+      return { values: {}, version: null };
     }
   }
 
   _writeToDisk() {
     try {
       fs.mkdirSync(path.dirname(this.file), { recursive: true });
-      fs.writeFileSync(this.file, JSON.stringify(this.data, null, 2));
+      fs.writeFileSync(this.file, JSON.stringify({ ...this.data, settingsVersion: SETTINGS_VERSION }, null, 2));
     } catch { /* disk full / permissions — settings just won't persist this run */ }
   }
 

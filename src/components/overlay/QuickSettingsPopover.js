@@ -64,7 +64,7 @@ export default function QuickSettingsPopover({
             e.stopPropagation();
             onTogglePrivateMode && onTogglePrivateMode();
           }}
-          title="Toggle Private Mode (hides overlay from screen share)"
+          title={privateMode ? 'Private Mode ON (Hidden from capture — Click to turn OFF)' : 'Private Mode OFF (Visible in capture — Click to turn ON)'}
         >
           {privateMode ? 'ON' : 'OFF'}
         </button>

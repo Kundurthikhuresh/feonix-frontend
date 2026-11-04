@@ -3,6 +3,7 @@ const { DEV_TOOLS_ALLOWED, WEB_URL, getMainWindow, getOverlayWindow, createOverl
 const { createTray, destroyTray, setListeningState } = require('./tray');
 const { registerShortcuts } = require('./shortcuts');
 const { SUPPORTED_PLATFORMS, getScreenShareDetector } = require('./screenShareDetector');
+const { isPrivateMode, syncPrivateMode, setPrivateMode } = require('./privateMode');
 
 /** Applies (or re-applies) launch-at-startup to the OS. Exported so main.js
  * can call it once at boot with whatever was persisted from a previous run,
@@ -101,10 +102,7 @@ function registerIpcHandlers({ logger, settingsStore, getPendingHandoff, clearPe
     win.show();
     const alwaysOnTop = settingsStore ? Boolean(settingsStore.get('alwaysOnTop')) : true;
     bringToFront(win, alwaysOnTop);
-    try {
-      const stealth = settingsStore ? (settingsStore.get('stealthMode') === true) : false;
-      win.setContentProtection(stealth);
-    } catch { }
+    syncPrivateMode(settingsStore, { win, logger });
   });
 
   ipcMain.on('feonix:bring-to-front', (event) => {
@@ -258,45 +256,29 @@ function registerIpcHandlers({ logger, settingsStore, getPendingHandoff, clearPe
         win.setAlwaysOnTop(Boolean(updated.alwaysOnTop), updated.alwaysOnTop ? 'screen-saver' : 'normal');
       }
     } else if (key === 'stealthMode') {
-      const isStealth = Boolean(updated.stealthMode);
-BrowserWindow.getAllWindows().forEach((win) => {
-        if (win && !win.isDestroyed()) {
-          try {
-            win.setContentProtection(isStealth);
-            if (process.platform === 'win32') {
-              win.setBounds(win.getBounds());
-              if (win.webContents && !win.webContents.isDestroyed()) {
-                win.webContents.invalidate();
-              }
-            }
-          } catch (err) {
-            logger.warn('setContentProtection failed:', err.message);
-          }
-        }
-      });
-      logger.info(`🛡️ setContentProtection set to ${isStealth} across all windows`); catch (err) {
-            logger.warn('setContentProtection failed:', err.message);
-          }
-        }
-      });
-BrowserWindow.getAllWindows().forEach((win) => {
-      if (win && !win.isDestroyed()) {
-        try {
-          win.setContentProtection(isStealth);
-          if (process.platform === 'win32') {
-            win.setBounds(win.getBounds());
-            if (win.webContents && !win.webContents.isDestroyed()) {
-              win.webContents.invalidate();
-            }
-          }
-        } catch (err) {
-          logger.warn('setContentProtection failed:', err.message);
-        }
-      }
-    });
-    logger.info(`🛡️ setContentProtection set to ${isStealth} across all windows`);
-    return isStealth;
+      setPrivateMode(settingsStore, updated.stealthMode, logger);
+    }
+
+    return updated;
   });
+
+  // Pushed from the renderer whenever speech.listening changes, regardless
+  // of whether it was toggled from the panel or from the tray itself — the
+  // tray's own "Start/Stop Listening" label needs to reflect reality no
+  // matter where recording was actually turned on.
+  ipcMain.on('feonix:set-listening-state', (_event, value) => {
+    setListeningState(value);
+  });
+
+  ipcMain.handle('feonix:pending-handoff', () => {
+    const handoff = getPendingHandoff();
+    clearPendingHandoff();
+    return handoff;
+  });
+
+  ipcMain.handle('feonix:set-stealth-mode', (_event, enabled) => (
+    setPrivateMode(settingsStore, enabled === true, logger)
+  ));
 
   // Screen-share stealth & platform detection
   ipcMain.handle('feonix:get-screen-share-platforms', () => {
@@ -321,7 +303,7 @@ BrowserWindow.getAllWindows().forEach((win) => {
     sandbox: true,
     nodeIntegration: false,
     devToolsEnabled: DEV_TOOLS_ALLOWED,
-    contentProtection: false,
+    contentProtection: isPrivateMode(settingsStore),
     packaged: app.isPackaged,
     appVersion: app.getVersion(),
     electronVersion: process.versions.electron,

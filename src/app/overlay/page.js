@@ -40,10 +40,13 @@ const DEFAULT_SETTINGS = {
   voiceEnabled: true,
   stealthMode: false,
   autoHideOnShare: false,
-  audioSource: 'both',
+  audioSource: typeof window !== 'undefined' && Boolean(window.feonix) ? 'both' : 'mic',
 };
 
 const SIZE_PX = { compact: 1000, normal: 1180, large: 1380, xlarge: 1560 };
+// How much the bottom bar and the transcript strip above it are enlarged at
+// each Copilot Size (they used to stay the same size at every tier).
+const DOCK_SCALE = { compact: 1, normal: 1.2, large: 1.35, xlarge: 1.5 };
 const SIZE_KEYS = ['compact', 'normal', 'large', 'xlarge'];
 const SIZE_LABELS = {
   compact: 'Compact',
@@ -98,6 +101,9 @@ function OverlayContent() {
   // settings.audioSource at call time — moving just this one up avoids
   // reordering the rest of the settings-related state.
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+  // Current settings for long-lived listeners (the screen-share notice).
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
 
   const interview = useInterview({
     querySessionId, plan, queryAuto, screenshots, answerStyle, audioSource: settings.audioSource,
@@ -248,22 +254,28 @@ function OverlayContent() {
     if (window.feonix && typeof window.feonix.setSetting === 'function') {
       window.feonix.setSetting(key, value)
         .then((updated) => setSettings((prev) => ({ ...prev, ...updated })))
-        .catch(() => { });
+        .catch((err) => {
+          // The change did not reach the desktop app: show what it really has.
+          console.warn(`[settings] could not save ${key}:`, err && err.message);
+          if (typeof window.feonix.getSettings === 'function') {
+            window.feonix.getSettings().then((s) => setSettings((prev) => ({ ...prev, ...s }))).catch(() => { });
+          }
+        });
     }
   };
 
   const handleToggleStealth = () => {
-    const nextVal = settings.stealthMode === false;
+    const nextVal = settings.stealthMode !== true;
     handleSetStealth(nextVal);
   };
 
   const handleSetStealth = (val) => {
     const isTurnOn = Boolean(val);
-    setSettings((prev) => ({ ...prev, stealthMode: isTurnOn }));
+    // One IPC call: the desktop app saves the setting and applies the window
+    // capture protection in the same step (privateMode.js), then returns the
+    // saved settings, which updateSetting merges back so this page and the
+    // desktop app cannot disagree.
     updateSetting('stealthMode', isTurnOn);
-    if (window.feonix && typeof window.feonix.setStealthMode === 'function') {
-      window.feonix.setStealthMode(isTurnOn);
-    }
     setVisibility('open');
     if (window.feonix && typeof window.feonix.show === 'function') {
       window.feonix.show();
@@ -379,11 +391,15 @@ function OverlayContent() {
       // stays live even when visibility is 'hidden' (nothing rendered isn't
       // the same as unmounted), so this is a real way back once you're
       // actually looking at this tab again, not just an Electron feature.
-      if (e.shiftKey && (e.key === 'H' || e.key === 'h' || e.code === 'KeyH')) {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'H' || e.key === 'h' || e.code === 'KeyH')) {
         e.preventDefault();
         e.stopPropagation();
-        const handler = shortcutHandlersRef.current.onToggleHide;
-        if (handler) handler();
+        // In Electron, the OS-wide globalShortcut handles hide/show cleanly without racing renderer events.
+        // In a standard browser tab, toggle visibility directly.
+        if (typeof window !== 'undefined' && !window.feonix) {
+          const handler = shortcutHandlersRef.current.onToggleHide;
+          if (handler) handler();
+        }
         return;
       }
       if (e.shiftKey && e.key === ' ') {
@@ -514,7 +530,9 @@ function OverlayContent() {
         if (data && data.active) {
           const names = (data.platforms || []).map((p) => p.name).join(', ') || 'Screen Sharing';
           setVisibility('open');
-          triggerToast(`🛡️ ${names} detected — copilot hidden from opposite person and always visible to you`);
+          triggerToast(settingsRef.current.stealthMode === true
+            ? `🛡️ ${names} detected — Private Mode ON: copilot hidden from the other person`
+            : `👥 ${names} detected — Private Mode OFF: the other person can see the copilot`);
         }
       }));
     }
@@ -823,7 +841,9 @@ function OverlayContent() {
   const handleCaptureScreen = async () => {
     setScreenshotMenuOpen(false);
     const visibilityBeforeCapture = visibility;
-    const isPrivate = settings.stealthMode !== false;
+    // Only hidden from the capture when Private Mode is really on; with it
+    // off the copilot stays in the screenshot, as the other person sees it.
+    const isPrivate = settings.stealthMode === true;
     try {
       const dataUrl = await captureScreenSnapshot({
         onBeforeFrame: isPrivate ? () => { setVisibility('hidden'); } : undefined,
@@ -983,6 +1003,7 @@ function OverlayContent() {
     <div
       className="overlay-page-shell"
       style={{
+        '--dock-scale': DOCK_SCALE[settings.assistantSize] || DOCK_SCALE.normal,
         opacity: settings.opacity / 100,
         pointerEvents: 'none',
         display: 'flex',
@@ -1039,12 +1060,12 @@ function OverlayContent() {
             transform: 'none',
             pointerEvents: 'all',
             width: '100%',
-            maxWidth: '720px',
+            maxWidth: '820px',
             zIndex: 9999,
           } : {
             pointerEvents: 'all',
             width: '100%',
-            maxWidth: '720px',
+            maxWidth: '820px',
             margin: '0 auto',
           })}
         >
@@ -1128,7 +1149,7 @@ function OverlayContent() {
             <QuickSettingsPopover
               open={popoverOpen}
               onClose={() => setPopoverOpen(false)}
-              privateMode={settings.stealthMode !== false}
+              privateMode={settings.stealthMode === true}
               onTogglePrivateMode={handleToggleStealth}
               answerMode={autoAnswer ? 'AUTO' : 'MANUAL'}
               onToggleAnswerMode={toggleAutoAnswer}

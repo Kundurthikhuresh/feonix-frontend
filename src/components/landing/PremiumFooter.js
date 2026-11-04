@@ -1,7 +1,7 @@
 "use client";
 
 import React from 'react';
-import { ShieldCheck, Lock, Globe, Mail } from 'lucide-react';
+import { Globe, Mail } from 'lucide-react';
 
 export default function PremiumFooter() {
   return (
@@ -19,22 +19,6 @@ export default function PremiumFooter() {
             <p style={{ fontSize: '13px', color: 'var(--px-text-secondary)', lineHeight: 1.6, margin: '0 0 16px 0', maxWidth: '320px' }}>
               The undetectable, real-time AI interview copilot and career intelligence suite. Helping software engineers, architects, and engineering managers land top-tier offers with unshakeable confidence.
             </p>
-
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '6px 12px', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.25)', borderRadius: 'var(--px-radius-full)', fontSize: '12px', color: '#34d399', marginBottom: '16px' }}>
-              <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981', boxShadow: '0 0 6px #10b981' }} />
-              <span>All Systems Operational · 99.98% Uptime</span>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '12px', color: 'var(--px-text-muted)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <ShieldCheck size={14} style={{ color: '#10b981' }} />
-                <span>100% Screen-Share Invisible</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Lock size={14} style={{ color: '#10b981' }} />
-                <span>Zero Audio Storage Guarantee</span>
-              </div>
-            </div>
           </div>
 
           {/* Col 2: Product */}

@@ -165,9 +165,24 @@ async function getTabAudioStream() {
     throw error;
   }
 
-  const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+  // The meeting's own audio is already clean. Echo cancellation, noise
+  // suppression and gain control are for a microphone; left on (the default)
+  // they were applied to the interviewer's voice too and can thin out or cut
+  // quiet speech.
+  const stream = await navigator.mediaDevices.getDisplayMedia({
+    video: true,
+    audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+  });
   stream.getVideoTracks().forEach((track) => track.stop());
-  if (stream.getAudioTracks().length > 0) return stream;
+  const [audioTrack] = stream.getAudioTracks();
+  if (audioTrack) {
+    const s = audioTrack.getSettings ? audioTrack.getSettings() : {};
+    console.info('[audio] interviewer capture started', {
+      source: audioTrack.label, sampleRate: s.sampleRate, channels: s.channelCount,
+      echoCancellation: s.echoCancellation, noiseSuppression: s.noiseSuppression, autoGainControl: s.autoGainControl,
+    });
+    return stream;
+  }
 
   stream.getTracks().forEach((track) => track.stop());
   const error = new Error('No shared audio was selected. Select the call tab and enable Share tab audio.');
@@ -323,6 +338,16 @@ async function getMicStream(preferRoomAudio = false) {
  * Returns { channels: [{ stream, speaker }], warning }.
  */
 export async function getListenChannels(source = 'both') {
+  const isDesktop = typeof window !== 'undefined' && Boolean(window.feonix);
+
+  // In a standard browser (e.g. Chrome), capturing tab audio requires getDisplayMedia
+  // which shows Chrome's invasive screen share picker. In the browser, clicking the
+  // mic uses microphone audio directly unless 'tab' was explicitly requested.
+  if (!isDesktop && source !== 'tab') {
+    const micStream = await getMicStream(true);
+    return { channels: [{ stream: await mixAudioStreams([micStream]), speaker: 'unknown' }], warning: '' };
+  }
+
   if (source === 'tab') {
     const tabStream = await getTabAudioStream();
     return { channels: [{ stream: await mixAudioStreams([tabStream]), speaker: 'interviewer' }], warning: '' };

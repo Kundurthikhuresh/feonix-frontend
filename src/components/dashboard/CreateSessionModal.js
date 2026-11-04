@@ -1,5 +1,15 @@
 import React from 'react';
 
+// Session time the credits buy: 1 credit = 60 minutes (feonix-backend/src/credits.js).
+function creditTime(credits) {
+  const total = Math.floor(Number(credits) * 60);
+  if (!Number.isFinite(total) || total <= 0) return '0 min';
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  if (!h) return `${m} min`;
+  return m ? `${h} hr ${m} min` : `${h} ${h === 1 ? 'hour' : 'hours'}`;
+}
+
 export default function CreateSessionModal({
   catalogue,
   trialsLeft,
@@ -40,47 +50,6 @@ export default function CreateSessionModal({
       <form className="sheet-card" onSubmit={handleCreateSession}>
         <h2>Create session</h2>
 
-        {trialsExhausted && (
-          <div style={{
-            background: 'rgba(239, 68, 68, 0.12)',
-            border: '1px solid rgba(239, 68, 68, 0.35)',
-            borderRadius: '10px',
-            padding: '12px 14px',
-            marginBottom: '18px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '12px',
-          }}>
-            <div>
-              <div style={{ color: '#F87171', fontWeight: '600', fontSize: '13px' }}>
-                All 5 Free Trial Credits Completed
-              </div>
-              <div style={{ color: '#D1D5DB', fontSize: '12px', marginTop: '2px' }}>
-                Purchase credits to continue creating and running interview sessions.
-              </div>
-            </div>
-            <a
-              href="/pricing"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                whiteSpace: 'nowrap',
-                background: 'linear-gradient(135deg, #06B6D4, #3B82F6)',
-                color: '#FFFFFF',
-                fontWeight: '600',
-                fontSize: '12px',
-                padding: '6px 12px',
-                borderRadius: '6px',
-                textDecoration: 'none',
-              }}
-            >
-              Buy Credits →
-            </a>
-          </div>
-        )}
-
         <div className="field">
           <label>How to run this session</label>
           <div className="billing-choice">
@@ -104,7 +73,7 @@ export default function CreateSessionModal({
               onClick={() => setBillingChoice('paid')}
             >
               <span className="bill-title">Use Credits</span>
-              <span className="bill-line">{creditsLeft ? `${creditsLeft} credits left · 15 min` : '15 min session'}</span>
+              <span className="bill-line">{creditsLeft ? `${creditsLeft} credits left · ${creditTime(creditsLeft)}` : '1 credit = 1 hour'}</span>
             </button>
           </div>
         </div>
@@ -223,7 +192,7 @@ export default function CreateSessionModal({
             >
               {catalogue?.agents?.map((a) => (
                 <option key={a.id} value={a.id}>
-                  {a.label}
+                  {a.recommended ? `${a.label} (Recommended)` : a.label}
                 </option>
               ))}
             </select>

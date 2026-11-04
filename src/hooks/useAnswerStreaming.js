@@ -4,6 +4,7 @@ import { formatParakeetAnswer, formatStreamingAnswer, isCodingQuestion } from '.
 import { deduplicateRepeatedPhrases } from '../services/speechService';
 import { sanitizeHTML } from '../lib/sanitize';
 import { createAnswerSlots } from '../lib/answerSlots';
+import { takeQuestionTrace, reportAnswerLatency } from '../lib/latencyTrace';
 
 const MAX_CONCURRENT_ANSWERS = 2;
 
@@ -199,6 +200,10 @@ export function useAnswerStreaming() {
 
     const t0 = performance.now();
     let tFirstToken = null;
+    let tRequest = null;
+    // Timings of the spoken turn this question came from (none for typed
+    // chat or screenshots).
+    const speechTrace = takeQuestionTrace(rawQuestion) || takeQuestionTrace(question);
     const slots = slotsRef.current;
     console.info('[copilot] answer queued', { answerId: assistantMessageId, running: slots.running, waiting: slots.waiting });
     try {
@@ -209,6 +214,7 @@ export function useAnswerStreaming() {
         abortErr.name = 'AbortError';
         throw abortErr;
       }
+      tRequest = performance.now();
       try {
       await streamAnswer({
         question,
@@ -247,6 +253,11 @@ export function useAnswerStreaming() {
         totalMs: Math.round(performance.now() - t0),
         chars: textAccumulator.length,
       });
+      reportAnswerLatency(speechTrace, {
+        requestAt: tRequest,
+        firstTokenAt: tFirstToken,
+        doneAt: performance.now(),
+      }, { answerId: assistantMessageId, chars: textAccumulator.length });
 
       isStreamActive = false;
 

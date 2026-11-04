@@ -45,7 +45,6 @@ export default function ParakeetPricingView({
   currency: currencyProp = null,
   onSignupClick = null,
 }) {
-  const [inputCode, setInputCode] = useState('');
   const [planTab, setPlanTab] = useState('unlimited'); // 'unlimited' | 'credits'
   const [subPlan, setSubPlan] = useState('sub_monthly');
   const [subViewMode, setSubViewMode] = useState('total'); // 'total' | 'monthly' | 'call'
@@ -529,79 +528,6 @@ export default function ParakeetPricingView({
                 {loadingPlan === 'pack_1' ? 'Opening Checkout…' : `1 credit for ${money(singleCredit)}`}
               </button>
             </div>
-          </div>
-        )}
-      </div>
-
-      {/* ================= COUPON CODE & PROMOTIONAL DISCOUNT BOX ================= */}
-      <div className="pk-coupon-card">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-          <span style={{ fontSize: '13px', fontWeight: 700, color: '#c4b5fd', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-            🏷️ Have a Coupon or Promotional Code?
-          </span>
-          {appliedCoupon && (
-            <span style={{ fontSize: '12px', color: '#4ade80', fontWeight: 600 }}>
-              Discount Active
-            </span>
-          )}
-        </div>
-
-        <form
-          className="pk-coupon-row"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (onApplyCoupon && inputCode.trim()) {
-              onApplyCoupon(inputCode.trim(), planTab === 'credits' ? activePack.id : activeSub.id, currency);
-            }
-          }}
-        >
-          <input
-            type="text"
-            className="pk-coupon-input"
-            placeholder="ENTER COUPON CODE (E.G. FEONIX50)"
-            value={inputCode}
-            onChange={(e) => setInputCode(e.target.value.toUpperCase())}
-            disabled={couponValidating}
-          />
-          <button
-            type="submit"
-            className="pk-coupon-btn"
-            disabled={couponValidating || !inputCode.trim()}
-          >
-            {couponValidating ? 'Checking…' : 'Apply Coupon'}
-          </button>
-        </form>
-
-        {appliedCoupon && (
-          <div className="pk-coupon-success">
-            <div>
-              <strong>✓ Coupon {appliedCoupon.code} Applied: </strong>
-              <span>{appliedCoupon.name || 'Promotional Deal'}</span>
-              {appliedCoupon.discount_amount > 0 && (
-                <span> • Saved {money(Number(appliedCoupon.discount_amount))}</span>
-              )}
-              {appliedCoupon.bonus_credits > 0 && (
-                <span style={{ color: '#c084fc', fontWeight: 700 }}>
-                  {' '}• 🎁 +{appliedCoupon.bonus_credits} Bonus Credits included!
-                </span>
-              )}
-            </div>
-            <button
-              type="button"
-              className="pk-coupon-remove-btn"
-              onClick={() => {
-                if (onRemoveCoupon) onRemoveCoupon();
-                setInputCode('');
-              }}
-            >
-              Remove
-            </button>
-          </div>
-        )}
-
-        {couponError && (
-          <div className="pk-coupon-error">
-            ⚠️ {couponError}
           </div>
         )}
       </div>
