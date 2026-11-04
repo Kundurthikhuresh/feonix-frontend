@@ -123,7 +123,7 @@ export default function PricingPage() {
       .catch(() => {});
   }, []);
 
-  const handleApplyCoupon = async (couponCode, targetPlan) => {
+  const handleApplyCoupon = async (couponCode, targetPlan, targetCurrency) => {
     const cleanCode = (couponCode || '').trim().toUpperCase();
     if (!cleanCode) {
       setCouponError('Please enter a promotion coupon code.');
@@ -136,17 +136,21 @@ export default function PricingPage() {
       const res = await fetch('/api/promotions/validate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: cleanCode, plan: targetPlan }),
+        body: JSON.stringify({ code: cleanCode, plan: targetPlan, currency: targetCurrency }),
       });
       const data = await res.json();
       if (res.ok && data.valid) {
         setAppliedCoupon({
+          valid: true,
           code: data.promotion.code,
           name: data.promotion.name,
+          discount_percent: data.promotion.discount_percent || 0,
           discount_amount: data.discount_amount,
           bonus_credits: data.bonus_credits,
           final_amount: data.final_amount,
           original_amount: data.original_amount,
+          currency: data.currency || targetCurrency || 'INR',
+          promotion: data.promotion,
         });
         setCouponError('');
       } else {
@@ -170,6 +174,15 @@ export default function PricingPage() {
 
   useEffect(() => {
     refreshSubscription().catch(() => {});
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const urlCoupon = params.get('coupon');
+      const urlPlan = params.get('plan');
+      const urlCur = params.get('currency');
+      if (urlCoupon) {
+        handleApplyCoupon(urlCoupon, urlPlan || 'sub_monthly', urlCur || 'INR');
+      }
+    }
   }, []);
 
   // Countdown timer for physical device approval
@@ -228,7 +241,23 @@ export default function PricingPage() {
     }
   }
 
-  async function handleSubscribe(planId, preferredMethod = null) {
+  /* Shown under the shop name in the Razorpay window: the plan, and with a
+   * coupon the full price, the discount and the amount payable. Amounts from
+   * the order are in the currency's smallest unit. */
+  function checkoutDescription(order) {
+    const fmt = (minor) => new Intl.NumberFormat(order.currency === 'INR' ? 'en-IN' : 'en-US', {
+      style: 'currency', currency: order.currency,
+      minimumFractionDigits: minor % 100 === 0 ? 0 : 2,
+    }).format(minor / 100);
+    const name = order.plan_name || `${String(order.plan).toUpperCase()} Plan`;
+    if (order.applied_coupon && order.original_amount > order.amount) {
+      return `${name} · ${fmt(order.original_amount)} − ${fmt(order.original_amount - order.amount)} `
+        + `(${order.applied_coupon.code}) = ${fmt(order.amount)} payable`;
+    }
+    return `${name} · ${fmt(order.amount)} payable`;
+  }
+
+  async function handleSubscribe(planId, preferredMethod = null, currency = null, couponCode = null) {
     if (!planId || planId === 'free') return;
 
     // When clicking UPI, Google Pay, or PhonePe: open the UPI ID input modal directly!
@@ -244,9 +273,11 @@ export default function PricingPage() {
 
     setLoadingPlan(planId);
     setSuccessMsg('');
+    const code = couponCode || appliedCoupon?.code;
     try {
       const orderBody = { plan: planId };
-      if (appliedCoupon?.code) orderBody.coupon_code = appliedCoupon.code;
+      if (currency) orderBody.currency = currency;
+      if (code) orderBody.coupon_code = code;
       const orderRes = await fetch('/api/razorpay/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -267,7 +298,7 @@ export default function PricingPage() {
         currency: order.currency,
         order_id: order.order_id,
         name: 'FeonixAI',
-        description: `${planId.toUpperCase()} Plan`,
+        description: checkoutDescription(order),
         theme: { color: '#00f5ff' },
         handler: async (response) => {
           try {
@@ -279,7 +310,7 @@ export default function PricingPage() {
                 razorpay_payment_id: response.razorpay_payment_id,
                 razorpay_signature: response.razorpay_signature,
                 plan: planId,
-                coupon_code: appliedCoupon?.code || undefined,
+                coupon_code: code || undefined,
               }),
             });
             const verifyData = await verifyRes.json();

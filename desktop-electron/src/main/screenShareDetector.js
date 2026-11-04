@@ -1,5 +1,6 @@
 const { exec } = require('child_process');
-const { getOverlayWindow, getMainWindow, bringToFront } = require('./window');
+const { getOverlayWindow, bringToFront } = require('./window');
+const { syncPrivateMode } = require('./privateMode');
 
 /**
  * Screen Share Stealth & Detection Engine for FeonixAI.
@@ -164,17 +165,10 @@ class ScreenShareDetector {
     const overlay = getOverlayWindow();
     if (!overlay || overlay.isDestroyed()) return;
 
-    // Enforce anti-capture content protection strictly whenever stealth mode is on/off
-const stealthEnabled = this.settingsStore ? (this.settingsStore.get('stealthMode') === true) : true;
-    [getOverlayWindow(), getMainWindow()].forEach((win) => {
-      if (win && !win.isDestroyed()) {
-        try {
-          win.setContentProtection(stealthEnabled);
-        } catch (err) {
-          // Non-fatal
-        }
-      }
-    });
+    // Keeps every window's capture protection matching the saved Private
+    // Mode. Only re-applied when it differs, so polling never repaints, and
+    // detecting a screen share never turns Private Mode on by itself.
+    syncPrivateMode(this.settingsStore, { logger: this.logger });
 
     if (isCurrentlyActive && !previousActive) {
       // Screen-share platform became active
@@ -191,12 +185,6 @@ const stealthEnabled = this.settingsStore ? (this.settingsStore.get('stealthMode
         platforms: detectedPlatforms,
         autoHide,
       });
-
-      try {
-        overlay.setContentProtection(stealthEnabled);
-      } catch {
-        // Non-fatal
-      }
     } else if (!isCurrentlyActive && previousActive) {
       // All detected screen-sharing platforms closed / ended
       this.activeDetections.clear();

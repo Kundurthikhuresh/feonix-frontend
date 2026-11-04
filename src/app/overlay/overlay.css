@@ -4876,12 +4876,94 @@ body.is-resizing #answerCard {
 .fe-card-foot {
   padding: 10px 22px 16px 22px;
   cursor: grab;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .fe-foot-timestamp {
   font-size: 12px;
   color: #71717a;
   font-weight: 500;
+}
+
+.fe-foot-feedback {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fe-thumb-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  width: 32px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.fe-thumb-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.22);
+  transform: translateY(-1px);
+}
+
+.fe-thumb-btn.fe-thumb-active {
+  background: rgba(255, 214, 10, 0.25);
+  border-color: rgba(255, 214, 10, 0.6);
+}
+
+.fe-spoken-answer {
+  font-size: 15.5px;
+  line-height: 1.65;
+  color: #e4e4e7;
+}
+
+.fe-spoken-answer p {
+  margin-bottom: 12px;
+  line-height: 1.65;
+}
+
+.fe-spoken-answer p:last-child {
+  margin-bottom: 0;
+}
+
+.fe-spoken-answer .parakeet-hl,
+.fe-answer-content .parakeet-hl,
+.fe-spoken-answer mark,
+.fe-answer-content mark {
+  background: none !important;
+  color: inherit !important;
+  border-bottom: none !important;
+  text-decoration: none !important;
+  font-weight: normal !important;
+}
+
+.fe-spoken-answer ul,
+.fe-answer-content ul {
+  list-style: none !important;
+  padding-left: 0 !important;
+  margin: 0 !important;
+}
+
+.fe-spoken-answer li,
+.fe-answer-content li {
+  list-style: none !important;
+  padding-left: 0 !important;
+  margin-bottom: 8px !important;
+  line-height: 1.65 !important;
+}
+
+.fe-spoken-answer .parakeet-sub-bullet::before,
+.fe-answer-content .parakeet-sub-bullet::before {
+  display: none !important;
+  content: "" !important;
 }
 
 /* 2. MIDDLE LIVE TRANSCRIPT TICKER PILL */
@@ -4962,6 +5044,13 @@ body.is-resizing #answerCard {
   color: #94a3b8;
   font-weight: 450;
   letter-spacing: 0.15px;
+}
+
+/* The bar and the transcript strip grow with the Copilot Size setting
+   (--dock-scale is set on .overlay-page-shell). */
+.fe-dock-bar,
+.fe-transcript-pill {
+  zoom: var(--dock-scale, 1.2);
 }
 
 /* 3. BOTTOM FLOATING DOCK BAR */
@@ -5530,4 +5619,4 @@ body.is-resizing #answerCard {
   border-top-color: #ffffff;
   border-radius: 50%;
   animation: feSpin 0.7s linear infinite;
-}
+}

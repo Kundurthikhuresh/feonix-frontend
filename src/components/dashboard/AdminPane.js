@@ -4,14 +4,100 @@ import './AdminDashboard.css';
 import AdminPromotionsSection from './AdminPromotionsSection';
 import AdminAuditLogsSection from './AdminAuditLogsSection';
 
+export const SECTION_TO_ROUTE = {
+  dashboard: 'dashboard',
+  users: 'users',
+  sessions: 'call-sessions',
+  ai_usage: 'ai-usage',
+  documents: 'resumes',
+  credits: 'credits',
+  subscriptions: 'subscriptions',
+  promotions: 'promotions',
+  audit_logs: 'audit-logs',
+  settings: 'settings',
+};
+
+export const ROUTE_TO_SECTION = {
+  dashboard: 'dashboard',
+  users: 'users',
+  sessions: 'sessions',
+  'call-sessions': 'sessions',
+  'ai-usage': 'ai_usage',
+  ai_usage: 'ai_usage',
+  resumes: 'documents',
+  documents: 'documents',
+  credits: 'credits',
+  'credits-trials': 'credits',
+  subscriptions: 'subscriptions',
+  promotions: 'promotions',
+  'audit-logs': 'audit_logs',
+  audit_logs: 'audit_logs',
+  settings: 'settings',
+};
+
 export default function AdminPane({
   user,
   onExitAdmin,
   themeMode,
   toggleTheme,
   handleLogout,
+  initialSection,
 }) {
-  const [activeSection, setActiveSection] = useState('dashboard');
+  const getInitialSection = () => {
+    if (initialSection && ROUTE_TO_SECTION[initialSection.toLowerCase()]) {
+      return ROUTE_TO_SECTION[initialSection.toLowerCase()];
+    }
+    if (typeof window !== 'undefined') {
+      const parts = window.location.pathname.split('/').filter(Boolean);
+      if (parts[0] === 'admin' && parts[1]) {
+        const mapped = ROUTE_TO_SECTION[parts[1].toLowerCase()];
+        if (mapped) return mapped;
+      }
+    }
+    return 'dashboard';
+  };
+
+  const [activeSection, setActiveSection] = useState(getInitialSection);
+
+  const navigateSection = (sectionKey, updateHistory = true) => {
+    setActiveSection(sectionKey);
+    if (updateHistory && typeof window !== 'undefined') {
+      const slug = SECTION_TO_ROUTE[sectionKey] || sectionKey;
+      const targetPath = slug === 'dashboard' ? '/admin/dashboard' : `/admin/${slug}`;
+      if (window.location.pathname !== targetPath) {
+        window.history.pushState({ section: sectionKey }, '', targetPath);
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const currentPath = window.location.pathname;
+    const parts = currentPath.split('/').filter(Boolean);
+    if (parts[0] === 'admin') {
+      if (!parts[1]) {
+        window.history.replaceState({ section: 'dashboard' }, '', '/admin/dashboard');
+      } else {
+        const mapped = ROUTE_TO_SECTION[parts[1].toLowerCase()];
+        if (mapped && mapped !== activeSection) {
+          navigateSection(mapped);
+        }
+      }
+    }
+
+    const handlePopState = () => {
+      const p = window.location.pathname.split('/').filter(Boolean);
+      if (p[0] === 'admin') {
+        const targetSlug = p[1] ? p[1].toLowerCase() : 'dashboard';
+        const mapped = ROUTE_TO_SECTION[targetSlug] || 'dashboard';
+        navigateSection(mapped);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
   const [dateRange, setDateRange] = useState('30d');
   const [dateRangeLabel, setDateRangeLabel] = useState('Last 30 Days');
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -109,9 +195,14 @@ export default function AdminPane({
     return () => document.removeEventListener('mousedown', handleOutsideClick);
   }, []);
 
-  // Fetch overview data
-  const loadOverview = async (range = dateRange) => {
-    setLoadingOverview(true);
+  // Fetch overview data. One request at a time: on a slow database the
+  // 15-second refresh used to start new requests while earlier ones were
+  // still running, and the pile-up made every one of them slower.
+  const overviewInFlightRef = useRef(false);
+  const loadOverview = async (range = dateRange, { background = false } = {}) => {
+    if (background && overviewInFlightRef.current) return;
+    overviewInFlightRef.current = true;
+    if (!background) setLoadingOverview(true);
     try {
       const res = await fetch(`/api/admin/overview?range=${range}`);
       if (res.ok) {
@@ -121,14 +212,17 @@ export default function AdminPane({
     } catch (err) {
       console.error('Failed to load overview:', err);
     } finally {
-      setLoadingOverview(false);
+      overviewInFlightRef.current = false;
+      if (!background) setLoadingOverview(false);
     }
   };
 
   useEffect(() => {
     loadOverview(dateRange);
     const interval = setInterval(() => {
-      loadOverview(dateRange);
+      // No refresh while the admin tab is in the background.
+      if (typeof document !== 'undefined' && document.hidden) return;
+      loadOverview(dateRange, { background: true });
     }, 15000);
     return () => clearInterval(interval);
   }, [dateRange]);
@@ -629,7 +723,7 @@ export default function AdminPane({
     <div className="admin-shell">
       {/* 1. Left Sidebar Navigation */}
       <aside className="admin-sidebar">
-        <div className="admin-sidebar-brand" onClick={() => setActiveSection('dashboard')}>
+        <div className="admin-sidebar-brand" onClick={() => navigateSection('dashboard')}>
           <div className="admin-brand-icon">F</div>
           <span className="admin-brand-text">FeonixAI</span>
         </div>
@@ -637,7 +731,7 @@ export default function AdminPane({
         <nav className="admin-sidebar-menu">
           <button
             className={`admin-menu-link ${activeSection === 'dashboard' ? 'is-active' : ''}`}
-            onClick={() => setActiveSection('dashboard')}
+            onClick={() => navigateSection('dashboard')}
             type="button"
           >
             <span className="admin-menu-icon">
@@ -653,7 +747,7 @@ export default function AdminPane({
 
           <button
             className={`admin-menu-link ${activeSection === 'users' ? 'is-active' : ''}`}
-            onClick={() => setActiveSection('users')}
+            onClick={() => navigateSection('users')}
             type="button"
           >
             <span className="admin-menu-icon">
@@ -669,7 +763,7 @@ export default function AdminPane({
 
           <button
             className={`admin-menu-link ${activeSection === 'sessions' ? 'is-active' : ''}`}
-            onClick={() => setActiveSection('sessions')}
+            onClick={() => navigateSection('sessions')}
             type="button"
           >
             <span className="admin-menu-icon">
@@ -682,7 +776,7 @@ export default function AdminPane({
 
           <button
             className={`admin-menu-link ${activeSection === 'ai_usage' ? 'is-active' : ''}`}
-            onClick={() => setActiveSection('ai_usage')}
+            onClick={() => navigateSection('ai_usage')}
             type="button"
           >
             <span className="admin-menu-icon">
@@ -696,7 +790,7 @@ export default function AdminPane({
 
           <button
             className={`admin-menu-link ${activeSection === 'documents' ? 'is-active' : ''}`}
-            onClick={() => setActiveSection('documents')}
+            onClick={() => navigateSection('documents')}
             type="button"
           >
             <span className="admin-menu-icon">
@@ -710,7 +804,7 @@ export default function AdminPane({
 
           <button
             className={`admin-menu-link ${activeSection === 'credits' ? 'is-active' : ''}`}
-            onClick={() => setActiveSection('credits')}
+            onClick={() => navigateSection('credits')}
             type="button"
           >
             <span className="admin-menu-icon">
@@ -725,7 +819,7 @@ export default function AdminPane({
 
           <button
             className={`admin-menu-link ${activeSection === 'subscriptions' ? 'is-active' : ''}`}
-            onClick={() => setActiveSection('subscriptions')}
+            onClick={() => navigateSection('subscriptions')}
             type="button"
           >
             <span className="admin-menu-icon">
@@ -739,7 +833,7 @@ export default function AdminPane({
 
           <button
             className={`admin-menu-link ${activeSection === 'promotions' ? 'is-active' : ''}`}
-            onClick={() => setActiveSection('promotions')}
+            onClick={() => navigateSection('promotions')}
             type="button"
           >
             <span className="admin-menu-icon">
@@ -755,7 +849,7 @@ export default function AdminPane({
 
           <button
             className={`admin-menu-link ${activeSection === 'audit_logs' ? 'is-active' : ''}`}
-            onClick={() => setActiveSection('audit_logs')}
+            onClick={() => navigateSection('audit_logs')}
             type="button"
           >
             <span className="admin-menu-icon">
@@ -768,7 +862,7 @@ export default function AdminPane({
 
           <button
             className={`admin-menu-link ${activeSection === 'settings' ? 'is-active' : ''}`}
-            onClick={() => setActiveSection('settings')}
+            onClick={() => navigateSection('settings')}
             type="button"
           >
             <span className="admin-menu-icon">
@@ -780,19 +874,6 @@ export default function AdminPane({
             <span>Settings</span>
           </button>
         </nav>
-
-        {/* Sidebar Platform usage card */}
-        <div className="admin-usage-card">
-          <div className="admin-usage-title">
-            <span>Platform usage</span>
-          </div>
-          <div className="admin-usage-bar">
-            <div className="admin-usage-fill" style={{ width: `${Math.min(100, creditAllocationPct)}%` }}></div>
-          </div>
-          <p className="admin-usage-note">
-            <strong>{(overview?.kpis?.credits_remaining ?? 0).toLocaleString()}</strong> credits remaining across all users
-          </p>
-        </div>
 
       </aside>
 
@@ -839,9 +920,16 @@ export default function AdminPane({
                 className="admin-date-picker-btn"
                 onClick={() => setShowDatePicker((prev) => !prev)}
               >
-                <span>📅</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, opacity: 0.85 }}>
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                  <line x1="16" y1="2" x2="16" y2="6" />
+                  <line x1="8" y1="2" x2="8" y2="6" />
+                  <line x1="3" y1="10" x2="21" y2="10" />
+                </svg>
                 <span>{dateRangeLabel}</span>
-                <span style={{ fontSize: '10px', color: 'var(--ad-text-dim)' }}>▼</span>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--ad-text-dim)', flexShrink: 0 }}>
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
               </button>
 
               {showDatePicker && (
@@ -908,7 +996,10 @@ export default function AdminPane({
               }}
               title="Refresh Data"
             >
-              <span>⚡</span> Filter
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+              </svg>
+              <span>Filter</span>
             </button>
 
             <button
@@ -917,7 +1008,12 @@ export default function AdminPane({
               onClick={handleExportCsv}
               title="Export active table as CSV"
             >
-              <span>📥</span> Export
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              <span>Export</span>
             </button>
 
             <div style={{ position: 'relative' }} ref={topUserMenuRef}>
@@ -943,7 +1039,9 @@ export default function AdminPane({
                   {(user?.email?.[0] || 'A').toUpperCase()}
                 </div>
                 <span>Admin</span>
-                <span style={{ fontSize: '10px' }}>▼</span>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, opacity: 0.7 }}>
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
               </button>
 
               {showUserDropdown && (
@@ -965,18 +1063,40 @@ export default function AdminPane({
                       toggleTheme();
                     }}
                   >
-                    <span>🌓</span> {themeMode === 'light' ? 'Dark mode' : 'Light mode'}
+                    {themeMode === 'light' ? (
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, color: 'var(--ad-purple, #a855f7)' }}>
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                      </svg>
+                    ) : (
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, color: '#f59e0b' }}>
+                        <circle cx="12" cy="12" r="5" />
+                        <line x1="12" y1="1" x2="12" y2="3" />
+                        <line x1="12" y1="21" x2="12" y2="23" />
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+                        <line x1="1" y1="12" x2="3" y2="12" />
+                        <line x1="21" y1="12" x2="23" y2="12" />
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+                      </svg>
+                    )}
+                    <span>{themeMode === 'light' ? 'Dark mode' : 'Light mode'}</span>
                   </button>
                   <button
                     type="button"
-                    className="admin-popover-item"
+                    className="admin-popover-item is-logout"
                     onClick={() => {
                       setShowUserDropdown(false);
                       handleLogout();
                     }}
-                    style={{ color: 'var(--ad-red)' }}
+                    style={{ color: 'var(--ad-red, #ef4444)' }}
                   >
-                    <span>🚪</span> Log out
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                      <polyline points="16 17 21 12 16 7" />
+                      <line x1="21" y1="12" x2="9" y2="12" />
+                    </svg>
+                    <span>Log out</span>
                   </button>
                 </div>
               )}
@@ -1002,7 +1122,7 @@ export default function AdminPane({
                       <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
                     </svg>
                   </div>
-                  <button type="button" className="admin-kpi-dots-btn" onClick={() => setActiveSection('users')}>⋮</button>
+                  <button type="button" className="admin-kpi-dots-btn" onClick={() => navigateSection('users')}>⋮</button>
                 </div>
                 <span className="admin-kpi-label">Total users</span>
                 <div className="admin-kpi-value">{totalUsersCount.toLocaleString()}</div>
@@ -1020,7 +1140,7 @@ export default function AdminPane({
                       <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
                     </svg>
                   </div>
-                  <button type="button" className="admin-kpi-dots-btn" onClick={() => setActiveSection('sessions')}>⋮</button>
+                  <button type="button" className="admin-kpi-dots-btn" onClick={() => navigateSection('sessions')}>⋮</button>
                 </div>
                 <span className="admin-kpi-label">AI sessions</span>
                 <div className="admin-kpi-value">{totalSessionsCount.toLocaleString()}</div>
@@ -1039,7 +1159,7 @@ export default function AdminPane({
                       <path d="M14.8 9A2 2 0 0 0 13 8h-2a2 2 0 0 0 0 4h2a2 2 0 0 1 0 4h-2a2 2 0 0 1-1.8-1"></path>
                     </svg>
                   </div>
-                  <button type="button" className="admin-kpi-dots-btn" onClick={() => setActiveSection('credits')}>⋮</button>
+                  <button type="button" className="admin-kpi-dots-btn" onClick={() => navigateSection('credits')}>⋮</button>
                 </div>
                 <span className="admin-kpi-label">Credits consumed</span>
                 <div className="admin-kpi-value">{creditsConsumedCount.toLocaleString()}</div>
@@ -1058,7 +1178,7 @@ export default function AdminPane({
               <div className="admin-chart-card">
                 <div className="admin-chart-header">
                   <h3 className="admin-chart-title">Session outcomes</h3>
-                  <button type="button" className="admin-kpi-dots-btn" onClick={() => setActiveSection('sessions')}>⋮</button>
+                  <button type="button" className="admin-kpi-dots-btn" onClick={() => navigateSection('sessions')}>⋮</button>
                 </div>
 
                 <div className="admin-donut-wrapper">
@@ -1154,7 +1274,7 @@ export default function AdminPane({
               <div className="admin-chart-card">
                 <div className="admin-chart-header">
                   <h3 className="admin-chart-title">AI usage over time</h3>
-                  <button type="button" className="admin-kpi-dots-btn" onClick={() => setActiveSection('ai_usage')}>⋮</button>
+                  <button type="button" className="admin-kpi-dots-btn" onClick={() => navigateSection('ai_usage')}>⋮</button>
                 </div>
 
                 <div className="admin-bar-chart-container">
@@ -1202,7 +1322,7 @@ export default function AdminPane({
               <div className="admin-table-card">
                 <div className="admin-table-header">
                   <h3 className="admin-chart-title">Recent user activity</h3>
-                  <button type="button" className="admin-table-view-all" onClick={() => setActiveSection('audit_logs')}>
+                  <button type="button" className="admin-table-view-all" onClick={() => navigateSection('audit_logs')}>
                     View all →
                   </button>
                 </div>
@@ -1262,7 +1382,7 @@ export default function AdminPane({
               <div className="admin-table-card">
                 <div className="admin-table-header">
                   <h3 className="admin-chart-title">Recent sessions</h3>
-                  <button type="button" className="admin-table-view-all" onClick={() => setActiveSection('sessions')}>
+                  <button type="button" className="admin-table-view-all" onClick={() => navigateSection('sessions')}>
                     View all →
                   </button>
                 </div>
@@ -1284,8 +1404,11 @@ export default function AdminPane({
                         <tr key={idx}>
                           <td style={{ fontFamily: 'monospace', fontWeight: 600 }}>{s.sessionId}</td>
                           <td>
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-                              <span>📞</span> {s.type}
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, opacity: 0.8 }}>
+                                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+                              </svg>
+                              {s.type}
                             </span>
                           </td>
                           <td>{s.duration}</td>
@@ -1324,7 +1447,10 @@ export default function AdminPane({
           <div className="admin-management-card">
             <div className="admin-filter-bar">
               <div className="admin-search-field">
-                <span>🔍</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, color: 'var(--ad-text-muted)' }}>
+                  <circle cx="11" cy="11" r="8" />
+                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
                 <input
                   placeholder="Search customers by email..."
                   value={userSearch}
@@ -1501,7 +1627,10 @@ export default function AdminPane({
           <div className="admin-management-card">
             <div className="admin-filter-bar">
               <div className="admin-search-field">
-                <span>🔍</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, color: 'var(--ad-text-muted)' }}>
+                  <circle cx="11" cy="11" r="8" />
+                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
                 <input
                   placeholder="Search sessions by company or role..."
                   value={sessionSearch}
@@ -1779,7 +1908,28 @@ export default function AdminPane({
                       <td>
                         <span className="admin-badge member">{d.kind}</span>
                       </td>
-                      <td><strong>{d.filename}</strong></td>
+                      <td>
+                        {d.has_original ? (
+                          <a
+                            href={`/api/admin/documents/${d.id}/file`}
+                            download
+                            title="Download the file exactly as the customer uploaded it"
+                            style={{ color: 'inherit', textDecoration: 'underline', textUnderlineOffset: '3px' }}
+                          >
+                            <strong>{d.filename}</strong>
+                          </a>
+                        ) : (
+                          <>
+                            <strong>{d.filename}</strong>
+                            <span
+                              style={{ marginLeft: '8px', color: 'var(--ad-text-muted)', fontSize: '11px' }}
+                              title="Uploaded before files were saved: only its text was kept. Ask the customer to upload it again."
+                            >
+                              original not saved
+                            </span>
+                          </>
+                        )}
+                      </td>
                       <td>
                         <span className={`admin-badge ${d.is_active ? 'completed' : 'member'}`}>
                           {d.is_active ? 'Active' : 'Inactive'}

@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 
 export default function DashboardRedirect() {
   useEffect(() => {
-    window.location.replace('/?view=dash');
+    window.location.replace(`/?view=dash&pane=sessions`);
   }, []);
 
   return (

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { sanitizeHTML } from '../../lib/sanitize';
 import { formatParakeetAnswer, formatSpokenAnswer } from '../../lib/answerFormatter';
 
@@ -64,6 +64,8 @@ export default function AnswerCard({
   // bullet layout only as a fallback.
   const spokenHtml = answerText ? formatSpokenAnswer(answerText) : '';
   const bodyHtml = spokenHtml || formatParakeetAnswer(answer);
+
+  const [feedback, setFeedback] = useState(null);
 
   // Format current or given timestamp
   const displayTime = timestamp || (new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
@@ -185,6 +187,24 @@ export default function AnswerCard({
       {/* Bottom Footer Line */}
       <div className="fe-card-foot" onMouseDown={onDragStart}>
         <span className="fe-foot-timestamp">Answer · {displayTime}</span>
+        <div className="fe-foot-feedback" onMouseDown={(e) => e.stopPropagation()}>
+          <button
+            type="button"
+            className={`fe-thumb-btn ${feedback === 'up' ? 'fe-thumb-active' : ''}`}
+            onClick={() => setFeedback(feedback === 'up' ? null : 'up')}
+            title="Good answer"
+          >
+            👍
+          </button>
+          <button
+            type="button"
+            className={`fe-thumb-btn ${feedback === 'down' ? 'fe-thumb-active' : ''}`}
+            onClick={() => setFeedback(feedback === 'down' ? null : 'down')}
+            title="Needs improvement"
+          >
+            👎
+          </button>
+        </div>
       </div>
     </div>
   );

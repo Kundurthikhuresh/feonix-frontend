@@ -5,11 +5,17 @@ import {
 } from '../services/speechService';
 import { createUtteranceAssembler, createQuestionDeduper } from '../lib/questionDetector';
 import { createOrderedResults } from '../lib/orderedResults';
+import { createLiveTranscriber, getSttMode, liveReconnectDelay } from '../services/liveTranscriber';
+import { markCaptureStarted, traceQuestion } from '../lib/latencyTrace';
 
 // Transcript label sent to the answer API. "Candidate:" is what the backend's
 // "already said" logic keys on, so the local mic must use exactly that.
 const SPEAKER_LABELS = { interviewer: 'Interviewer', you: 'Candidate', unknown: 'Speaker' };
 const MAX_CONVERSATION_LINES = 40;
+// Scripts that are never English (the backend's NON_LATIN_SCRIPT_REGEX plus
+// Japanese/CJK extras). ऀ-෿ is every Indian script: Bengali was
+// missing, so misheard audio could show up, or be asked, in Bengali.
+const NON_ENGLISH_SCRIPT = /[֐-׿؀-ۿݐ-ݿऀ-෿฀-๿Ѐ-ӿ぀-ヿ㐀-䶿一-鿿豈-﫿ｦ-ﾟ가-힯]/;
 // Chunks are 1.8s but a transcription can take longer; allow two in flight per
 // channel instead of dropping audio, and apply results in recorded order. Kept
 // at 2 so two channels plus two answer streams fit the browser's 6-connection
@@ -22,6 +28,17 @@ const MAX_IN_FLIGHT_PER_CHANNEL = 2;
 // goes as soon as they are not talking; anything else waits TURN_END_MS more
 // for them to continue. MAX_HOLD_MS stops a noisy mic holding forever.
 const TURN_END_MS = 550;
+// Live transcription ends a stretch of speech after only 250 ms of quiet (see
+// liveTranscriber.js), so text that is not yet a finished question waits this
+// long for the speaker to go on; the voice detector is checked again before
+// it is answered. A question ending in "?" is answered without this wait.
+const LIVE_TURN_END_MS = 400;
+// A question ending in "?" is answered once the speaker has been quiet this
+// long. A short thinking pause mid-question also ends a stretch of speech,
+// and the transcriber can punctuate that fragment as a question ("What is the
+// difference?" before "...between let and const"); if they go on talking
+// within this time, the fragment is joined with the rest instead.
+const LIVE_QUESTION_QUIET_MS = 450;
 const TURN_RECHECK_MS = 250;
 const MAX_HOLD_MS = 6000;
 
@@ -39,12 +56,22 @@ function newChannelState(applyInOrder) {
     recorder: null,
     turnTimer: null,
     heldSince: 0,
+    // Timings of the latest finished live turn (see lib/latencyTrace).
+    lastTurnTiming: null,
+    liveFailures: 0,
+    reconnectTimer: null,
   };
 }
 
 function clearTurnTimer(st) {
   if (st.turnTimer) clearTimeout(st.turnTimer);
   st.turnTimer = null;
+}
+
+function clearChannelTimers(st) {
+  clearTurnTimer(st);
+  if (st.reconnectTimer) clearTimeout(st.reconnectTimer);
+  st.reconnectTimer = null;
 }
 
 let questionSeq = 0;
@@ -81,6 +108,8 @@ export function useSpeechRecognition({ sessionId, source = 'both', language = 'e
   const onQuestionDetectedRef = useRef(onQuestionDetected);
   onQuestionDetectedRef.current = onQuestionDetected;
   const consecutiveFailuresRef = useRef(0);
+  // 'live' (words stream in while people talk) or 'clips', from the backend's STT_MODE.
+  const sttModeRef = useRef('clips');
 
   const applyResultRef = useRef(() => {});
   const deduperRef = useRef(null);
@@ -128,6 +157,7 @@ export function useSpeechRecognition({ sessionId, source = 'both', language = 'e
       questionSeq += 1;
       const questionId = `q-${Date.now()}-${questionSeq}`;
       console.info('[copilot] question detected', { session: sessionIdRef.current, questionId, speaker, chars: q.length });
+      traceQuestion(q, stateFor(speaker).lastTurnTiming);
       setTranscriptChips((prevChips) => [...prevChips.slice(-25), { text: q, isQuestion: true, speaker, id: questionId }]);
       if (onQuestionDetectedRef.current) onQuestionDetectedRef.current(q, { questionId, speaker });
     }
@@ -164,9 +194,9 @@ export function useSpeechRecognition({ sessionId, source = 'both', language = 'e
 
   const processSpeechText = useCallback((rawText, isFinal, speaker, record = isFinal) => {
     if (!rawText || typeof rawText !== 'string') return;
-    const lang = String(languageRef.current || 'en').toLowerCase();
-    if (lang === 'en' || lang === 'english') {
-      if (/[぀-ヿ㐀-䶿一-鿿豈-﫿ｦ-ﾟ가-힯Ѐ-ӿ؀-ۿ]/.test(rawText)) {
+    // English only: text in another script is mis-recognised audio.
+    {
+      if (NON_ENGLISH_SCRIPT.test(rawText)) {
         return;
       }
       if (rawText.startsWith('¿') || rawText.startsWith('¡')) {
@@ -188,10 +218,16 @@ export function useSpeechRecognition({ sessionId, source = 'both', language = 'e
     clearTurnTimer(st);
     const endsWithQuestion = /\?\s*["')\]]?\s*$/.test(cleanText);
     const speaking = isStillSpeaking(st);
-    const hold = speaking || !isFinal || !endsWithQuestion;
+    const live = Boolean(st.recorder && st.recorder.isLive);
+    const quietMs = live && st.recorder.quietMs ? st.recorder.quietMs() : Infinity;
+    const tooSoon = quietMs < LIVE_QUESTION_QUIET_MS;
+    const hold = speaking || !isFinal || !endsWithQuestion || tooSoon;
     const questions = st.assembler.add(cleanText, isFinal, { hold });
     if (hold) {
-      if (st.assembler.pending()) scheduleTurnEnd(speaker, speaking ? TURN_RECHECK_MS : TURN_END_MS);
+      let turnEnd = live ? LIVE_TURN_END_MS : TURN_END_MS;
+      if (speaking) turnEnd = TURN_RECHECK_MS;
+      else if (endsWithQuestion && tooSoon) turnEnd = LIVE_QUESTION_QUIET_MS - quietMs;
+      if (st.assembler.pending()) scheduleTurnEnd(speaker, turnEnd);
       return;
     }
     st.heldSince = 0;
@@ -218,7 +254,7 @@ export function useSpeechRecognition({ sessionId, source = 'both', language = 'e
       const nativeRec = new SpeechRec();
       nativeRec.continuous = true;
       nativeRec.interimResults = true;
-      nativeRec.lang = languageRef.current === 'en' ? 'en-US' : (languageRef.current || 'en-US');
+      nativeRec.lang = 'en-US';
       nativeRec.maxAlternatives = 1;
 
       // Only final results: interim guesses are partial sentences, and acting
@@ -260,6 +296,7 @@ export function useSpeechRecognition({ sessionId, source = 'both', language = 'e
   }, [processSpeechText]);
 
   const applyResult = useCallback((speaker, result) => {
+    if (result.timing) stateFor(speaker).lastTurnTiming = result.timing;
     if (result.text) {
       processSpeechText(result.text, result.endOfUtterance, speaker, true);
     } else if (result.endOfUtterance) {
@@ -311,7 +348,89 @@ export function useSpeechRecognition({ sessionId, source = 'both', language = 'e
     st.ordered.fill(seq, { text, endOfUtterance: text ? endOfUtterance : true });
   }, [toast]);
 
-// Stops listening but keeps the audio sources open (see pauseRecording).
+  /* Live mode: one streaming transcriber per channel. Each committed turn
+   * takes its place in the channel's ordered results, like a clip does, so
+   * question detection and turn-taking work the same in both modes. A lost
+   * connection is reopened a few times (turns already committed are settled
+   * with no text, so nothing is answered twice); after that, or for a failure
+   * reconnecting cannot fix, the channel carries on with clips. */
+  const makeLiveListener = useCallback(function createListener(stream, speaker) {
+    const replace = (current, next) => {
+      const i = recordersRef.current.indexOf(current);
+      if (i < 0) return false;
+      recordersRef.current[i] = next;
+      stateFor(speaker).recorder = next;
+      next.start();
+      return true;
+    };
+
+    const live = createLiveTranscriber(stream, {
+      sessionId: sessionIdRef.current,
+      speaker,
+      // In an English session, live words in another script are
+      // mis-recognition: they are not shown.
+      onInterim: (words) => {
+        if (NON_ENGLISH_SCRIPT.test(words)) return;
+        setLastHeard(words.slice(-160));
+      },
+      // A question answered from its live words whose final transcript reads
+      // differently: the final goes through question detection as well (the
+      // duplicate check skips it if it is the same question after all).
+      onRevision: (text, timing) => {
+        console.info('[copilot] live words revised by final transcript', { speaker, chars: text.length });
+        applyResultRef.current(speaker, { text: text.trim(), endOfUtterance: true, timing });
+      },
+      onReady: () => {
+        const st = stateFor(speaker);
+        if (st.liveFailures > 0) {
+          console.info('[copilot] live transcription reconnected', { speaker, attempts: st.liveFailures });
+          setTranscriptionError('');
+        }
+        st.liveFailures = 0;
+      },
+      onTurn: () => {
+        const st = stateFor(speaker);
+        const seq = st.ordered.reserve();
+        st.inFlight += 1;
+        let done = false;
+        return (text, timing) => {
+          if (done) return;
+          done = true;
+          st.inFlight -= 1;
+          st.ordered.fill(seq, { text: (text || '').trim(), endOfUtterance: true, timing });
+        };
+      },
+      onFailure: (err) => {
+        if (!recordingRef.current || !recordersRef.current.includes(live)) return;
+        const st = stateFor(speaker);
+        const code = (err && err.code) || '';
+        const delay = liveReconnectDelay(code, st.liveFailures);
+        if (delay !== null) {
+          st.liveFailures += 1;
+          console.warn('[copilot] live transcription lost, reconnecting', { speaker, code, attempt: st.liveFailures, delayMs: delay });
+          setTranscriptionError('Live transcription reconnecting…');
+          if (st.reconnectTimer) clearTimeout(st.reconnectTimer);
+          st.reconnectTimer = setTimeout(() => {
+            st.reconnectTimer = null;
+            if (!recordingRef.current) return;
+            replace(live, createListener(stream, speaker));
+          }, delay);
+          return;
+        }
+        console.warn('[copilot] live transcription unavailable, using clips', { speaker, code, reason: err && err.message });
+        setTranscriptionError('');
+        if (code === 'quota_exhausted') {
+          toast(`⚠️ ${err.message}`);
+          return;
+        }
+        toast('⚠️ Live transcription unavailable — switched to standard transcription.');
+        replace(live, createChunkedRecorder(stream, { onChunk: makeChunkHandler(speaker) }));
+      },
+    });
+    return live;
+  }, [makeChunkHandler, toast]);
+
+  // Stops listening but keeps the audio sources open (see pauseRecording).
   const stopListeners = useCallback(() => {
     recordersRef.current.forEach((r) => { try { r.stop(); } catch {} });
     recordersRef.current = [];
@@ -327,7 +446,7 @@ export function useSpeechRecognition({ sessionId, source = 'both', language = 'e
       } catch {}
       nativeRecRef.current = null;
     }
-    channelStateRef.current.forEach((st) => clearTurnTimer(st));
+    channelStateRef.current.forEach((st) => clearChannelTimers(st));
     channelStateRef.current = new Map();
     if (elapsedTimerRef.current) {
       clearInterval(elapsedTimerRef.current);
@@ -358,20 +477,23 @@ export function useSpeechRecognition({ sessionId, source = 'both', language = 'e
       setElapsedText(`${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
     }, 1000);
 
-recordingRef.current = true;
+    recordingRef.current = true;
     setListening(true);
     recordersRef.current = channels.map(({ stream, speaker }) => {
-      const recorder = createChunkedRecorder(stream, { onChunk: makeChunkHandler(speaker) });
+      const recorder = sttModeRef.current === 'live'
+        ? makeLiveListener(stream, speaker)
+        : createChunkedRecorder(stream, { onChunk: makeChunkHandler(speaker) });
       stateFor(speaker).recorder = recorder;
       recorder.start();
       return recorder;
     });
+    markCaptureStarted(channels.map(({ speaker }) => `${speaker}:${sttModeRef.current}`));
 
     if (channels.length === 1 && channels[0].speaker === 'unknown') {
       isRecognitionActiveRef.current = true;
       startNativeRecognizer();
     }
-  }, [makeChunkHandler, startNativeRecognizer]);
+  }, [makeChunkHandler, makeLiveListener, startNativeRecognizer]);
 
   const rawTracksOf = (channels) => channels.flatMap(({ stream }) => (
     (stream._rawStreams || [stream]).flatMap((raw) => raw.getAudioTracks())
@@ -411,6 +533,7 @@ recordingRef.current = true;
           });
         }));
       });
+      sttModeRef.current = await getSttMode();
       beginListening(channels);
     } catch (err) {
       if (err.code === 'NO_AUDIO_SHARED') {
@@ -430,7 +553,56 @@ recordingRef.current = true;
       recordingRef.current = false;
       releaseAll();
       setListening(false);
-setCaptureWarning('');
+      setCaptureWarning('');
+    } finally {
+      startingRef.current = false;
+    }
+  }, [source, toast, releaseAll, beginListening]);
+
+  // Full stop: closes the microphone and meeting-audio capture. Used when the
+  // session ends or the copilot is left.
+  const stopRecording = useCallback(async () => {
+    recordingRef.current = false;
+    startingRef.current = false;
+    setListening(false);
+    setCaptureWarning('');
+    setTranscriptionError('');
+    releaseAll();
+  }, [releaseAll]);
+
+  /* The mic button pauses and resumes; it does not close the audio sources.
+   * Closing them and opening them again on unmute is what broke listening:
+   * Windows often hands back a silent stream for a second capture of the
+   * computer's sound, and a browser asks for the tab again. Kept open, resume
+   * is instant. While paused the tracks are switched off, so nothing is heard
+   * or sent. */
+  const pauseRecording = useCallback(() => {
+    recordingRef.current = false;
+    setListening(false);
+    stopListeners();
+    rawTracksOf(channelsRef.current).forEach((t) => { t.enabled = false; });
+  }, [stopListeners]);
+
+  const resumeRecording = useCallback(async () => {
+    const channels = channelsRef.current;
+    const tracks = rawTracksOf(channels);
+    const usable = channels.length > 0
+      && channelsSourceRef.current === source
+      && tracks.length > 0
+      && tracks.every((t) => t.readyState === 'live')
+      && channels.every(({ stream }) => !stream._audioCtx || stream._audioCtx.state !== 'closed');
+    if (!usable) {
+      releaseAll();
+      return startRecording();
+    }
+    tracks.forEach((t) => { t.enabled = true; });
+    await Promise.all(channels.map(({ stream }) => (
+      stream._audioCtx && stream._audioCtx.state === 'suspended'
+        ? stream._audioCtx.resume().catch(() => {}) : null
+    )));
+    setTranscriptionError('');
+    beginListening(channels, { resetClock: false });
+  }, [source, releaseAll, startRecording, beginListening]);
 
   const toggleListening = useCallback(() => {
     if (startingRef.current) return undefined;

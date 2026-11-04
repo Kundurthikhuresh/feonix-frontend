@@ -198,7 +198,12 @@ export default function Page({ searchParams }) {
   const changeView = (nextView, replace = false) => {
     setCurrentView(nextView);
     if (typeof window !== 'undefined') {
-      const url = nextView === 'landing' ? '/' : `/?view=${nextView}`;
+      let url = '/';
+      if (nextView === 'dash') {
+        url = '/dashboard';
+      } else if (nextView !== 'landing') {
+        url = `/?view=${nextView}`;
+      }
       if (replace) {
         window.history.replaceState({ view: nextView }, '', url);
       } else {
@@ -209,6 +214,26 @@ export default function Page({ searchParams }) {
 
   // Auth Modal State
   const [showAuthModal, setShowAuthModal] = useState(false);
+
+  // The Sign In page gets its own history entry, so the browser Back button
+  // closes it (see handlePopState) instead of leaving the page beneath it.
+  useEffect(() => {
+    if (!showAuthModal || typeof window === 'undefined') return;
+    if (!window.history.state?.auth) {
+      window.history.pushState({ ...(window.history.state || {}), auth: true }, '');
+    }
+  }, [showAuthModal]);
+
+  // "Back to Home" on the Sign In page: step back over its history entry,
+  // so a later Back does not reopen it.
+  const closeAuthModal = (open) => {
+    if (open) return setShowAuthModal(true);
+    if (typeof window !== 'undefined' && window.history.state?.auth) {
+      window.history.back();
+    } else {
+      setShowAuthModal(false);
+    }
+  };
   const [authMode, setAuthMode] = useState('login'); // 'login', 'register', 'forgot'
   const [authRole, setAuthRole] = useState('user'); // 'user', 'admin'
   const [authEmail, setAuthEmail] = useState('');
@@ -459,29 +484,49 @@ export default function Page({ searchParams }) {
       setShowAuthModal(true);
     }
 
-const initialPane = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('pane') : null;
+    const initialPane = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('pane') : null;
 
-    if (initialView === 'dash' || initialPane === 'admin' || initialView === 'admin') {
-      setCurrentView(initialView === 'admin' ? 'admin' : 'dash');
+    if (initialView === 'admin' || initialPane === 'admin') {
+      if (typeof window !== 'undefined') {
+        window.location.replace('/admin');
+        return;
+      }
+    }
+
+    // Next.js patches history.pushState/replaceState, so each entry keeps its
+    // router marker, in an effect that runs after this one. An entry written
+    // before that loses the marker, and going Back to it makes Next.js reload
+    // the whole page (which then lands on the landing page). So these first
+    // writes wait a tick.
+    const afterRouterReady = (write) => setTimeout(write, 0);
+
+    if (initialView === 'dash') {
+      setCurrentView('dash');
       if (initialPane) setActivePane(initialPane);
       if (typeof window !== 'undefined') {
-        if (!window.history.state || window.history.state.view !== (initialView || 'dash')) {
-          window.history.replaceState({ view: 'landing' }, '', '/');
-          window.history.pushState({ view: initialView || 'dash' }, '', `/?view=${initialView || 'dash'}${initialPane ? `&pane=${initialPane}` : ''}`);
+        if (!window.history.state || window.history.state.view !== 'dash') {
+          afterRouterReady(() => {
+            const paneSlug = initialPane && initialPane !== 'sessions' ? `/${initialPane}` : '';
+            window.history.replaceState({ view: 'landing' }, '', '/');
+            window.history.pushState({ view: 'dash' }, '', `/dashboard${paneSlug}`);
+          });
         }
       }
     } else if (isReload) {
       if (typeof window !== 'undefined') {
-        window.history.replaceState({ view: 'landing' }, '', '/');
+        afterRouterReady(() => window.history.replaceState({ view: 'landing' }, '', '/'));
       }
       setCurrentView('landing');
     } else if (initialView) {
-      window.history.replaceState({ view: initialView }, '');
+      afterRouterReady(() => window.history.replaceState({ view: initialView }, ''));
       setCurrentView(initialView);
-    }
     }
 
     const handlePopState = (e) => {
+      // Back from the Sign In page returns to the entry beneath it: close
+      // Sign In and keep the page that was open.
+      if (!e.state?.auth) setShowAuthModal(false);
+
       const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
       const queryView = urlParams ? urlParams.get('view') : null;
 
@@ -496,6 +541,9 @@ const initialPane = typeof window !== 'undefined' ? new URLSearchParams(window.l
 
       if (e.state && e.state.view) {
         if (e.state.view === 'dash' && !userRef.current) {
+          // Logged out: this dashboard entry becomes the landing page, so
+          // closing Sign In does not step back onto it and reopen Sign In.
+          window.history.replaceState({ view: 'landing' }, '', '/');
           setCurrentView('landing');
           setShowAuthModal(true);
           setAuthMode('login');
@@ -504,6 +552,9 @@ const initialPane = typeof window !== 'undefined' ? new URLSearchParams(window.l
         setCurrentView(e.state.view);
       } else if (queryView === 'dash') {
         if (!userRef.current) {
+          // Logged out: this dashboard entry becomes the landing page, so
+          // closing Sign In does not step back onto it and reopen Sign In.
+          window.history.replaceState({ view: 'landing' }, '', '/');
           setCurrentView('landing');
           setShowAuthModal(true);
           setAuthMode('login');
@@ -646,24 +697,24 @@ const initialPane = typeof window !== 'undefined' ? new URLSearchParams(window.l
         if (typeof window !== 'undefined') {
           const urlParams = new URLSearchParams(window.location.search);
           const sessionId = urlParams.get('session');
-const requestedView = urlParams.get('view') || (currentViewRef.current === 'dash' ? 'dash' : null);
+          const requestedView = urlParams.get('view') || (currentViewRef.current === 'dash' ? 'dash' : null);
           const requestedPane = urlParams.get('pane');
 
           if (requestedPane === 'admin' || requestedView === 'admin') {
-            if (data.user?.is_admin || data.user?.role === 'owner') {
-              if (stale()) return;
-              setActivePane('admin');
-              setCurrentView('dash');
-              return;
-            }
+            if (stale()) return;
+            window.location.replace('/admin');
+            return;
           }
 
           if (requestedView === 'dash') {
             if (stale()) return;
             try {
+              const paneSlug = requestedPane && requestedPane !== 'sessions' ? `/${requestedPane}` : '';
               if (window.history.length <= 1 || !window.history.state || window.history.state.view !== 'dash') {
                 window.history.replaceState({ view: 'landing' }, '', '/');
-                window.history.pushState({ view: 'dash' }, '', '/?view=dash');
+                window.history.pushState({ view: 'dash' }, '', `/dashboard${paneSlug}`);
+              } else {
+                window.history.replaceState({ view: 'dash' }, '', `/dashboard${paneSlug}`);
               }
             } catch { }
             setCurrentView('dash');
@@ -740,8 +791,11 @@ const requestedView = urlParams.get('view') || (currentViewRef.current === 'dash
     const isAdmin = Boolean(loggedInUser?.is_admin || loggedInUser?.role === 'owner');
 
     if (isAdmin) {
-      // Admins always land on the Admin Panel.
-      setActivePane('admin');
+      // Admins always land on the Admin Panel at /admin.
+      if (typeof window !== 'undefined') {
+        window.location.replace('/admin');
+        return;
+      }
     } else {
       // Normal user: strictly restricted to user dashboard; cannot access admin pane
       setActivePane('sessions');
@@ -1001,7 +1055,9 @@ const requestedView = urlParams.get('view') || (currentViewRef.current === 'dash
       }
     }
 
-    enterApp(data.user, authRole);
+    // Replace the landing/login history entry, so Back from the dashboard
+    // does not return to the login screen just used.
+    enterApp(data.user, authRole, true);
   };
 
   const handleLogout = async () => {
@@ -1172,7 +1228,7 @@ const requestedView = urlParams.get('view') || (currentViewRef.current === 'dash
 
     const { ok, data } = await postJSON(
       `/api/sessions/${activeSession.id}/questions`,
-{ question: qText },
+      { question: qText },
       { timeoutMs: 90000 }
     );
     setTallyState('listening');
@@ -1184,7 +1240,7 @@ const requestedView = urlParams.get('view') || (currentViewRef.current === 'dash
       setLiveCueLine(data.question || qText);
       setLiveQType(data.kind || 'Direct Question');
 
-try {
+      try {
         const tRes = await fetch(`/api/sessions/${activeSession.id}/transcript`);
         if (tRes.ok) {
           const tData = await tRes.json();
@@ -1429,12 +1485,21 @@ try {
               setShowAuthModal(true);
             }
           }}
-          onSelectPlan={(plan) => {
+          onSelectPlan={(plan, method, currency, coupon) => {
             if (user) {
-              enterApp(user);
+              const queryParams = new URLSearchParams();
+              if (plan) queryParams.set('plan', plan);
+              if (currency) queryParams.set('currency', currency);
+              if (coupon) queryParams.set('coupon', coupon);
+              window.location.href = `/pricing?${queryParams.toString()}`;
             } else {
+              if (typeof window !== 'undefined') {
+                sessionStorage.setItem('pending_checkout', JSON.stringify({
+                  plan, currency: currency || 'INR', coupon_code: coupon || null
+                }));
+              }
               setAuthMode('register');
-              setAuthMsg({ text: '', type: '' });
+              setAuthMsg({ text: coupon ? `Create an account to complete checkout with discount code ${coupon} applied!` : 'Create an account to complete checkout.', type: 'info' });
               setShowAuthModal(true);
             }
           }}
@@ -1482,7 +1547,7 @@ try {
             authMsg={authMsg}
             setAuthMsg={setAuthMsg}
             handleAuthSubmit={handleAuthSubmit}
-            setShowAuthModal={setShowAuthModal}
+            setShowAuthModal={closeAuthModal}
           />
         )}
       </div>

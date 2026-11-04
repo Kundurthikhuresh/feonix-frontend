@@ -5,9 +5,12 @@ import dynamic from 'next/dynamic';
 import PremiumNavbar from './PremiumNavbar';
 import PremiumHeroSection from './PremiumHeroSection';
 import Stats3DSection from './Stats3DSection';
+import InteractiveNeuralPipelineStudio from './InteractiveNeuralPipelineStudio';
 import DualModeSection from './DualModeSection';
-import VideoShowcase3DSection from './VideoShowcase3DSection';
+import InteractiveLiveCodeProblemSolver from './InteractiveLiveCodeProblemSolver';
 import InteractiveProductShowcase from './InteractiveProductShowcase';
+import StealthInvisibilityDualViewMatrix from './StealthInvisibilityDualViewMatrix';
+import VideoShowcase3DSection from './VideoShowcase3DSection';
 import HowItWorksSection from './HowItWorksSection';
 import FeatureShowcaseGrid from './FeatureShowcaseGrid';
 import Integrations3DSection from './Integrations3DSection';
@@ -19,6 +22,7 @@ import FinalCTASection from './FinalCTASection';
 import PremiumFooter from './PremiumFooter';
 import ParakeetPricingView from '../pricing/ParakeetPricingView';
 import './PremiumLanding.css';
+import './ProductionLandingSections.css';
 
 // Dynamic import of 3D WebGL Particle Background to avoid SSR issues
 const ParticleBackground = dynamic(() => import('../3d/ParticleBackground'), {
@@ -50,7 +54,7 @@ export default function Simple3DLandingPage({
         <a href="#pricing">Explore Plans &rarr;</a>
       </div>
 
-      {/* A. Sticky Navigation Bar (Displays ONLY the Login Button) */}
+      {/* A. Sticky Navigation Bar */}
       <PremiumNavbar
         user={user}
         themeMode={themeMode}
@@ -70,35 +74,48 @@ export default function Simple3DLandingPage({
         {/* C. 3D Key Performance & Live Session Statistics */}
         <Stats3DSection />
 
-        {/* D. Dual-Mode 3D Live Video Demonstration Stage */}
+        {/* D. Production Section 1: Interactive Neural Pipeline Studio */}
+        <InteractiveNeuralPipelineStudio
+          onGetStarted={onSignupClick}
+        />
+
+        {/* E. Dual-Mode 3D Live Video Demonstration Stage */}
         <DualModeSection />
 
-        {/* E. Interactive Product Showcase (3D Perspective Interface with 6 Real Capabilities) */}
+        {/* F. Production Section 2: Real-Time Algorithm & Architecture Problem Solver */}
+        <InteractiveLiveCodeProblemSolver
+          onGetStarted={onSignupClick}
+        />
+
+        {/* G. Interactive Product Showcase (3D Perspective Interface with 6 Real Capabilities) */}
         <InteractiveProductShowcase
           onGetStarted={onSignupClick}
         />
 
-        {/* F. Live 4K Video Demonstration Stage with 3 Selectable Scenarios */}
+        {/* H. Production Section 3: Stealth Invisibility Dual-View Comparison Matrix */}
+        <StealthInvisibilityDualViewMatrix />
+
+        {/* I. Live 4K Video Demonstration Stage with 3 Selectable Scenarios */}
         <VideoShowcase3DSection
           onWatchDemo={onWatchDemo || onSignupClick}
         />
 
-        {/* G. How It Works (4-Step Workflow) */}
+        {/* J. How It Works (4-Step Workflow) */}
         <HowItWorksSection />
 
-        {/* H. Feature Showcase Grid (9 Capabilities with Authentic Images + 3D Speech Wave Engine) */}
+        {/* K. Feature Showcase Grid (9 Capabilities with Authentic Images + 3D Speech Wave Engine) */}
         <FeatureShowcaseGrid />
 
-        {/* I. Interactive 3D Ecosystem & Platform Integrations Matrix */}
+        {/* L. Interactive 3D Ecosystem & Platform Integrations Matrix */}
         <Integrations3DSection />
 
-        {/* J. Enterprise Security Quantum Vault 3D Section */}
+        {/* M. Enterprise Security Quantum Vault 3D Section */}
         <Security3DSection />
 
-        {/* K. Desktop Platform Experience & Screen-Share Stealth */}
+        {/* N. Desktop Platform Experience & Screen-Share Stealth */}
         <DesktopExperienceSection />
 
-        {/* L. Pricing Section (Preserving existing ParakeetPricingView & Verified Business Rules) */}
+        {/* O. Pricing Section (Preserving existing ParakeetPricingView & Verified Business Rules) */}
         <section id="pricing" style={{ padding: '76px 0 44px 0' }}>
           <div className="px-container">
             <div className="px-section-header">
@@ -121,13 +138,13 @@ export default function Simple3DLandingPage({
           </div>
         </section>
 
-        {/* M. Candidate Testimonials with 3D Tilt Cards */}
+        {/* P. Candidate Testimonials with 3D Tilt Cards */}
         <Testimonials3DSection />
 
-        {/* N. Frequently Asked Questions */}
+        {/* Q. Frequently Asked Questions */}
         <FAQAccordion />
 
-        {/* O. Final Conversion CTA Banner */}
+        {/* R. Final Conversion CTA Banner */}
         <FinalCTASection
           onSignupClick={onSignupClick}
         />

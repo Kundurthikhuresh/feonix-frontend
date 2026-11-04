@@ -165,9 +165,24 @@ async function getTabAudioStream() {
     throw error;
   }
 
-  const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+  // The meeting's own audio is already clean. Echo cancellation, noise
+  // suppression and gain control are for a microphone; left on (the default)
+  // they were applied to the interviewer's voice too and can thin out or cut
+  // quiet speech.
+  const stream = await navigator.mediaDevices.getDisplayMedia({
+    video: true,
+    audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+  });
   stream.getVideoTracks().forEach((track) => track.stop());
-  if (stream.getAudioTracks().length > 0) return stream;
+  const [audioTrack] = stream.getAudioTracks();
+  if (audioTrack) {
+    const s = audioTrack.getSettings ? audioTrack.getSettings() : {};
+    console.info('[audio] interviewer capture started', {
+      source: audioTrack.label, sampleRate: s.sampleRate, channels: s.channelCount,
+      echoCancellation: s.echoCancellation, noiseSuppression: s.noiseSuppression, autoGainControl: s.autoGainControl,
+    });
+    return stream;
+  }
 
   stream.getTracks().forEach((track) => track.stop());
   const error = new Error('No shared audio was selected. Select the call tab and enable Share tab audio.');
@@ -323,6 +338,16 @@ async function getMicStream(preferRoomAudio = false) {
  * Returns { channels: [{ stream, speaker }], warning }.
  */
 export async function getListenChannels(source = 'both') {
+  const isDesktop = typeof window !== 'undefined' && Boolean(window.feonix);
+
+  // In a standard browser (e.g. Chrome), capturing tab audio requires getDisplayMedia
+  // which shows Chrome's invasive screen share picker. In the browser, clicking the
+  // mic uses microphone audio directly unless 'tab' was explicitly requested.
+  if (!isDesktop && source !== 'tab') {
+    const micStream = await getMicStream(true);
+    return { channels: [{ stream: await mixAudioStreams([micStream]), speaker: 'unknown' }], warning: '' };
+  }
+
   if (source === 'tab') {
     const tabStream = await getTabAudioStream();
     return { channels: [{ stream: await mixAudioStreams([tabStream]), speaker: 'interviewer' }], warning: '' };
@@ -343,7 +368,7 @@ export async function getListenChannels(source = 'both') {
     try {
       return { channels: [{ stream: await mixAudioStreams([micStream]), speaker: 'unknown' }], warning };
     } catch {
-return { channels: [{ stream: micStream, speaker: 'unknown' }], warning };
+      return { channels: [{ stream: micStream, speaker: 'unknown' }], warning };
     }
   }
 
@@ -401,12 +426,17 @@ export function createChunkedRecorder(stream, {
     const options = { audioBitsPerSecond: 64000 };
     if (mimeType) options.mimeType = mimeType;
     try {
-recorder = new MediaRecorder(stream, options);
+      recorder = new MediaRecorder(stream, options);
     } catch {
       try {
-        recorder = new MediaRecorder(stream);
+        recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
       } catch {
-        recorder = null;
+        try {
+          recorder = new MediaRecorder(stream);
+        } catch (err) {
+          console.error('MediaRecorder initialization failed:', err);
+          return null;
+        }
       }
     }
     return recorder;
@@ -471,9 +501,22 @@ recorder = new MediaRecorder(stream, options);
       hadSpeechInChunk = false;
       chunkStartedAt = Date.now();
       active = makeRecorder();
-if (!active) throw new Error('Could not initialize audio recorder for stream');
+      if (!active) throw new Error('Could not initialize audio recorder for stream');
       active.start();
       if (vadMonitorTimer) clearInterval(vadMonitorTimer);
+      vadMonitorTimer = setInterval(tick, 80);
+    },
+    stop() {
+      if (vadMonitorTimer) clearInterval(vadMonitorTimer);
+      vadMonitorTimer = null;
+      // Deliver what was said right before Stop instead of discarding it.
+      if (active && active.state === 'recording' && hadSpeechInChunk) {
+        stopped = true;
+        cut(true);
+      } else if (active && active.state !== 'inactive') {
+        try { active.stop(); } catch {}
+      }
+      stopped = true;
       active = null;
     },
   };

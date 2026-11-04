@@ -1,5 +1,6 @@
 const { globalShortcut } = require('electron');
 const { getOverlayWindow, getMainWindow, bringToFront } = require('./window');
+const { syncPrivateMode } = require('./privateMode');
 
 // Tracks what's actually registered (not just what settings say) so
 // unregisterAll only ever touches accelerators this module itself owns, and
@@ -19,46 +20,57 @@ function sendToOverlay(channel) {
 }
 
 function handleShortcutHide(settingsStore) {
-  const win = getOverlayWindow() || getMainWindow();
-  if (win && !win.isDestroyed()) {
-    if (win.isVisible() && !win.isMinimized()) {
-      win.hide();
-      try {
-        win.webContents.send('feonix:shortcut-hide', { visible: false });
-      } catch { }
-    } else {
-      const alwaysOnTop = settingsStore ? Boolean(settingsStore.get('alwaysOnTop')) : true;
-      if (win.isMinimized()) win.restore();
-      win.show();
-      bringToFront(win, alwaysOnTop);
-      try {
-        win.focus();
-        win.webContents.focus();
-      } catch { }
-      try {
-        const stealth = settingsStore ? (settingsStore.get('stealthMode') === true) : false;
-        win.setContentProtection(stealth);
-      } catch { /* best effort */ }
-      try {
-        win.webContents.send('feonix:shortcut-hide', { visible: true });
-      } catch { }
+  const overlayWin = getOverlayWindow();
+  const mainWin = getMainWindow();
+
+  const overlayLive = overlayWin && !overlayWin.isDestroyed();
+  const mainLive = mainWin && !mainWin.isDestroyed();
+
+  const isOverlayVisible = overlayLive && overlayWin.isVisible() && !overlayWin.isMinimized();
+  const isMainVisible = mainLive && mainWin.isVisible() && !mainWin.isMinimized();
+
+  // If ANY window is currently visible, hide it!
+  if (isOverlayVisible || isMainVisible) {
+    if (isOverlayVisible) {
+      overlayWin.hide();
+      try { overlayWin.webContents.send('feonix:shortcut-hide', { visible: false }); } catch { }
     }
+    if (isMainVisible) {
+      mainWin.hide();
+      try { mainWin.webContents.send('feonix:shortcut-hide', { visible: false }); } catch { }
+    }
+    return;
+  }
+
+  // Neither is visible: open/restore the active window (overlay takes precedence if created)
+  const targetWin = overlayLive ? overlayWin : (mainLive ? mainWin : null);
+  if (targetWin) {
+    const alwaysOnTop = settingsStore ? Boolean(settingsStore.get('alwaysOnTop')) : true;
+    if (targetWin.isMinimized()) targetWin.restore();
+    targetWin.show();
+    bringToFront(targetWin, alwaysOnTop);
+    try {
+      targetWin.focus();
+      targetWin.webContents.focus();
+    } catch { }
+    syncPrivateMode(settingsStore, { win: targetWin });
+    try {
+      targetWin.webContents.send('feonix:shortcut-hide', { visible: true });
+    } catch { }
   }
 }
 
 function handleShortcutToggle(settingsStore) {
-  const win = getOverlayWindow();
-  if (win && !win.isDestroyed()) {
+  const overlayWin = getOverlayWindow();
+  const mainWin = getMainWindow();
+  const win = (overlayWin && !overlayWin.isDestroyed()) ? overlayWin : (mainWin && !mainWin.isDestroyed() ? mainWin : null);
+  if (win) {
     const alwaysOnTop = settingsStore ? Boolean(settingsStore.get('alwaysOnTop')) : true;
     if (win.isMinimized()) win.restore();
     win.show();
     bringToFront(win, alwaysOnTop);
-    try {
-      const stealth = settingsStore ? (settingsStore.get('stealthMode') === true) : false;
-      win.setContentProtection(stealth);
-    } catch { /* best effort */ }
-    win.webContents.send('feonix:shortcut-toggle');
-    return;
+    syncPrivateMode(settingsStore, { win });
+    try { win.webContents.send('feonix:shortcut-toggle'); } catch { }
   }
 }
 

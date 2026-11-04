@@ -1,7 +1,36 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { detectCurrency, formatMoney, planAmount } from '../../lib/pricing';
 import './pricing.css';
+
+// Per-call prices assume 30 calls a month (one a day), each up to an hour.
+const CALLS_PER_MONTH = 30;
+
+const SUB_TIERS = [
+  { id: 'sub_monthly', name: 'Monthly', badge: 'Most popular', badgeClass: 'pk-badge-yellow', months: 1, unit: 'Month' },
+  { id: 'sub_yearly', name: 'Yearly', badge: 'Best value', badgeClass: 'pk-badge-amber', months: 12, unit: 'Year' },
+];
+
+const CREDIT_PACKS = [
+  { id: 'pack_3', credits: 3 },
+  { id: 'pack_6', credits: 8, paid: 6, free: 2 },
+  { id: 'pack_9', credits: 15, paid: 9, free: 6 },
+];
+
+const PLAN_SUBTITLES = {
+  sub_monthly: 'Monthly — Unlimited Calls.',
+  sub_weekly: 'Weekly — Unlimited Calls.',
+  sub_yearly: 'Yearly — Unlimited Calls.',
+  pack_1: '1 Credit — Quick Assessment Session.',
+  pack_3: '3 Credits — Call & Analysis Pack.',
+  pack_6: '6 + 2 Free Credits — Call & Analysis Pack.',
+  pack_9: '9 + 6 Free Credits — Call & Analysis Pack.',
+};
+
+function Radio({ checked }) {
+  return <span className={`pk-radio ${checked ? 'is-checked' : ''}`} aria-hidden="true" />;
+}
 
 export default function ParakeetPricingView({
   onSelectPlan,
@@ -13,99 +42,274 @@ export default function ParakeetPricingView({
   onRemoveCoupon = null,
   couponValidating = false,
   couponError = '',
+  currency: currencyProp = null,
+  onSignupClick = null,
 }) {
-  const [inputCode, setInputCode] = useState('');
-  // Subscription Card State
-  const [subPeriod, setSubPeriod] = useState('monthly'); // 'weekly' | 'monthly' | 'yearly'
-  const [subViewMode, setSubViewMode] = useState('hourly'); // 'total' | 'monthly' | 'hourly'
+  const [planTab, setPlanTab] = useState('unlimited'); // 'unlimited' | 'credits'
+  const [subPlan, setSubPlan] = useState('sub_monthly');
+  const [subViewMode, setSubViewMode] = useState('total'); // 'total' | 'monthly' | 'call'
+  const [creditPack, setCreditPack] = useState('pack_6');
+  const [creditViewMode, setCreditViewMode] = useState('total'); // 'total' | 'credit'
 
-  // Credits Card State
-  const [creditPack, setCreditPack] = useState('pack_6'); // 'pack_3' | 'pack_6' | 'pack_9' | 'pack_1'
-  const [creditViewMode, setCreditViewMode] = useState('total'); // 'total' | 'hourly'
+  // Dedicated Checkout Modal State (matches user specification)
+  const [checkoutModalOpen, setCheckoutModalOpen] = useState(false);
+  const [checkoutPlanId, setCheckoutPlanId] = useState('sub_monthly');
+  const [modalCurrency, setModalCurrency] = useState('INR');
+  const [referralInput, setReferralInput] = useState('');
+  const [modalCoupon, setModalCoupon] = useState(null);
+  const [isValidatingCode, setIsValidatingCode] = useState(false);
+  const [codeError, setCodeError] = useState('');
+  const [isProcessingCheckout, setIsProcessingCheckout] = useState(false);
 
-  // Subscription Pricing Data (half of reference image prices)
-  const subTiers = {
-    weekly: {
-      id: 'sub_weekly',
-      name: 'Weekly',
-      totalPrice: '$39.00',
-      periodLabel: '/ Week',
-      perMonthPrice: '$156.00',
-      perHourPrice: '$5.63',
-      btnText: 'Go Unlimited · Weekly $39.00',
-    },
-    monthly: {
-      id: 'sub_monthly',
-      name: 'Monthly',
-      badge: 'Most popular',
-      totalPrice: '$74.95',
-      periodLabel: '/ Month',
-      perMonthPrice: '$74.95',
-      perHourPrice: '$2.50',
-      btnText: 'Go Unlimited · Monthly $74.95',
-    },
-    yearly: {
-      id: 'sub_yearly',
-      name: 'Yearly',
-      badge: 'Best value',
-      totalPrice: '$299.95',
-      periodLabel: '/ Year',
-      perMonthPrice: '$24.99',
-      perHourPrice: '$0.83',
-      btnText: 'Go Unlimited · Yearly $299.95',
-    },
+  // Detected after mount: the server render cannot know the visitor's country.
+  const [detected, setDetected] = useState('USD');
+  useEffect(() => { setDetected(detectCurrency()); }, []);
+  const currency = currencyProp || detected;
+  const money = (amount, opts) => formatMoney(amount, currency, opts);
+
+  const activeSub = SUB_TIERS.find((t) => t.id === subPlan) || SUB_TIERS[0];
+  const activeSubTotal = planAmount(activeSub.id, currency);
+  const weeklyTotal = planAmount('sub_weekly', currency);
+  const activePack = CREDIT_PACKS.find((p) => p.id === creditPack) || CREDIT_PACKS[1];
+  const activePackTotal = planAmount(activePack.id, currency);
+  const singleCredit = planAmount('pack_1', currency);
+
+  // Opens the dedicated Checkout Modal with the selected plan details
+  const openCheckout = (planId) => {
+    const target = planId || (planTab === 'credits' ? activePack.id : activeSub.id);
+    setCheckoutPlanId(target);
+    setModalCurrency(currency === 'USD' ? 'USD' : 'INR');
+    setCodeError('');
+    if (appliedCoupon) {
+      setModalCoupon(appliedCoupon);
+      setReferralInput(appliedCoupon.code || '');
+    }
+    setCheckoutModalOpen(true);
   };
 
-  // Credit Packs Data (half of previous prices)
-  const creditPacks = {
-    pack_3: {
-      id: 'pack_3',
-      name: '3 Credits',
-      credits: 3,
-      totalPrice: '$29.50',
-      perHourPrice: '$4.92 / hour',
-      btnText: 'Get 3 Credits · $29.50',
-    },
-    pack_6: {
-      id: 'pack_6',
-      name: '6 Credits',
-      badge: '+2 free',
-      sub: '8 total credits',
-      credits: 8,
-      totalPrice: '$59.00',
-      perHourPrice: '$7.38 / hour',
-      btnText: 'Get 6 + 2 Credits · $59.00',
-    },
-    pack_9: {
-      id: 'pack_9',
-      name: '9 Credits',
-      badge: '+6 free',
-      sub: '15 total credits',
-      credits: 15,
-      totalPrice: '$88.50',
-      perHourPrice: '$5.90 / hour',
-      btnText: 'Get 9 + 6 Credits · $88.50',
-    },
-    pack_1: {
-      id: 'pack_1',
-      name: '1 Credit',
-      credits: 1,
-      totalPrice: '$19.00',
-      perHourPrice: '$19.00 / hour',
-      btnText: 'Get 1 Credit · $19.00',
-    },
+  const selectPlan = (id, method = null) => {
+    openCheckout(id);
   };
 
-  const activeSub = subTiers[subPeriod] || subTiers.monthly;
-  const activePack = creditPacks[creditPack] || creditPacks.pack_6;
-
+  // Payment-method chips buy whatever is selected on the open tab.
   const handleSubClick = (method = null) => {
-    if (onSelectPlan) onSelectPlan(activeSub.id, method);
+    selectPlan(planTab === 'credits' ? activePack.id : activeSub.id, method);
   };
 
-  const handleCreditClick = (packId = null, method = null) => {
-    const id = packId || activePack.id;
-    if (onSelectPlan) onSelectPlan(id, method);
+  // Live validate discount / referral code
+  const validateModalCode = async (codeToValidate, cur = modalCurrency, targetPlan = checkoutPlanId) => {
+    const clean = (codeToValidate || referralInput).trim().toUpperCase();
+    if (!clean) {
+      setCodeError('Please enter a promotion or referral code.');
+      return;
+    }
+    setIsValidatingCode(true);
+    setCodeError('');
+    try {
+      const res = await fetch('/api/promotions/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code: clean,
+          plan: targetPlan,
+          currency: cur,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.valid) {
+        setModalCoupon({
+          valid: true,
+          code: data.promotion.code,
+          name: data.promotion.name,
+          discount_percent: data.promotion.discount_percent || 0,
+          discount_amount: data.discount_amount,
+          final_amount: data.final_amount,
+          original_amount: data.original_amount,
+          currency: data.currency || cur,
+          promotion: data.promotion,
+        });
+        setCodeError('');
+        if (onApplyCoupon) onApplyCoupon(clean, targetPlan, cur);
+      } else {
+        setModalCoupon(null);
+        setCodeError(data.message || 'Invalid or expired code.');
+      }
+    } catch {
+      setCodeError('Could not validate code. Please check connection.');
+    } finally {
+      setIsValidatingCode(false);
+    }
+  };
+
+  // Currency toggle inside modal
+  const handleCurrencySwitch = (newCur) => {
+    setModalCurrency(newCur);
+    const code = modalCoupon?.code || appliedCoupon?.code || referralInput.trim();
+    if (code) {
+      validateModalCode(code, newCur, checkoutPlanId);
+    }
+  };
+
+  // Live price & discount calculations for the modal
+  const activeCoupon = modalCoupon || appliedCoupon;
+  const baseCheckoutAmount = planAmount(checkoutPlanId, modalCurrency);
+  let finalCheckoutAmount = baseCheckoutAmount;
+  let discountAmount = 0;
+  let hasDiscount = false;
+
+  if (activeCoupon) {
+    const pct = activeCoupon.promotion?.discount_percent || activeCoupon.discount_percent || 0;
+    const fixedDiscount = Number(activeCoupon.discount_amount) || 0;
+    const finalFromApi = Number(activeCoupon.final_amount);
+
+    if (pct > 0) {
+      discountAmount = Math.round((baseCheckoutAmount * pct) / 100);
+      finalCheckoutAmount = Math.max(1, baseCheckoutAmount - discountAmount);
+      hasDiscount = true;
+    } else if (fixedDiscount > 0) {
+      discountAmount = Math.min(baseCheckoutAmount, fixedDiscount);
+      finalCheckoutAmount = Math.max(1, baseCheckoutAmount - discountAmount);
+      hasDiscount = true;
+    } else if (!isNaN(finalFromApi) && finalFromApi > 0 && finalFromApi < baseCheckoutAmount) {
+      finalCheckoutAmount = finalFromApi;
+      discountAmount = baseCheckoutAmount - finalCheckoutAmount;
+      hasDiscount = true;
+    }
+  }
+
+  // Handle Checkout Click: launches payment gateway with applied discount
+  const handleProceedCheckout = async () => {
+    setIsProcessingCheckout(true);
+    setCodeError('');
+    const targetPlan = checkoutPlanId;
+    const targetCurrency = modalCurrency;
+    const appliedCode = activeCoupon?.code || activeCoupon?.promotion?.code || (referralInput.trim() ? referralInput.trim().toUpperCase() : null);
+
+    if (onSelectPlan) {
+      onSelectPlan(targetPlan, null, targetCurrency, appliedCode);
+      setCheckoutModalOpen(false);
+      setIsProcessingCheckout(false);
+      return;
+    }
+
+    try {
+      const orderRes = await fetch('/api/razorpay/create-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          plan: targetPlan,
+          currency: targetCurrency,
+          coupon_code: appliedCode,
+        }),
+      });
+
+      const order = await orderRes.json();
+      if (!orderRes.ok) {
+        if (orderRes.status === 401) {
+          if (typeof window !== 'undefined') {
+            sessionStorage.setItem('pending_checkout', JSON.stringify({
+              plan: targetPlan,
+              currency: targetCurrency,
+              coupon_code: appliedCode,
+            }));
+          }
+          setCheckoutModalOpen(false);
+          if (onSignupClick) onSignupClick();
+          else window.location.href = '/?auth=register';
+          return;
+        }
+        throw new Error(order.message || 'Payment server not ready.');
+      }
+
+      if (typeof window !== 'undefined') {
+        if (!window.Razorpay) {
+          await new Promise((resolve, reject) => {
+            const s = document.createElement('script');
+            s.src = 'https://checkout.razorpay.com/v1/checkout.js';
+            s.onload = resolve;
+            s.onerror = () => reject(new Error('Failed to load Razorpay payment gateway'));
+            document.body.appendChild(s);
+          });
+        }
+
+        const rzp = new window.Razorpay({
+          key: order.key_id,
+          amount: order.amount,
+          currency: order.currency,
+          order_id: order.order_id,
+          name: 'Feonix AI',
+          description: `${PLAN_SUBTITLES[targetPlan] || targetPlan.toUpperCase()} Checkout`,
+          theme: { color: '#22c55e' },
+          handler: async (resp) => {
+            try {
+              const vRes = await fetch('/api/razorpay/verify-payment', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  razorpay_order_id: resp.razorpay_order_id,
+                  razorpay_payment_id: resp.razorpay_payment_id,
+                  razorpay_signature: resp.razorpay_signature,
+                  plan: targetPlan,
+                  coupon_code: appliedCode,
+                }),
+              });
+              const vData = await vRes.json();
+              if (vRes.ok && vData.success) {
+                alert(`🎉 Payment Successful! Your ${targetPlan} plan has been activated.`);
+                window.location.reload();
+              } else {
+                alert(vData.message || 'Payment verification failed.');
+              }
+            } catch {
+              alert('Could not verify payment.');
+            }
+          },
+          modal: {
+            ondismiss: () => {
+              setIsProcessingCheckout(false);
+            },
+          },
+        });
+        rzp.open();
+        setCheckoutModalOpen(false);
+      }
+    } catch (err) {
+      setCodeError(err.message || 'Could not connect to payment gateway.');
+    } finally {
+      setIsProcessingCheckout(false);
+    }
+  };
+
+  const subPrice = (tier) => {
+    const total = planAmount(tier.id, currency);
+    if (subViewMode === 'call') {
+      return { main: money(total / tier.months / CALLS_PER_MONTH, { decimals: true }), unit: '/ call*', note: `${money(total)} / ${tier.unit}` };
+    }
+    if (subViewMode === 'monthly') {
+      return { main: money(total / tier.months, { decimals: tier.months > 1 }), unit: '/ Month', note: tier.months > 1 ? `${money(total)} / ${tier.unit}` : null };
+    }
+    return { main: money(total), unit: `/ ${tier.unit}`, note: null };
+  };
+
+  const packPrice = (pack) => {
+    const total = planAmount(pack.id, currency);
+    if (creditViewMode === 'credit') {
+      return { main: money(total / pack.credits, { decimals: true }), unit: '/ credit', note: `${money(total)} total` };
+    }
+    return { main: money(total), unit: '', note: null };
+  };
+
+  const couponSuffix = (kind) => {
+    if (!appliedCoupon) return '';
+    if (kind === 'credits' && appliedCoupon.bonus_credits > 0) return ` (+ ${appliedCoupon.bonus_credits} Bonus Credits!)`;
+    return ` (Coupon ${appliedCoupon.code} Applied)`;
+  };
+
+  const selectOnKey = (e, select) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      select();
+    }
   };
 
   return (
@@ -121,350 +325,262 @@ export default function ParakeetPricingView({
         </p>
       </div>
 
-      {/* Two-Column Cards Grid */}
-      <div className="pk-pricing-grid">
-        {/* ================= LEFT: SUBSCRIPTION CARD ================= */}
-        <div className="pk-card pk-card-sub">
-          <div className="pk-card-head">
-            <div>
-              <div className="pk-card-title-wrap">
-                <h3 className="pk-card-title">Subscription</h3>
-                <span className="pk-tag-recommended">✳ Recommended</span>
-              </div>
-              <p className="pk-card-desc">Stop counting. Everything covered, for as long as you need it.</p>
-            </div>
-
-            {/* Switcher: Total / Per month / Per hour */}
-            <div className="pk-segmented-pills">
-              <button
-                type="button"
-                className={`pk-pill-btn ${subViewMode === 'total' ? 'is-active' : ''}`}
-                onClick={() => setSubViewMode('total')}
-              >
-                Total
-              </button>
-              <button
-                type="button"
-                className={`pk-pill-btn ${subViewMode === 'monthly' ? 'is-active' : ''}`}
-                onClick={() => setSubViewMode('monthly')}
-              >
-                Per month
-              </button>
-              <button
-                type="button"
-                className={`pk-pill-btn ${subViewMode === 'hourly' ? 'is-active' : ''}`}
-                onClick={() => setSubViewMode('hourly')}
-              >
-                Per hour
-              </button>
-            </div>
-          </div>
-
-          {/* Radio Options: Weekly / Monthly / Yearly */}
-          <div className="pk-options-list">
-            {Object.keys(subTiers).map((key) => {
-              const tier = subTiers[key];
-              const isSelected = subPeriod === key;
-
-              let displayPrice = tier.totalPrice;
-              let displayPeriod = tier.periodLabel;
-
-              if (subViewMode === 'monthly') {
-                displayPrice = tier.perMonthPrice;
-                displayPeriod = '/ Month';
-              } else if (subViewMode === 'hourly') {
-                displayPrice = tier.perHourPrice;
-                displayPeriod = ' /hour*';
-              }
-
-              return (
-                <div
-                  key={key}
-                  className={`pk-option-item ${isSelected ? 'is-selected' : ''}`}
-                  onClick={() => setSubPeriod(key)}
-                >
-                  <div className="pk-option-left">
-                    <div className="pk-option-label-wrap">
-                      <div className="pk-option-title-row">
-                        <span className="pk-option-name">{tier.name}</span>
-                        {tier.badge === 'Most popular' && (
-                          <span className="pk-badge-yellow">{tier.badge}</span>
-                        )}
-                        {tier.badge === 'Best value' && (
-                          <span className="pk-badge-amber">{tier.badge}</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="pk-option-price-wrap">
-                    <div>
-                      <span className="pk-option-price">{displayPrice}</span>
-                      <span className="pk-option-period">{displayPeriod}</span>
-                    </div>
-                    {subViewMode === 'hourly' && (
-                      <div className="pk-option-note">
-                        {tier.totalPrice} {tier.periodLabel}
-                      </div>
-                    )}
-                    {subViewMode === 'monthly' && key !== 'monthly' && (
-                      <div className="pk-option-note">
-                        {tier.totalPrice} {tier.periodLabel}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          <p className="pk-footnote-text">
-            * Assumes 30 hours of calls a month or 1 call per day
-          </p>
-
-          {/* Subscription Feature Checklist */}
-          <ul className="pk-features-list">
-            <li className="pk-feature-item">
-              <span className="pk-check-icon">✓</span>
-              <span>Unlimited call sessions (& mock)</span>
-            </li>
-            <li className="pk-feature-item">
-              <span className="pk-check-icon">✓</span>
-              <span>Full privacy mode</span>
-            </li>
-            <li className="pk-feature-item">
-              <span className="pk-check-icon">✓</span>
-              <span>20 resume PDF downloads a day</span>
-            </li>
-            <li className="pk-feature-item">
-              <span className="pk-check-icon">✓</span>
-              <span>30 headshots a day</span>
-            </li>
-            <li className="pk-feature-item">
-              <span className="pk-check-icon">✓</span>
-              <span>Full Question Bank access</span>
-            </li>
-          </ul>
-
-          {/* CTA Button */}
-          <button
-            type="button"
-            className={`pk-action-btn-main pk-btn-unlimited ${loadingPlan === activeSub.id ? 'pk-btn-loading-state' : ''}`}
-            onClick={handleSubClick}
-            disabled={loadingPlan === activeSub.id}
-          >
-            {loadingPlan === activeSub.id
-              ? 'Opening Checkout…'
-              : appliedCoupon
-              ? `${activeSub.btnText} (Coupon ${appliedCoupon.code} Applied)`
-              : activeSub.btnText}
-          </button>
-          <p className="pk-action-subnote">No lock-in. Cancel anytime.</p>
-        </div>
-
-        {/* ================= RIGHT: CREDITS CARD ================= */}
-        <div className="pk-card pk-card-credits">
-          <div className="pk-card-head">
-            <div>
-              <div className="pk-card-title-wrap">
-                <h3 className="pk-card-title">Credits</h3>
-              </div>
-              <p className="pk-card-desc">Buy a pack of credits and use them whenever.</p>
-            </div>
-
-            {/* Switcher: Total / Per hour */}
-            <div className="pk-segmented-pills">
-              <button
-                type="button"
-                className={`pk-pill-btn ${creditViewMode === 'total' ? 'is-active' : ''}`}
-                onClick={() => setCreditViewMode('total')}
-              >
-                Total
-              </button>
-              <button
-                type="button"
-                className={`pk-pill-btn ${creditViewMode === 'hourly' ? 'is-active' : ''}`}
-                onClick={() => setCreditViewMode('hourly')}
-              >
-                Per hour
-              </button>
-            </div>
-          </div>
-
-          {/* Radio Options: 3 Credits / 6 Credits / 9 Credits */}
-          <div className="pk-options-list">
-            {['pack_3', 'pack_6', 'pack_9'].map((key) => {
-              const pack = creditPacks[key];
-              const isSelected = creditPack === key;
-
-              let displayPrice = pack.totalPrice;
-              let displayPeriod = '';
-
-              if (creditViewMode === 'hourly') {
-                displayPrice = pack.perHourPrice;
-              }
-
-              return (
-                <div
-                  key={key}
-                  className={`pk-option-item ${isSelected ? 'is-selected' : ''}`}
-                  onClick={() => setCreditPack(key)}
-                >
-                  <div className="pk-option-left">
-                    <div className="pk-option-label-wrap">
-                      <div className="pk-option-title-row">
-                        <span className="pk-option-name">{pack.name}</span>
-                        {pack.badge && <span className="pk-badge-yellow">{pack.badge}</span>}
-                      </div>
-                      {pack.sub && <span className="pk-option-sub">{pack.sub}</span>}
-                    </div>
-                  </div>
-                  <div className="pk-option-price-wrap">
-                    <span className="pk-option-price">{displayPrice}</span>
-                    {displayPeriod && <span className="pk-option-period">{displayPeriod}</span>}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Credits Feature Checklist */}
-          <ul className="pk-features-list">
-            <li className="pk-feature-item">
-              <span className="pk-check-icon">✓</span>
-              <span>0.5 Credit = 30 min call session (& mock)</span>
-            </li>
-            <li className="pk-feature-item">
-              <span className="pk-check-icon">✓</span>
-              <span>Full privacy mode</span>
-            </li>
-            <li className="pk-feature-item">
-              <span className="pk-check-icon">✓</span>
-              <span>1 Credit = 1 resume PDF download</span>
-            </li>
-            <li className="pk-feature-item">
-              <span className="pk-check-icon">✓</span>
-              <span>1 Credit = 1 headshot</span>
-            </li>
-            <li className="pk-feature-item">
-              <span className="pk-check-icon">✓</span>
-              <span>1 Credit = 1 Question Bank position</span>
-            </li>
-          </ul>
-
-          {/* CTA Button */}
-          <button
-            type="button"
-            className={`pk-action-btn-main pk-btn-credits ${loadingPlan === activePack.id ? 'pk-btn-loading-state' : ''}`}
-            onClick={() => handleCreditClick()}
-            disabled={loadingPlan === activePack.id}
-          >
-            {loadingPlan === activePack.id
-              ? 'Opening Checkout…'
-              : appliedCoupon
-              ? `${activePack.btnText} ${appliedCoupon.bonus_credits > 0 ? `(+ ${appliedCoupon.bonus_credits} Bonus Credits!)` : `(Coupon ${appliedCoupon.code})`}`
-              : activePack.btnText}
-          </button>
-          <div className="pk-action-single-credit">
-            or, just need 1 credit?{' '}
-            <button
-              type="button"
-              className="pk-single-link"
-              onClick={() => {
-                setCreditPack('pack_1');
-                handleCreditClick('pack_1');
-              }}
-            >
-              1 credit for $19.00
-            </button>
-          </div>
-        </div>
+      {/* Unlimited / Credits tabs */}
+      <div className="pk-plan-tabs" role="tablist">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={planTab === 'unlimited'}
+          className={`pk-plan-tab ${planTab === 'unlimited' ? 'is-active' : ''}`}
+          onClick={() => setPlanTab('unlimited')}
+        >
+          Unlimited
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={planTab === 'credits'}
+          className={`pk-plan-tab ${planTab === 'credits' ? 'is-active' : ''}`}
+          onClick={() => setPlanTab('credits')}
+        >
+          Credits
+        </button>
       </div>
 
-      {/* ================= COUPON CODE & PROMOTIONAL DISCOUNT BOX ================= */}
-      <div className="pk-coupon-card">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-          <span style={{ fontSize: '13px', fontWeight: 700, color: '#c4b5fd', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-            🏷️ Have a Coupon or Promotional Code?
-          </span>
-          {appliedCoupon && (
-            <span style={{ fontSize: '12px', color: '#4ade80', fontWeight: 600 }}>
-              Discount Active
-            </span>
-          )}
-        </div>
-
-        <form
-          className="pk-coupon-row"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (onApplyCoupon && inputCode.trim()) {
-              onApplyCoupon(inputCode.trim(), activeSub.id);
-            }
-          }}
-        >
-          <input
-            type="text"
-            className="pk-coupon-input"
-            placeholder="ENTER COUPON CODE (E.G. FEONIX50)"
-            value={inputCode}
-            onChange={(e) => setInputCode(e.target.value.toUpperCase())}
-            disabled={couponValidating}
-          />
-          <button
-            type="submit"
-            className="pk-coupon-btn"
-            disabled={couponValidating || !inputCode.trim()}
-          >
-            {couponValidating ? 'Checking…' : 'Apply Coupon'}
-          </button>
-        </form>
-
-        {appliedCoupon && (
-          <div className="pk-coupon-success">
-            <div>
-              <strong>✓ Coupon {appliedCoupon.code} Applied: </strong>
-              <span>{appliedCoupon.name || 'Promotional Deal'}</span>
-              {appliedCoupon.discount_amount > 0 && (
-                <span> • Saved ₹{appliedCoupon.discount_amount}</span>
-              )}
-              {appliedCoupon.bonus_credits > 0 && (
-                <span style={{ color: '#c084fc', fontWeight: 700 }}>
-                  {' '}• 🎁 +{appliedCoupon.bonus_credits} Bonus Credits included!
-                </span>
-              )}
+      <div className="pk-pricing-single">
+        {planTab === 'unlimited' ? (
+          /* ================= UNLIMITED ================= */
+          <div className="pk-card pk-card-sub">
+            <div className="pk-card-top">
+              <h3 className="pk-card-title">Unlimited</h3>
+              <span className="pk-tag-recommended">✳ Recommended</span>
             </div>
+            <p className="pk-card-desc">Stop counting. Everything covered, for as long as you need it.</p>
+
+            <div className="pk-switch-row">
+              <div className="pk-segmented-pills">
+                {[['total', 'Total'], ['monthly', 'Per month'], ['call', 'Per call']].map(([mode, label]) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    className={`pk-pill-btn ${subViewMode === mode ? 'is-active' : ''}`}
+                    onClick={() => setSubViewMode(mode)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="pk-options-list" role="radiogroup">
+              {SUB_TIERS.map((tier) => {
+                const isSelected = subPlan === tier.id;
+                const price = subPrice(tier);
+                return (
+                  <div
+                    key={tier.id}
+                    role="radio"
+                    aria-checked={isSelected}
+                    tabIndex={0}
+                    className={`pk-option-item ${isSelected ? 'is-selected' : ''}`}
+                    onClick={() => setSubPlan(tier.id)}
+                    onKeyDown={(e) => selectOnKey(e, () => setSubPlan(tier.id))}
+                  >
+                    <div className="pk-option-left">
+                      <Radio checked={isSelected} />
+                      <div className="pk-option-title-row">
+                        <span className="pk-option-name">{tier.name}</span>
+                        <span className={tier.badgeClass}>{tier.badge}</span>
+                      </div>
+                    </div>
+                    <div className="pk-option-price-wrap">
+                      <div>
+                        <span className="pk-option-price">{price.main}</span>
+                        <span className="pk-option-period"> {price.unit}</span>
+                      </div>
+                      {price.note && <div className="pk-option-note">{price.note}</div>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {subViewMode === 'call' && (
+              <p className="pk-footnote-text">* Assumes 30 calls a month (1 a day), each up to an hour</p>
+            )}
+
+            <ul className="pk-features-list">
+              <li className="pk-feature-item"><span className="pk-check-icon">✓</span><span>Unlimited call sessions (& mock)</span></li>
+              <li className="pk-feature-item"><span className="pk-check-icon">✓</span><span>Full privacy mode</span></li>
+              <li className="pk-feature-item"><span className="pk-check-icon">✓</span><span>20 resume PDF downloads a day</span></li>
+              <li className="pk-feature-item"><span className="pk-check-icon">✓</span><span>30 headshots a day</span></li>
+              <li className="pk-feature-item"><span className="pk-check-icon">✓</span><span>Full Question Bank access</span></li>
+            </ul>
+
             <button
               type="button"
-              className="pk-coupon-remove-btn"
-              onClick={() => {
-                if (onRemoveCoupon) onRemoveCoupon();
-                setInputCode('');
-              }}
+              className={`pk-action-btn-main pk-btn-unlimited ${loadingPlan === activeSub.id ? 'pk-btn-loading-state' : ''}`}
+              onClick={() => selectPlan(activeSub.id)}
+              disabled={loadingPlan === activeSub.id}
             >
-              Remove
+              {loadingPlan === activeSub.id
+                ? 'Opening Checkout…'
+                : `Go Unlimited · ${activeSub.name} ${money(activeSubTotal)}${couponSuffix('sub')}`}
             </button>
+            <div className="pk-action-single-credit">
+              or, only need a week?{' '}
+              <button
+                type="button"
+                className="pk-single-link"
+                onClick={() => selectPlan('sub_weekly')}
+                disabled={loadingPlan === 'sub_weekly'}
+              >
+                {loadingPlan === 'sub_weekly' ? 'Opening Checkout…' : `Weekly plan for ${money(weeklyTotal)} / week`}
+              </button>
+            </div>
           </div>
-        )}
+        ) : (
+          /* ================= CREDITS ================= */
+          <div className="pk-card pk-card-credits">
+            <div className="pk-card-top">
+              <h3 className="pk-card-title">Credits</h3>
+            </div>
+            <p className="pk-card-desc">Buy a pack of credits and use them whenever.</p>
 
-        {couponError && (
-          <div className="pk-coupon-error">
-            ⚠️ {couponError}
+            <div className="pk-switch-row">
+              <div className="pk-segmented-pills">
+                {[['total', 'Total'], ['credit', 'Per credit']].map(([mode, label]) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    className={`pk-pill-btn ${creditViewMode === mode ? 'is-active' : ''}`}
+                    onClick={() => setCreditViewMode(mode)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="pk-options-list" role="radiogroup">
+              {CREDIT_PACKS.map((pack) => {
+                const isSelected = creditPack === pack.id;
+                const price = packPrice(pack);
+                return (
+                  <div
+                    key={pack.id}
+                    role="radio"
+                    aria-checked={isSelected}
+                    tabIndex={0}
+                    className={`pk-option-item ${isSelected ? 'is-selected' : ''}`}
+                    onClick={() => setCreditPack(pack.id)}
+                    onKeyDown={(e) => selectOnKey(e, () => setCreditPack(pack.id))}
+                  >
+                    <div className="pk-option-left">
+                      <Radio checked={isSelected} />
+                      <div className="pk-option-label-wrap">
+                        <span className="pk-option-name">{pack.credits} Credits</span>
+                        {pack.free > 0 && (
+                          <span className="pk-option-sub">
+                            {pack.paid} credits <span className="pk-badge-yellow">+{pack.free} free</span>
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="pk-option-price-wrap">
+                      <div>
+                        <span className="pk-option-price">{price.main}</span>
+                        {price.unit && <span className="pk-option-period"> {price.unit}</span>}
+                      </div>
+                      {price.note && <div className="pk-option-note">{price.note}</div>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <ul className="pk-features-list">
+              <li className="pk-feature-item"><span className="pk-check-icon">✓</span><span>0.5 Credit = 30 min call session (& mock)</span></li>
+              <li className="pk-feature-item"><span className="pk-check-icon">✓</span><span>Full privacy mode</span></li>
+              <li className="pk-feature-item"><span className="pk-check-icon">✓</span><span>1 Credit = 1 resume PDF download</span></li>
+              <li className="pk-feature-item"><span className="pk-check-icon">✓</span><span>1 Credit = 1 headshot</span></li>
+              <li className="pk-feature-item"><span className="pk-check-icon">✓</span><span>1 Credit = 1 Question Bank position</span></li>
+            </ul>
+
+            <button
+              type="button"
+              className={`pk-action-btn-main pk-btn-credits ${loadingPlan === activePack.id ? 'pk-btn-loading-state' : ''}`}
+              onClick={() => selectPlan(activePack.id)}
+              disabled={loadingPlan === activePack.id}
+            >
+              {loadingPlan === activePack.id
+                ? 'Opening Checkout…'
+                : `Get ${activePack.credits} Credits · ${money(activePackTotal)}${couponSuffix('credits')}`}
+            </button>
+            <div className="pk-action-single-credit">
+              or, just need 1 credit?{' '}
+              <button
+                type="button"
+                className="pk-single-link"
+                onClick={() => selectPlan('pack_1')}
+                disabled={loadingPlan === 'pack_1'}
+              >
+                {loadingPlan === 'pack_1' ? 'Opening Checkout…' : `1 credit for ${money(singleCredit)}`}
+              </button>
+            </div>
           </div>
         )}
       </div>
 
       {/* ================= BOTTOM TRUST HIGHLIGHTS ================= */}
       <div className="pk-trust-row">
+        {/* 1. Top Models (ChatGPT, Claude, Gemini/Antigravity) */}
         <div className="pk-trust-item">
-          <div className="pk-trust-icon">🌐</div>
+          <div className="pk-model-stack" aria-label="Supported AI Models">
+            {/* OpenAI / ChatGPT */}
+            <div className="pk-model-circle" title="OpenAI / ChatGPT">
+              <svg viewBox="0 0 24 24" className="pk-model-icon" fill="#111827">
+                <path d="M22.28 9.5a5.98 5.98 0 0 0-.52-4.92 6.05 6.05 0 0 0-6.5-2.82A6.07 6.07 0 0 0 10.7.34a6.04 6.04 0 0 0-5.77 4.22 6.07 6.07 0 0 0-3.9 2.83 6.04 6.04 0 0 0 .74 7.07 6.03 6.03 0 0 0 .52 4.93 6.05 6.05 0 0 0 6.5 2.82 6.05 6.05 0 0 0 4.56 1.41 6.05 6.05 0 0 0 5.77-4.22 6.08 6.08 0 0 0 3.9-2.83 6.05 6.05 0 0 0-.74-7.06zm-9.02 12.3a4.57 4.57 0 0 1-2.92-1.05l.14-.08 4.84-2.8a.78.78 0 0 0 .4-.68v-6.84l2.17 1.25a.07.07 0 0 1 .04.06v5.58a4.58 4.58 0 0 1-4.67 4.56zm-8.8-4.2a4.54 4.54 0 0 1-.61-3.04l.15.09 4.84 2.8c.24.13.39.38.39.66v2.73a4.56 4.56 0 0 1-2.82-.9l-1.95-2.34zm-1.8-8.52a4.53 4.53 0 0 1 2.3-2l.01.16v5.6c0 .28.15.53.39.67l4.84 2.8-2.17 1.25a.07.07 0 0 1-.07 0L2.83 9.42a4.6 4.6 0 0 1-.17-.34zm13.78 2.81-4.84-2.8a.78.78 0 0 0-.79 0L7.1 11.45V8.95c0-.02.01-.05.03-.06l4.84-2.8a4.58 4.58 0 0 1 6.87 4.7l-.4-.2zm3.32 5.06a4.58 4.58 0 0 1-2.31 2.02v-5.6c0-.28-.15-.53-.39-.67l-4.84-2.8 2.17-1.25a.07.07 0 0 1 .07 0l4.84 2.8a4.58 4.58 0 0 1 .46 5.5zm-9.98-1.57-2.17-1.25 4.84-2.8 2.17 1.25-4.84 2.8z"/>
+              </svg>
+            </div>
+            {/* Anthropic / Claude */}
+            <div className="pk-model-circle" title="Anthropic / Claude">
+              <svg viewBox="0 0 24 24" className="pk-model-icon">
+                <path d="M12.5 3L14 7.5L18.5 6.5L16 10.5L20 13L15.5 14.5L17 19L12.5 16.5L10.5 21L9.5 16.5L5 19L6.5 14.5L2 13L6 10.5L3.5 6.5L8 7.5L9.5 3L11 7.5L12.5 3Z" fill="#d97706" />
+              </svg>
+            </div>
+            {/* Google Gemini / Antigravity */}
+            <div className="pk-model-circle" title="Google Gemini / Antigravity">
+              <svg viewBox="0 0 24 24" className="pk-model-icon">
+                <defs>
+                  <linearGradient id="pk-gemini-trust-sparkle" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#4285F4" />
+                    <stop offset="35%" stopColor="#9B72CB" />
+                    <stop offset="70%" stopColor="#D96570" />
+                    <stop offset="100%" stopColor="#F4B400" />
+                  </linearGradient>
+                </defs>
+                <path d="M12 2C12 7.52 7.52 12 2 12c5.48 0 10 4.48 10 10 0-5.52 4.48-10 10-10-5.52 0-10-4.48-10-10z" fill="url(#pk-gemini-trust-sparkle)" />
+              </svg>
+            </div>
+          </div>
           <div className="pk-trust-text">
             <span className="pk-trust-title">Top Models</span>
             <span className="pk-trust-sub">From OpenAI, Anthropic & Google</span>
           </div>
         </div>
 
+        {/* Divider 1 */}
+        <div className="pk-trust-divider" aria-hidden="true" />
+
+        {/* 2. Refund policy */}
         <div className="pk-trust-item">
-          <div className="pk-trust-icon">🛡️</div>
+          <div className="pk-trust-card-icon" title="Refund Policy">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#16a34a" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+              <path d="m9 12 2 2 4-4" />
+            </svg>
+          </div>
           <div className="pk-trust-text">
             <span className="pk-trust-title">Refund policy</span>
             <span className="pk-trust-sub">
@@ -473,8 +589,20 @@ export default function ParakeetPricingView({
           </div>
         </div>
 
+        {/* Divider 2 */}
+        <div className="pk-trust-divider" aria-hidden="true" />
+
+        {/* 3. How do credits work? */}
         <div className="pk-trust-item">
-          <div className="pk-trust-icon">🔄</div>
+          <div className="pk-trust-card-icon" title="How do credits work?">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#16a34a" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              {/* Top coin with '1' inside */}
+              <circle cx="8.5" cy="8.5" r="5.5" />
+              <path d="M8 7.2h.75v2.8" strokeWidth="1.8" />
+              {/* Second overlapping coin */}
+              <path d="M14.5 9.5a5.5 5.5 0 1 1-6 6" />
+            </svg>
+          </div>
           <div className="pk-trust-text">
             <span className="pk-trust-title">How do credits work?</span>
             <span className="pk-trust-sub">
@@ -579,7 +707,175 @@ export default function ParakeetPricingView({
         </div>
       </div>
 
+      {/* ================= EXACT CHECKOUT POPUP MODAL ================= */}
+      {checkoutModalOpen && (
+        <div
+          className="pk-checkout-backdrop"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setCheckoutModalOpen(false);
+          }}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="pk-checkout-modal">
+            {/* Top Close Button (✕) */}
+            <button
+              type="button"
+              className="pk-checkout-close"
+              onClick={() => setCheckoutModalOpen(false)}
+              aria-label="Close"
+            >
+              ✕
+            </button>
 
+            {/* Title & Dynamic Plan Subtitle */}
+            <h3 className="pk-checkout-title">Checkout</h3>
+            <p className="pk-checkout-subtitle">
+              {PLAN_SUBTITLES[checkoutPlanId] || 'Monthly — Unlimited Calls.'}
+            </p>
+
+            {/* Discount or Referral Code (Optional) Input */}
+            <div className="pk-checkout-field">
+              <label className="pk-checkout-label" htmlFor="pk-referral-input">
+                Discount or Referral Code <span className="pk-checkout-label-opt">(Optional)</span>
+              </label>
+              <div className="pk-checkout-input-row">
+                <input
+                  id="pk-referral-input"
+                  type="text"
+                  className={`pk-checkout-input ${modalCoupon?.valid ? 'has-discount' : ''}`}
+                  placeholder="Enter code"
+                  value={referralInput}
+                  onChange={(e) => {
+                    setReferralInput(e.target.value);
+                    if (codeError) setCodeError('');
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      validateModalCode(referralInput);
+                    }
+                  }}
+                  disabled={isValidatingCode}
+                  autoComplete="off"
+                />
+                <button
+                  type="button"
+                  className="pk-checkout-apply-btn"
+                  onClick={() => validateModalCode(referralInput)}
+                  disabled={isValidatingCode || !referralInput.trim()}
+                >
+                  {isValidatingCode ? 'Checking…' : 'Apply'}
+                </button>
+              </div>
+
+              {/* Dynamic Discount Applied Message & Detailed Order Summary */}
+              {hasDiscount && (
+                <>
+                  <div className="pk-checkout-discount-badge">
+                    <span>
+                      ✓ Code <strong>{activeCoupon?.code || activeCoupon?.promotion?.code}</strong> applied!
+                      {discountAmount > 0 && ` Saved ${formatMoney(discountAmount, modalCurrency)}`}
+                      {(activeCoupon?.promotion?.discount_percent || activeCoupon?.discount_percent) > 0 && ` (${activeCoupon.promotion?.discount_percent || activeCoupon.discount_percent}% Off)`}
+                    </span>
+                    <button
+                      type="button"
+                      className="pk-checkout-remove-code"
+                      onClick={() => {
+                        setModalCoupon(null);
+                        setReferralInput('');
+                        if (onRemoveCoupon) onRemoveCoupon();
+                      }}
+                    >
+                      Remove
+                    </button>
+                  </div>
+
+                  <div className="pk-checkout-summary-box">
+                    <div className="pk-summary-line">
+                      <span>Original Price:</span>
+                      <span className="pk-summary-old">{formatMoney(baseCheckoutAmount, modalCurrency)}</span>
+                    </div>
+                    <div className="pk-summary-line pk-summary-discount">
+                      <span>Discount ({activeCoupon?.code || activeCoupon?.promotion?.code}):</span>
+                      <span>-{formatMoney(discountAmount, modalCurrency)}</span>
+                    </div>
+                    <div className="pk-summary-divider" />
+                    <div className="pk-summary-line pk-summary-total">
+                      <span>Payable Amount:</span>
+                      <span className="pk-summary-payable">{formatMoney(finalCheckoutAmount, modalCurrency)}</span>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* Validation Error Message */}
+              {codeError && (
+                <div className="pk-checkout-error-msg">
+                  ⚠️ {codeError}
+                </div>
+              )}
+            </div>
+
+            {/* Currency Selector Row */}
+            <div className="pk-checkout-currency-row">
+              <span className="pk-checkout-currency-label">Currency</span>
+              <div className="pk-checkout-currency-tabs" role="group" aria-label="Select Currency">
+                <button
+                  type="button"
+                  className={`pk-checkout-currency-tab ${modalCurrency === 'INR' ? 'is-active' : ''}`}
+                  onClick={() => handleCurrencySwitch('INR')}
+                >
+                  ₹ INR
+                </button>
+                <button
+                  type="button"
+                  className={`pk-checkout-currency-tab ${modalCurrency === 'USD' ? 'is-active' : ''}`}
+                  onClick={() => handleCurrencySwitch('USD')}
+                >
+                  $ USD
+                </button>
+              </div>
+            </div>
+
+            {/* Action Buttons: [ Close ] and [ Checkout ₹... ] */}
+            <div className="pk-checkout-actions">
+              <button
+                type="button"
+                className="pk-checkout-btn-close"
+                onClick={() => setCheckoutModalOpen(false)}
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                className="pk-checkout-btn-submit"
+                onClick={handleProceedCheckout}
+                disabled={isProcessingCheckout}
+              >
+                {isProcessingCheckout ? (
+                  'Redirecting to Gateway…'
+                ) : hasDiscount ? (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                    <span style={{ textDecoration: 'line-through', opacity: 0.65, fontSize: '13px' }}>
+                      {formatMoney(baseCheckoutAmount, modalCurrency)}
+                    </span>
+                    <span>Checkout {formatMoney(finalCheckoutAmount, modalCurrency)}</span>
+                  </span>
+                ) : (
+                  `Checkout ${formatMoney(finalCheckoutAmount, modalCurrency)}`
+                )}
+              </button>
+            </div>
+
+            {/* Footer Trust Note */}
+            <div className="pk-checkout-footer">
+              <span className="pk-checkout-lock-icon">🔒</span>
+              <span>Card or UPI payment via Stripe</span>
+            </div>
+          </div>
+        </div>
+      )}
 
     </section>
   );

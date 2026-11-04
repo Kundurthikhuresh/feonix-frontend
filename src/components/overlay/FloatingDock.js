@@ -50,14 +50,14 @@ export default function FloatingDock({
 
   return (
     <div className="fe-dock-bar">
-      {/* 1. Screen Share / Monitor Toggle Button with Red Dot */}
+      {/* 1. Screen Share / Monitor Toggle Button with Status Dot */}
       <button
         type="button"
         className="fe-dock-icon-btn fe-dock-screen-btn"
         onClick={onToggleStealth}
-        title={stealthMode ? 'Private Mode Active (Protected)' : 'Screen Share Active (Click to toggle protection)'}
+        title={stealthMode ? 'Private Mode ON (Hidden from capture — Click to turn OFF)' : 'Private Mode OFF (Visible in capture — Click to turn ON)'}
       >
-        <span className="fe-status-dot fe-dot-red" />
+        <span className={`fe-status-dot ${stealthMode ? 'fe-dot-green' : 'fe-dot-muted'}`} />
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
           <line x1="8" y1="21" x2="16" y2="21"></line>

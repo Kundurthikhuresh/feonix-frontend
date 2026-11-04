@@ -9,7 +9,7 @@ export default function InterviewControls({
   onDecreaseSize,
   onCycleSize,
   onMinimize,
-  stealthMode = true,
+  stealthMode = false,
   onToggleStealth,
   onSetStealth,
   onToggleHide,
@@ -19,7 +19,7 @@ export default function InterviewControls({
   remainingText,
 }) {
   const isUrgent = remainingText && (remainingText.startsWith('00:') || remainingText.startsWith('01:'));
-  const isStealthOn = stealthMode !== false;
+  const isStealthOn = stealthMode === true;
   const sizeKeys = ['compact', 'normal', 'large', 'xlarge'];
   const currentSizeIndex = sizeKeys.indexOf(assistantSize);
 

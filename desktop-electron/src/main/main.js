@@ -1,4 +1,4 @@
-const { app, BrowserWindow, desktopCapturer, session } = require('electron');
+const { app, BrowserWindow, desktopCapturer, session, screen } = require('electron');
 const path = require('path');
 const { Logger } = require('../logger');
 const { SettingsStore } = require('./settingsStore');
@@ -100,6 +100,10 @@ function deliverHandoff(handoff) {
 
   const mainWindow = getMainWindow();
   if (mainWindow && !mainWindow.isDestroyed()) {
+    try {
+      mainWindow.setSize(460, 680);
+      mainWindow.center();
+    } catch { }
     mainWindow.loadURL(`${WEB_URL}${routePath}`);
     bringToFront(mainWindow);
     mainWindow.webContents.send('feonix:handoff', handoff);
@@ -147,7 +151,7 @@ if (!gotLock) {
   });
 
   app.whenReady().then(() => {
-try {
+    try {
       if (session && session.defaultSession) {
         session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
           if (permission === 'media' || permission === 'audio-capture' || permission === 'desktop-capture') {
@@ -178,15 +182,28 @@ try {
 
             try {
               const sources = await desktopCapturer.getSources({ types: ['screen'] });
-              const primarySource = sources[0];
-              if (!primarySource) {
+              let selectedSource = sources[0];
+              try {
+                const overlay = getOverlayWindow();
+                if (overlay && !overlay.isDestroyed() && screen) {
+                  const currentDisplay = screen.getDisplayMatching(overlay.getBounds());
+                  if (currentDisplay) {
+                    const match = sources.find((s) => String(s.display_id) === String(currentDisplay.id));
+                    if (match) selectedSource = match;
+                  }
+                }
+              } catch (displayErr) {
+                logger.warn('Could not match overlay display for screen capture:', displayErr.message);
+              }
+
+              if (!selectedSource) {
                 logger.warn('Screen capture: no screen source available');
                 refuse(callback);
                 return;
               }
 
               callback({
-                video: primarySource,
+                video: selectedSource,
                 ...(request.audioRequested ? { audio: process.platform === 'win32' ? 'loopback' : true } : {}),
               });
             } catch (error) {
