@@ -59,9 +59,12 @@ let configPromise = null;
 // before each try, before the channel falls back to clips. These failures
 // cannot be fixed by reconnecting and fall back at once.
 const RECONNECT_DELAYS_MS = [500, 1500, 4000];
+// A 401 on the ticket request is retried, not fatal: it also happens when the
+// database is too slow to read the sign-in in time (seen: 401 after 15 s),
+// and treating it as final dropped the whole session to clips.
 const FATAL_CODES = new Set([
   'live_off', 'session_ended', 'quota_exhausted', 'unauthenticated', 'too_many_channels',
-  'http_401', 'http_403', 'http_409', 'http_410',
+  'http_403', 'http_409', 'http_410',
 ]);
 
 /* How long to wait before reconnecting after a failure with this code, given

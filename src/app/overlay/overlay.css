@@ -4979,10 +4979,18 @@ body.is-resizing #answerCard {
   display: flex;
   align-items: center;
   gap: 12px;
-  width: fit-content;
-  max-width: 680px;
+  /* As wide as the bar below from the mic button to the trials badge, so
+     the words heard have room; never wider than the window. */
+  width: 640px;
+  max-width: calc(100vw - 32px);
+  box-sizing: border-box;
   cursor: grab;
   margin: 0 auto;
+}
+
+.fe-transcript-pill .fe-ticker-scroll {
+  flex: 1;
+  min-width: 0;
 }
 
 .fe-transcript-pill:active {
@@ -5619,4 +5627,95 @@ body.is-resizing #answerCard {
   border-top-color: #ffffff;
   border-radius: 50%;
   animation: feSpin 0.7s linear infinite;
+}
+
+/* Transcript strip: all questions in a row, oldest left, newest right. */
+.fe-ticker-q {
+  color: #64748b;
+}
+
+.fe-ticker-q + .fe-ticker-q::before {
+  content: '•';
+  margin: 0 12px;
+  color: #475569;
+}
+
+.fe-ticker-q-latest {
+  color: #e2e8f0;
+  font-weight: 600;
+}
+
+.fe-ticker-heard {
+  color: #94a3b8;
+  font-style: italic;
+}
+
+/* Answer card: "Example" button beside the feedback thumbs. */
+.fe-example-btn {
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  border-radius: 8px;
+  height: 28px;
+  padding: 0 12px;
+  color: #7dd3fc;
+  font-size: 12.5px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.fe-example-btn:hover {
+  background: rgba(56, 189, 248, 0.22);
+  color: #e0f2fe;
+}
+
+/* Before any question: the status message ("Microphone paused…",
+   "Listening to conversation…") sits in the middle of the strip. Questions,
+   once asked, line up from the right as before. */
+.fe-ticker-scroll.fe-ticker-idle {
+  justify-content: center;
+  mask-image: none;
+  -webkit-mask-image: none;
+}
+
+/* Balances the sound bars on the left, so the message is truly centred. */
+.fe-transcript-pill:has(.fe-ticker-idle) {
+  padding-right: 42px;
+}
+
+/* Centres the transcript strip and the bar on the same line, whatever their
+   (zoomed) width, even when wider than the column they sit in. */
+.fe-center-row {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.fe-center-row > .fe-transcript-pill {
+  margin-left: 0;
+  margin-right: 0;
+}
+
+/* Opacity setting (--copilot-bg-alpha, 0.3-1, set on .overlay-page-shell):
+   only the dark panel backgrounds turn see-through; their text, answers and
+   buttons stay fully visible. Same colours as above, alpha scaled. */
+.fe-dock-bar {
+  background: rgba(22, 22, 26, calc(0.96 * var(--copilot-bg-alpha, 1)));
+}
+
+.fe-transcript-pill {
+  background: rgba(26, 26, 30, calc(0.94 * var(--copilot-bg-alpha, 1)));
+}
+
+.fe-answer-card {
+  background: rgba(22, 22, 26, calc(0.95 * var(--copilot-bg-alpha, 1)));
+}
+
+.fe-popover-menu {
+  background: rgba(26, 26, 31, calc(0.98 * var(--copilot-bg-alpha, 1)));
+}
+
+.fe-floating-chat-bar {
+  background: rgba(20, 20, 24, calc(0.98 * var(--copilot-bg-alpha, 1)));
 }

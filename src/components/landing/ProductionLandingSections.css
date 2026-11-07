@@ -850,3 +850,116 @@
   }
 }
 
+
+/* ==========================================================================
+   LIGHT THEME — section headings, descriptions, badges and tab buttons
+   (these were white-on-white on a light background, e.g. macOS in Light mode)
+   ========================================================================== */
+[data-theme="light"] .prod-title {
+  color: #0f172a;
+}
+
+[data-theme="light"] .prod-title-gradient {
+  background: linear-gradient(135deg, #0e7490 0%, #0891b2 45%, #7c3aed 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+[data-theme="light"] .prod-desc {
+  color: #475569;
+}
+
+[data-theme="light"] .prod-badge.purple {
+  color: #6d28d9;
+  background: rgba(124, 58, 237, 0.08);
+  border-color: rgba(124, 58, 237, 0.35);
+}
+
+[data-theme="light"] .studio-tab-btn {
+  background: rgba(255, 255, 255, 0.9);
+  border-color: rgba(15, 23, 42, 0.14);
+  color: #334155;
+}
+
+[data-theme="light"] .studio-tab-btn:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+  border-color: rgba(8, 145, 178, 0.45);
+}
+
+[data-theme="light"] .studio-tab-btn.active {
+  background: linear-gradient(135deg, rgba(8, 145, 178, 0.14), rgba(124, 58, 237, 0.14));
+  border-color: #0891b2;
+  color: #0f172a;
+  box-shadow: 0 0 18px rgba(8, 145, 178, 0.18);
+}
+
+[data-theme="light"] .prod-badge {
+  color: #0e7490;
+  background: rgba(8, 145, 178, 0.08);
+  border-color: rgba(8, 145, 178, 0.35);
+}
+
+[data-theme="light"] .prod-badge.emerald {
+  color: #047857;
+  background: rgba(16, 185, 129, 0.08);
+  border-color: rgba(16, 185, 129, 0.35);
+}
+
+/* "Watch Full 90-Sec 4K Walkthrough Video" (VideoShowcase3DSection): its
+   colours are inline (white text, bright cyan icons), hence !important. */
+[data-theme="light"] .vs-watch-btn {
+  color: #0f172a !important;
+  background: linear-gradient(135deg, rgba(8, 145, 178, 0.14), rgba(124, 58, 237, 0.14)) !important;
+  border-color: #0891b2 !important;
+}
+
+[data-theme="light"] .vs-watch-btn svg {
+  color: #0e7490 !important;
+  fill: none;
+}
+
+[data-theme="light"] .vs-watch-btn svg:first-child {
+  fill: #0e7490 !important;
+}
+
+/* "Ultra-Fast AI Teleprompter Demos" badge (VideoShowcase3DSection): bright
+   cyan on a light page was too faint. Colours are inline, hence !important. */
+[data-theme="light"] .vs-demos-badge {
+  color: #0e7490 !important;
+  background: rgba(8, 145, 178, 0.1) !important;
+  border-color: rgba(8, 145, 178, 0.45) !important;
+  box-shadow: none !important;
+}
+
+/* Light theme: the four feature cards under the Zoom/Meet/Teams comparison
+   ("Hardware Compositor Exclusion", "Kernel Loopback Audio", …). Their
+   see-through dark background turned grey on a light page, with grey text. */
+[data-theme="light"] .stealth-pillar-card {
+  background: #ffffff;
+  border-color: rgba(15, 23, 42, 0.1);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+}
+
+[data-theme="light"] .stealth-pillar-card:hover {
+  border-color: rgba(5, 150, 105, 0.45);
+}
+
+[data-theme="light"] .stealth-pillar-icon {
+  background: rgba(5, 150, 105, 0.1);
+  color: #047857;
+}
+
+[data-theme="light"] .stealth-pillar-title {
+  color: #0f172a;
+}
+
+[data-theme="light"] .stealth-pillar-desc {
+  color: #475569;
+}
+
+[data-theme="light"] .stealth-pillar-desc code,
+[data-theme="light"] .stealth-pillar-desc strong {
+  color: #0e7490;
+}

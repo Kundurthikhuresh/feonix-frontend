@@ -341,17 +341,6 @@ export default function AuthModal({
                       </span>
                       <span className="checkbox-text">Remember me</span>
                     </label>
-
-                    <button
-                      type="button"
-                      className="auth-otp-toggle-btn"
-                      onClick={() => {
-                        setUseOtp(!useOtp);
-                        setAuthMsg({ text: '', type: '' });
-                      }}
-                    >
-                      {useOtp ? 'Use password instead' : 'Use OTP instead'}
-                    </button>
                   </div>
                 )}
 
@@ -365,7 +354,7 @@ export default function AuthModal({
                   {authLoading ? (
                     <span className="submit-loading-state">
                       <span className="submit-spinner" />
-                      <span>Authenticating…</span>
+                      <span>{authMode === 'forgot' ? 'Sending…' : 'Authenticating…'}</span>
                     </span>
                   ) : (
                     <span className="submit-label-state">

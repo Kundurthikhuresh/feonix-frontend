@@ -22,6 +22,8 @@ export function useInterview({ querySessionId, plan, queryAuto = true, screensho
   const [autoAnswer, setAutoAnswer] = useState(queryAuto !== false);
   const [remainingText, setRemainingText] = useState('');
   const [creditsText, setCreditsText] = useState('— Credits');
+  // Free trials the account has left (null until the account has loaded).
+  const [trialsRemaining, setTrialsRemaining] = useState(null);
   const [showWarningModal, setShowWarningModal] = useState(false);
   const [toastMsg, setToastMsg] = useState('');
   const [showToast, setShowToast] = useState(false);
@@ -106,6 +108,7 @@ export function useInterview({ querySessionId, plan, queryAuto = true, screensho
       if (res.ok) {
         const data = await res.json();
         const acc = data.account || {};
+        if (Number.isFinite(Number(acc.trials_remaining))) setTrialsRemaining(Number(acc.trials_remaining));
         if (s.billing_kind === 'unlimited') {
           setCreditsText('Unlimited');
         } else if (s.billing_kind === 'trial' || plan === 'free') {
@@ -371,6 +374,7 @@ export function useInterview({ querySessionId, plan, queryAuto = true, screensho
     toggleAutoAnswer,
     remainingText,
     creditsText,
+    trialsRemaining,
     showWarningModal,
     setShowWarningModal,
     toastMsg,

@@ -38,14 +38,11 @@ function LaunchContent() {
     }
 
     if (deepLink) {
+      // Opened as a normal navigation: Safari ignores an app link (feonixai://)
+      // in a hidden iframe, so on macOS the desktop app never opened. The page
+      // stays where it is; the browser hands the link to the app.
       try {
-        const iframe = document.createElement('iframe');
-        iframe.style.display = 'none';
-        iframe.src = deepLink;
-        document.body.appendChild(iframe);
-        setTimeout(() => {
-          try { document.body.removeChild(iframe); } catch { }
-        }, 1500);
+        window.location.href = deepLink;
       } catch { }
       // The desktop app opens its own Start Interview window, so this tab
       // stays here: opening the same screen in the browser too showed two
@@ -203,23 +200,27 @@ function LaunchContent() {
               display: 'inline-flex',
               alignItems: 'center',
               gap: '8px',
-              background: 'transparent',
-              border: '1px solid rgba(255, 255, 255, 0.15)',
+              // Theme colours (--paper is the page's text colour), so it reads
+              // on the light page as well as the dark one; it was white-on-white.
+              background: 'color-mix(in srgb, var(--paper) 5%, transparent)',
+              border: '1px solid color-mix(in srgb, var(--paper) 28%, transparent)',
               borderRadius: '999px',
               padding: '6px 14px',
-              color: '#A1A7B3',
+              color: 'color-mix(in srgb, var(--paper) 80%, transparent)',
               fontSize: '12.5px',
               fontWeight: '600',
               cursor: 'pointer',
               transition: 'all 150ms ease'
             }}
             onMouseOver={(e) => {
-              e.currentTarget.style.color = '#FFFFFF';
-              e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.3)';
+              e.currentTarget.style.color = 'var(--paper)';
+              e.currentTarget.style.borderColor = 'color-mix(in srgb, var(--paper) 50%, transparent)';
+              e.currentTarget.style.background = 'color-mix(in srgb, var(--paper) 10%, transparent)';
             }}
             onMouseOut={(e) => {
-              e.currentTarget.style.color = '#A1A7B3';
-              e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.15)';
+              e.currentTarget.style.color = 'color-mix(in srgb, var(--paper) 80%, transparent)';
+              e.currentTarget.style.borderColor = 'color-mix(in srgb, var(--paper) 28%, transparent)';
+              e.currentTarget.style.background = 'color-mix(in srgb, var(--paper) 5%, transparent)';
             }}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">

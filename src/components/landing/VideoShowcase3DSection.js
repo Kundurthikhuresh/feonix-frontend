@@ -227,6 +227,7 @@ export default function VideoShowcase3DSection({ onWatchDemo }) {
         {/* Section Header */}
         <div className="video-section-header" style={{ textAlign: 'center', marginBottom: '36px' }}>
           <div
+            className="vs-demos-badge"
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -269,6 +270,7 @@ export default function VideoShowcase3DSection({ onWatchDemo }) {
           <div style={{ marginTop: '20px' }}>
             <button
               onClick={onWatchDemo}
+              className="vs-watch-btn"
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',

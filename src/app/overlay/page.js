@@ -111,7 +111,7 @@ function OverlayContent() {
   });
   const {
     session, autoAnswer, toggleAutoAnswer,
-    remainingText,
+    remainingText, trialsRemaining,
     showWarningModal, setShowWarningModal,
     toastMsg, showToast, triggerToast,
     speech, answering, askQuestion,
@@ -733,9 +733,11 @@ function OverlayContent() {
   const canPrev = currentAnswerIndex < (answersHistory?.length || 0) - 1;
   const canNext = currentAnswerIndex > 0;
 
-  const trialsBadgeText = session?.trialsRemaining !== undefined
-    ? `${session.trialsRemaining} trials left`
-    : '0 trials left';
+  // Free trials the account has left, from the account details (the session
+  // itself does not carry it, which showed "0 trials left" for everyone).
+  const trialsBadgeText = trialsRemaining === null
+    ? ''
+    : `${trialsRemaining} free ${trialsRemaining === 1 ? 'trial' : 'trials'} left`;
 
   const [answerCardDismissed, setAnswerCardDismissed] = useState(false);
 
@@ -1004,7 +1006,10 @@ function OverlayContent() {
       className="overlay-page-shell"
       style={{
         '--dock-scale': DOCK_SCALE[settings.assistantSize] || DOCK_SCALE.normal,
-        opacity: settings.opacity / 100,
+        // The Opacity setting makes only the copilot's dark backgrounds
+        // see-through; text, answers and buttons stay fully clear (see
+        // --copilot-bg-alpha in overlay.css). It used to fade everything.
+        '--copilot-bg-alpha': settings.opacity / 100,
         pointerEvents: 'none',
         display: 'flex',
         flexDirection: 'column',
@@ -1092,6 +1097,13 @@ function OverlayContent() {
             onToggleExpand={handleToggleExpand}
             isExpanded={isExpanded}
             onDragStart={handleDragStart}
+            onExample={() => {
+              // The question behind the answer on screen; an example of an
+              // example is still about the original question.
+              const shown = answersHistory?.[currentAnswerIndex]?.question || cueLine || '';
+              const question = String(shown).replace(/^example:\s*/i, '').trim();
+              if (question) askQuestion(`Example: ${question}`, { style: answerStyle, action: 'example' });
+            }}
           />
 
           {/* 2. CHAT COMPOSE BAR (WHEN TOGGLED) */}
@@ -1108,18 +1120,24 @@ function OverlayContent() {
             onRemoveScreenshotAt={(index) => setScreenshots((prev) => prev.filter((_, i) => i !== index))}
           />
 
-          {/* 3. MIDDLE LIVE TRANSCRIPT TICKER PILL */}
-          <TranscriptTicker
-            listening={listening}
-            transcriptChips={transcriptChips}
-            cueLine={cueLine}
-            lastHeard={lastHeard}
-            onDragStart={handleDragStart}
-            nativeDrag={isDesktopWindow}
-          />
+          {/* 3. MIDDLE LIVE TRANSCRIPT TICKER PILL. The strip and the bar
+              are centred the same way (a full-width centring row) so the
+              strip sits exactly over the middle of the bar; with auto margins
+              they landed apart once enlarged (zoom) and wider than this column. */}
+          <div className="fe-center-row">
+            <TranscriptTicker
+              listening={listening}
+              transcriptChips={transcriptChips}
+              cueLine={cueLine}
+              lastHeard={lastHeard}
+              onDragStart={handleDragStart}
+              nativeDrag={isDesktopWindow}
+            />
+          </div>
 
           {/* 4. BOTTOM FLOATING DOCK BAR + POPOVER */}
-          <div className="fe-dock-wrapper" style={{ position: 'relative', width: 'fit-content', margin: '0 auto', pointerEvents: 'all' }}>
+          <div className="fe-center-row">
+          <div className="fe-dock-wrapper" style={{ position: 'relative', width: 'fit-content', margin: 0, pointerEvents: 'all' }}>
             <FloatingDock
               onDragStart={handleDragStart}
               listening={listening}
@@ -1163,6 +1181,7 @@ function OverlayContent() {
               onEndSession={handleEndClick}
               onQuit={handleQuit}
             />
+          </div>
           </div>
 
           {/* FULL SETTINGS MODAL */}

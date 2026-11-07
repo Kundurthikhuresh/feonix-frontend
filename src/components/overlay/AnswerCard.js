@@ -57,6 +57,8 @@ export default function AnswerCard({
   onToggleExpand,
   isExpanded = false,
   onDragStart,
+  // Asks for a concrete example of the answer on screen (code for code topics).
+  onExample,
 }) {
   if (!visible || (!answer && !answerText && !thinking && !hasError)) return null;
 
@@ -188,6 +190,16 @@ export default function AnswerCard({
       <div className="fe-card-foot" onMouseDown={onDragStart}>
         <span className="fe-foot-timestamp">Answer · {displayTime}</span>
         <div className="fe-foot-feedback" onMouseDown={(e) => e.stopPropagation()}>
+          {onExample && !thinking && !isStreaming && !hasError && (answer || answerText) && (
+            <button
+              type="button"
+              className="fe-example-btn"
+              onClick={onExample}
+              title="Show a real example of this answer (code for coding questions)"
+            >
+              Example
+            </button>
+          )}
           <button
             type="button"
             className={`fe-thumb-btn ${feedback === 'up' ? 'fe-thumb-active' : ''}`}

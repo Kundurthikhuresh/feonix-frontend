@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
+import DateTimePickerField from './DateTimePickerField';
 
 const OFFER_TYPES = [
   { value: 'percentage_discount', label: '1. Percentage Discount (e.g. 50% off)' },
@@ -48,6 +49,7 @@ export default function AdminPromotionsSection() {
   const [loadingRedemptions, setLoadingRedemptions] = useState(false);
 
   const fileInputRef = useRef(null);
+
 
   // Form State
   const [formData, setFormData] = useState({
@@ -675,19 +677,6 @@ export default function AdminPromotionsSection() {
                 />
               </div>
 
-              <div className="admin-field-group">
-                <label>Offer Type *</label>
-                <select
-                  className="admin-select-styled"
-                  value={formData.offer_type}
-                  onChange={(e) => setFormData({ ...formData, offer_type: e.target.value })}
-                >
-                  {OFFER_TYPES.map((t) => (
-                    <option key={t.value} value={t.value}>{t.label}</option>
-                  ))}
-                </select>
-              </div>
-
               {/* Dynamic inputs based on Offer Type */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
                 <div className="admin-field-group">
@@ -797,21 +786,18 @@ export default function AdminPromotionsSection() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div className="admin-field-group">
                   <label>Start Date (Optional)</label>
-                  <input
-                    type="datetime-local"
-                    className="admin-input-styled"
+                  <DateTimePickerField
                     value={formData.start_date}
-                    onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
+                    onChange={(v) => setFormData({ ...formData, start_date: v })}
                   />
                 </div>
 
                 <div className="admin-field-group">
                   <label>Expiry Date (Optional)</label>
-                  <input
-                    type="datetime-local"
-                    className="admin-input-styled"
+                  <DateTimePickerField
                     value={formData.expiry_date}
-                    onChange={(e) => setFormData({ ...formData, expiry_date: e.target.value })}
+                    onChange={(v) => setFormData({ ...formData, expiry_date: v })}
+                    time="23:59"
                   />
                 </div>
               </div>

@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import {
   getListenChannels, createChunkedRecorder, stopStreamTracks, transcribeChunk,
   isSilenceHallucination, deduplicateRepeatedPhrases, looksLikeQuestion,
@@ -12,6 +12,8 @@ import { markCaptureStarted, traceQuestion } from '../lib/latencyTrace';
 // "already said" logic keys on, so the local mic must use exactly that.
 const SPEAKER_LABELS = { interviewer: 'Interviewer', you: 'Candidate', unknown: 'Speaker' };
 const MAX_CONVERSATION_LINES = 40;
+// A speaker's transcript line is saved after this long without new words.
+const TRANSCRIPT_LINE_IDLE_MS = 4000;
 // Scripts that are never English (the backend's NON_LATIN_SCRIPT_REGEX plus
 // Japanese/CJK extras). ऀ-෿ is every Indian script: Bengali was
 // missing, so misheard audio could show up, or be asked, in Bengali.
@@ -129,7 +131,56 @@ export function useSpeechRecognition({ sessionId, source = 'both', language = 'e
     return st;
   };
 
+  /* The conversation is saved to the session as it happens, so its review
+   * afterwards has a transcript (the copilot used to keep it only in memory,
+   * and every session showed "No transcript was recorded"). Consecutive
+   * pieces from one speaker are joined into one line; a line is sent when the
+   * other side speaks, after a few quiet seconds, or when listening stops.
+   * Lines go out one at a time, in order. */
+  const transcriptSaveRef = useRef({ pending: null, timer: null, chain: Promise.resolve() });
+
+  const flushTranscriptLine = useCallback(() => {
+    const q = transcriptSaveRef.current;
+    if (q.timer) clearTimeout(q.timer);
+    q.timer = null;
+    const line = q.pending;
+    q.pending = null;
+    const sid = sessionIdRef.current;
+    if (!line || !line.text.trim() || !sid || sid === 'default') return;
+    q.chain = q.chain.then(() => fetch(`/api/sessions/${encodeURIComponent(sid)}/transcript`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        text: line.text.trim().slice(0, 5000),
+        speaker: line.speaker === 'unknown' ? undefined : line.speaker,
+        is_question: line.isQuestion,
+      }),
+      keepalive: true,
+    }).catch((err) => console.warn('[copilot] transcript line not saved', err && err.message)));
+  }, []);
+
+  const saveTranscriptText = useCallback((speaker, text) => {
+    const q = transcriptSaveRef.current;
+    if (q.pending && q.pending.speaker !== speaker) flushTranscriptLine();
+    if (q.pending) q.pending.text = `${q.pending.text} ${text}`;
+    else q.pending = { speaker, text, isQuestion: false };
+    if (/\?\s*["')\]]?\s*$/.test(text)) q.pending.isQuestion = true;
+    if (q.timer) clearTimeout(q.timer);
+    q.timer = setTimeout(flushTranscriptLine, TRANSCRIPT_LINE_IDLE_MS);
+  }, [flushTranscriptLine]);
+
+  // Closing the copilot window still sends what is waiting.
+  useEffect(() => {
+    const onHide = () => flushTranscriptLine();
+    window.addEventListener('pagehide', onHide);
+    return () => {
+      window.removeEventListener('pagehide', onHide);
+      flushTranscriptLine();
+    };
+  }, [flushTranscriptLine]);
+
   const appendConversation = useCallback((speaker, text) => {
+    saveTranscriptText(speaker, text);
     setLastHeard(text.slice(-160));
     const log = conversationRef.current;
     const last = log[log.length - 1];
@@ -139,7 +190,7 @@ export function useSpeechRecognition({ sessionId, source = 'both', language = 'e
       log.push({ speaker, text });
       if (log.length > MAX_CONVERSATION_LINES) log.splice(0, log.length - MAX_CONVERSATION_LINES);
     }
-  }, []);
+  }, [saveTranscriptText]);
 
   const getConversationTranscript = useCallback(() => (
     conversationRef.current.map((l) => `${SPEAKER_LABELS[l.speaker] || 'Speaker'}: ${l.text}`).join('\n')
@@ -432,6 +483,7 @@ export function useSpeechRecognition({ sessionId, source = 'both', language = 'e
 
   // Stops listening but keeps the audio sources open (see pauseRecording).
   const stopListeners = useCallback(() => {
+    flushTranscriptLine();
     recordersRef.current.forEach((r) => { try { r.stop(); } catch {} });
     recordersRef.current = [];
     isRecognitionActiveRef.current = false;
@@ -452,7 +504,7 @@ export function useSpeechRecognition({ sessionId, source = 'both', language = 'e
       clearInterval(elapsedTimerRef.current);
       elapsedTimerRef.current = null;
     }
-  }, []);
+  }, [flushTranscriptLine]);
 
   // Stops listening and closes the microphone and meeting-audio capture.
   const releaseAll = useCallback(() => {

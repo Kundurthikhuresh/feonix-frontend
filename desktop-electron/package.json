@@ -42,9 +42,15 @@
       "artifactName": "FeonixAI Setup ${version}.exe"
     },
     "mac": {
-      "target": ["dmg", "zip"],
+      "target": [
+        { "target": "dmg", "arch": ["universal"] },
+        { "target": "zip", "arch": ["universal"] }
+      ],
       "category": "public.app-category.productivity",
-      "artifactName": "FeonixAI-${version}.${ext}"
+      "artifactName": "FeonixAI-${version}.${ext}",
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "FeonixAI listens to your microphone during interview sessions to transcribe questions and generate answers."
+      }
     },
     "dmg": {
       "artifactName": "FeonixAI-${version}.dmg"

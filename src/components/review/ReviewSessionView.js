@@ -2,6 +2,19 @@ import React, { useState, useEffect, useRef } from 'react';
 import { formatWhen } from '../../lib/utils';
 import './ReviewSessionModal.css';
 
+// The AI model a session's answers came from (the "AI Agent" picked when it
+// was created). No choice saved means the default, which is GPT-4o.
+const AI_MODEL_LABELS = {
+  'gpt-4o': 'GPT-4o',
+  'gpt-4.1-mini': 'GPT-4.1 mini',
+  'gpt-4o-mini': 'GPT-4o mini',
+};
+function aiModelLabel(agent) {
+  const id = String(agent || '').trim();
+  if (!id) return 'GPT-4o (default)';
+  return AI_MODEL_LABELS[id] || id;
+}
+
 export default function ReviewSessionView({
   reviewPane,
   setReviewPane,
@@ -226,6 +239,17 @@ export default function ReviewSessionView({
   const companyDisplay = reviewData?.company || reviewData?.title || 'Session';
   const roleDisplay = reviewData?.role || '';
 
+  // Questions answered in this session, oldest first, without repeats or the
+  // "Example:" follow-ups (used when no transcript was saved).
+  const askedQuestions = (() => {
+    const seen = new Set();
+    return [...(reviewData?.answers || [])]
+      .sort((a, b) => (a.id || 0) - (b.id || 0))
+      .map((a) => String(a.question || '').trim())
+      .filter((q) => q && !/^example:/i.test(q) && !/^\(.*\)$/.test(q))
+      .filter((q) => (seen.has(q.toLowerCase()) ? false : seen.add(q.toLowerCase())));
+  })();
+
   return (
     <div
       className="review-modal-backdrop"
@@ -303,19 +327,6 @@ export default function ReviewSessionView({
             </button>
           </nav>
 
-          {/* Sidebar Footer */}
-          <div className="review-sidebar-footer">
-            <button
-              type="button"
-              className="review-rate-link"
-              onClick={() => alert('Thank you for rating Feonix AI on Google!')}
-            >
-              <svg className="review-rate-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path>
-              </svg>
-              <span>Rate us on Google</span>
-            </button>
-          </div>
         </aside>
 
         {/* Right Content Column */}
@@ -589,6 +600,20 @@ export default function ReviewSessionView({
                     <p className="transcript-body-text">{t.text}</p>
                   </div>
                 ))
+              ) : askedQuestions.length > 0 ? (
+                // Sessions from before the copilot saved its transcript: the
+                // questions it answered are still known from its answers.
+                <>
+                  <div className="notes-empty-box" style={{ marginBottom: '12px' }}>
+                    <p>A full transcript was not recorded for this session. These are the questions that were asked.</p>
+                  </div>
+                  {askedQuestions.map((q, idx) => (
+                    <div key={`q-${idx}`} className="transcript-bubble" data-kind="question">
+                      <div className="transcript-speaker-badge">Question {idx + 1}</div>
+                      <p className="transcript-body-text">{q}</p>
+                    </div>
+                  ))}
+                </>
               ) : (
                 <div className="notes-empty-box">
                   <p>No transcript was recorded for this session.</p>
@@ -611,6 +636,10 @@ export default function ReviewSessionView({
               <div className="detail-card-row">
                 <span className="detail-card-label">Status</span>
                 <span className="detail-card-value">{reviewData?.status || 'Ended'}</span>
+              </div>
+              <div className="detail-card-row">
+                <span className="detail-card-label">AI model</span>
+                <span className="detail-card-value">{aiModelLabel(reviewData?.agent)}</span>
               </div>
               <div className="detail-card-row">
                 <span className="detail-card-label">Created at</span>

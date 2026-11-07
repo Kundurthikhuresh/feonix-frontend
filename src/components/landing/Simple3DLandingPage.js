@@ -11,6 +11,7 @@ import InteractiveLiveCodeProblemSolver from './InteractiveLiveCodeProblemSolver
 import InteractiveProductShowcase from './InteractiveProductShowcase';
 import StealthInvisibilityDualViewMatrix from './StealthInvisibilityDualViewMatrix';
 import VideoShowcase3DSection from './VideoShowcase3DSection';
+
 import HowItWorksSection from './HowItWorksSection';
 import FeatureShowcaseGrid from './FeatureShowcaseGrid';
 import Integrations3DSection from './Integrations3DSection';
@@ -23,6 +24,11 @@ import PremiumFooter from './PremiumFooter';
 import ParakeetPricingView from '../pricing/ParakeetPricingView';
 import './PremiumLanding.css';
 import './ProductionLandingSections.css';
+
+// "Live FeonixAI Project Demonstration" section: hidden, not removed.
+const SHOW_VIDEO_SHOWCASE = false;
+// "100% Private, Zero Retention, Indestructible Security" section: hidden, not removed.
+const SHOW_SECURITY_VAULT = false;
 
 // Dynamic import of 3D WebGL Particle Background to avoid SSR issues
 const ParticleBackground = dynamic(() => import('../3d/ParticleBackground'), {
@@ -47,12 +53,6 @@ export default function Simple3DLandingPage({
       {/* Ambient Radial Gradients & Subtle Grid Overlay */}
       <div className="px-bg-ambient" aria-hidden="true" />
       <div className="px-bg-grid" aria-hidden="true" />
-
-      {/* Top Announcement Bar */}
-      <div className="px-top-announcement">
-        <span>🎉 Special Launch: <strong>5 Free Trial Sessions</strong> Included (10 min each) • 100% Screen-Share Invisible Teleprompter</span>
-        <a href="#pricing">Explore Plans &rarr;</a>
-      </div>
 
       {/* A. Sticky Navigation Bar */}
       <PremiumNavbar
@@ -95,10 +95,13 @@ export default function Simple3DLandingPage({
         {/* H. Production Section 3: Stealth Invisibility Dual-View Comparison Matrix */}
         <StealthInvisibilityDualViewMatrix />
 
-        {/* I. Live 4K Video Demonstration Stage with 3 Selectable Scenarios */}
-        <VideoShowcase3DSection
-          onWatchDemo={onWatchDemo || onSignupClick}
-        />
+        {/* I. Live 4K Video Demonstration Stage with 3 Selectable Scenarios.
+            Hidden for now (code kept): set SHOW_VIDEO_SHOWCASE to true to show it again. */}
+        {SHOW_VIDEO_SHOWCASE && (
+          <VideoShowcase3DSection
+            onWatchDemo={onWatchDemo || onSignupClick}
+          />
+        )}
 
         {/* J. How It Works (4-Step Workflow) */}
         <HowItWorksSection />
@@ -109,8 +112,9 @@ export default function Simple3DLandingPage({
         {/* L. Interactive 3D Ecosystem & Platform Integrations Matrix */}
         <Integrations3DSection />
 
-        {/* M. Enterprise Security Quantum Vault 3D Section */}
-        <Security3DSection />
+        {/* M. Enterprise Security Quantum Vault 3D Section.
+            Hidden for now (code kept): set SHOW_SECURITY_VAULT to true to show it again. */}
+        {SHOW_SECURITY_VAULT && <Security3DSection />}
 
         {/* N. Desktop Platform Experience & Screen-Share Stealth */}
         <DesktopExperienceSection />
@@ -139,7 +143,7 @@ export default function Simple3DLandingPage({
         </section>
 
         {/* P. Candidate Testimonials with 3D Tilt Cards */}
-        <Testimonials3DSection />
+        <Testimonials3DSection themeMode={themeMode} />
 
         {/* Q. Frequently Asked Questions */}
         <FAQAccordion />
