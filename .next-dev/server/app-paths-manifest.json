@@ -1,8 +1,0 @@
-{
-  "/api/[...path]/route": "app/api/[...path]/route.js",
-  "/session-type/page": "app/session-type/page.js",
-  "/overlay/page": "app/overlay/page.js",
-  "/admin/page": "app/admin/page.js",
-  "/admin/[section]/page": "app/admin/[section]/page.js",
-  "/page": "app/page.js"
-}
