@@ -888,20 +888,31 @@ export default function Page({ searchParams }) {
 
   const handleUploadDocument = async (file, kind) => {
     if (!file) return;
-    setLibMsg('Uploading…');
+    // The card shows up the moment the file is picked (marked "Uploading…")
+    // and is swapped for the saved document when the server answers.
+    const setList = kind === 'resume' ? setResumes : setDocuments;
+    const tempId = `uploading-${Date.now()}`;
+    setList((list) => [
+      { id: tempId, kind, filename: file.name, created_at: new Date().toISOString(), uploading: true },
+      ...list,
+    ]);
+    setLibMsg('');
+    const dropTemp = () => setList((list) => list.filter((d) => d.id !== tempId));
     try {
       const formData = new FormData();
       formData.append('file', file);
       formData.append('kind', kind);
       const res = await fetch('/api/documents', { method: 'POST', body: formData });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
+      if (!res.ok || !data.document) {
+        dropTemp();
         setLibMsg(data.message || 'Upload failed.');
         return;
       }
-      setLibMsg('');
-      loadDocuments();
+      const saved = data.document;
+      setList((list) => list.map((d) => (d.id === tempId ? saved : d)));
     } catch (err) {
+      dropTemp();
       setLibMsg('Upload failed.');
     }
   };

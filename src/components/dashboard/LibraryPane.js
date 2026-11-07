@@ -60,9 +60,14 @@ export default function LibraryPane({
             <div className="when">{formatWhen(d.created_at)}</div>
             <h3>{d.filename}</h3>
             <div className="chips">
-              <span className="chip">{d.chars} chars</span>
+              {d.uploading ? (
+                <span className="chip">Uploading…</span>
+              ) : (
+                <span className="chip">{d.chars} chars</span>
+              )}
               {d.is_active && <span className="chip chip-active">Active</span>}
             </div>
+            {!d.uploading && (
             <div className="doc-card-foot">
               {!d.is_active && (
                 <button className="btn-link" onClick={() => handleActivateDocument(d.id)} type="button">
@@ -78,6 +83,7 @@ export default function LibraryPane({
                 Delete
               </button>
             </div>
+            )}
           </div>
         ))}
         {filteredDocs.length === 0 && (

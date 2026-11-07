@@ -69,7 +69,9 @@ export default function ResumesPage() {
       const res = await fetch('/api/documents', { method: 'POST', body: formData });
       const data = await res.json();
       if (res.ok) {
-        await loadResumes();
+        // Show the new resume at once; the full list refreshes behind it.
+        setResumes((list) => [data.document, ...list.filter((r) => r.id !== data.document.id)]);
+        loadResumes();
         setMsg(`✓ "${data.document.filename}" uploaded — analyzing…`);
         setUploading(false);
         const analyzed = await handleAnalyze(data.document);
