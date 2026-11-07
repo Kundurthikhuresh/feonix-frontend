@@ -1328,6 +1328,168 @@
   gap: 4px;
 }
 
+/* Promotion form: date + time picker (DateTimePickerField) with Done inside. */
+.dtp-root {
+  position: relative;
+}
+
+.dtp-display {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.dtp-display svg {
+  color: #7c3aed;
+  flex-shrink: 0;
+}
+
+.dtp-placeholder {
+  color: #94a3b8;
+}
+
+.dtp-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 1000;
+  width: 300px;
+  padding: 14px;
+  border-radius: 14px;
+  background: #ffffff;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.18);
+  color: #0f172a;
+}
+
+.dtp-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.dtp-title {
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.dtp-nav {
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 8px;
+  background: #f1f5f9;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  color: #334155;
+}
+
+.dtp-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  grid-gap: 4px;
+  gap: 4px;
+  text-align: center;
+}
+
+.dtp-weekday {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #64748b;
+  padding: 4px 0;
+}
+
+.dtp-day {
+  height: 34px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  font-size: 13px;
+  color: #0f172a;
+  cursor: pointer;
+}
+
+.dtp-day:hover {
+  background: #ede9fe;
+}
+
+.dtp-day.is-today {
+  box-shadow: inset 0 0 0 1px #7c3aed;
+}
+
+.dtp-day.is-selected {
+  background: #7c3aed;
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.dtp-time {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #e2e8f0;
+  font-size: 13px;
+  color: #475569;
+}
+
+.dtp-time span {
+  margin-right: auto;
+  font-weight: 600;
+}
+
+.dtp-time select {
+  height: 32px;
+  padding: 0 6px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  font-size: 13px;
+  color: #0f172a;
+}
+
+.dtp-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.dtp-link {
+  border: 0;
+  background: transparent;
+  color: #7c3aed;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 6px 4px;
+}
+
+.dtp-done {
+  margin-left: auto;
+  height: 34px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 10px;
+  background: #7c3aed;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.dtp-done:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 /*!******************************************************************************************************************************************************************************************************************************************************************************************!*\
   !*** css ./node_modules/next/dist/build/webpack/loaders/css-loader/src/index.js??ruleSet[1].rules[14].oneOf[10].use[2]!./node_modules/next/dist/build/webpack/loaders/postcss-loader/src/index.js??ruleSet[1].rules[14].oneOf[10].use[3]!./src/components/review/ReviewSessionModal.css ***!
   \******************************************************************************************************************************************************************************************************************************************************************************************/
@@ -3790,16 +3952,14 @@
   left: 0;
   right: 0;
   z-index: 100;
-  background: var(--px-navbar-bg, rgba(7, 9, 14, 0.75));
-  -webkit-backdrop-filter: blur(14px);
-          backdrop-filter: blur(14px);
-  border-bottom: 1px solid var(--px-border-subtle);
+  /* No bar behind the navigation: the logo and links sit on the page itself. */
+  background: transparent;
+  border-bottom: 0;
   transition: all 0.2s ease;
 }
 
 .px-navbar.is-scrolled {
-  background: var(--px-navbar-bg-scrolled, rgba(7, 9, 14, 0.92));
-  border-bottom-color: var(--px-border);
+  background: transparent;
 }
 
 .px-navbar-container {
@@ -4635,17 +4795,17 @@
 }
 
 [data-theme="light"] .px-navbar {
-  background: rgba(255, 255, 255, 0.9) !important;
-  -webkit-backdrop-filter: blur(16px);
-          backdrop-filter: blur(16px);
-  border-bottom: 1px solid rgba(15, 23, 42, 0.08) !important;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  background: transparent !important;
+  -webkit-backdrop-filter: none;
+          backdrop-filter: none;
+  border-bottom: 0 !important;
+  box-shadow: none;
 }
 
 [data-theme="light"] .px-navbar.is-scrolled {
-  background: rgba(255, 255, 255, 0.98) !important;
-  border-bottom: 1px solid rgba(15, 23, 42, 0.12) !important;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+  background: transparent !important;
+  border-bottom: 0 !important;
+  box-shadow: none;
 }
 
 [data-theme="light"] .px-brand-name {
@@ -5944,4 +6104,117 @@
   }
 }
 
+
+/* ==========================================================================
+   LIGHT THEME — section headings, descriptions, badges and tab buttons
+   (these were white-on-white on a light background, e.g. macOS in Light mode)
+   ========================================================================== */
+[data-theme="light"] .prod-title {
+  color: #0f172a;
+}
+
+[data-theme="light"] .prod-title-gradient {
+  background: linear-gradient(135deg, #0e7490 0%, #0891b2 45%, #7c3aed 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+[data-theme="light"] .prod-desc {
+  color: #475569;
+}
+
+[data-theme="light"] .prod-badge.purple {
+  color: #6d28d9;
+  background: rgba(124, 58, 237, 0.08);
+  border-color: rgba(124, 58, 237, 0.35);
+}
+
+[data-theme="light"] .studio-tab-btn {
+  background: rgba(255, 255, 255, 0.9);
+  border-color: rgba(15, 23, 42, 0.14);
+  color: #334155;
+}
+
+[data-theme="light"] .studio-tab-btn:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+  border-color: rgba(8, 145, 178, 0.45);
+}
+
+[data-theme="light"] .studio-tab-btn.active {
+  background: linear-gradient(135deg, rgba(8, 145, 178, 0.14), rgba(124, 58, 237, 0.14));
+  border-color: #0891b2;
+  color: #0f172a;
+  box-shadow: 0 0 18px rgba(8, 145, 178, 0.18);
+}
+
+[data-theme="light"] .prod-badge {
+  color: #0e7490;
+  background: rgba(8, 145, 178, 0.08);
+  border-color: rgba(8, 145, 178, 0.35);
+}
+
+[data-theme="light"] .prod-badge.emerald {
+  color: #047857;
+  background: rgba(16, 185, 129, 0.08);
+  border-color: rgba(16, 185, 129, 0.35);
+}
+
+/* "Watch Full 90-Sec 4K Walkthrough Video" (VideoShowcase3DSection): its
+   colours are inline (white text, bright cyan icons), hence !important. */
+[data-theme="light"] .vs-watch-btn {
+  color: #0f172a !important;
+  background: linear-gradient(135deg, rgba(8, 145, 178, 0.14), rgba(124, 58, 237, 0.14)) !important;
+  border-color: #0891b2 !important;
+}
+
+[data-theme="light"] .vs-watch-btn svg {
+  color: #0e7490 !important;
+  fill: none;
+}
+
+[data-theme="light"] .vs-watch-btn svg:first-child {
+  fill: #0e7490 !important;
+}
+
+/* "Ultra-Fast AI Teleprompter Demos" badge (VideoShowcase3DSection): bright
+   cyan on a light page was too faint. Colours are inline, hence !important. */
+[data-theme="light"] .vs-demos-badge {
+  color: #0e7490 !important;
+  background: rgba(8, 145, 178, 0.1) !important;
+  border-color: rgba(8, 145, 178, 0.45) !important;
+  box-shadow: none !important;
+}
+
+/* Light theme: the four feature cards under the Zoom/Meet/Teams comparison
+   ("Hardware Compositor Exclusion", "Kernel Loopback Audio", …). Their
+   see-through dark background turned grey on a light page, with grey text. */
+[data-theme="light"] .stealth-pillar-card {
+  background: #ffffff;
+  border-color: rgba(15, 23, 42, 0.1);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+}
+
+[data-theme="light"] .stealth-pillar-card:hover {
+  border-color: rgba(5, 150, 105, 0.45);
+}
+
+[data-theme="light"] .stealth-pillar-icon {
+  background: rgba(5, 150, 105, 0.1);
+  color: #047857;
+}
+
+[data-theme="light"] .stealth-pillar-title {
+  color: #0f172a;
+}
+
+[data-theme="light"] .stealth-pillar-desc {
+  color: #475569;
+}
+
+[data-theme="light"] .stealth-pillar-desc code,
+[data-theme="light"] .stealth-pillar-desc strong {
+  color: #0e7490;
+}
 

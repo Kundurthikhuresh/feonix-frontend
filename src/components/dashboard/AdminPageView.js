@@ -11,20 +11,11 @@ export default function AdminPageView() {
   const rawSection = routeParams?.section;
   const initialSection = Array.isArray(rawSection) ? rawSection[0] : (rawSection || null);
 
-  const [user, setUser] = useState(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const raw = localStorage.getItem('feonix_dash_cache');
-        if (raw) {
-          const cached = JSON.parse(raw);
-          if (cached?.user && (cached.user.is_admin || cached.user.role === 'owner')) {
-            return cached.user;
-          }
-        }
-      } catch {}
-    }
-    return null;
-  });
+  const [user, setUser] = useState(null);
+  // True until the sign-in check has answered. Until then a short loading
+  // screen shows instead of the sign-in form, so a refresh (Ctrl+F5) of a
+  // signed-in admin no longer flashes the Admin Sign In page first.
+  const [checkingSession, setCheckingSession] = useState(true);
 
   const [themeMode, setThemeMode] = useState('dark');
 
@@ -45,27 +36,30 @@ export default function AdminPageView() {
       document.documentElement.dataset.theme = activeTheme;
     }
 
-    // If already authenticated as admin and hitting /admin directly, forward to /admin/dashboard
-    if (typeof window !== 'undefined' && window.location.pathname === '/admin') {
-      try {
-        const raw = localStorage.getItem('feonix_dash_cache');
-        if (raw) {
-          const cached = JSON.parse(raw);
-          if (cached?.user && (cached.user.is_admin || cached.user.role === 'owner')) {
-            window.location.replace('/admin/dashboard');
-            return;
-          }
-        }
-      } catch {}
-    }
+    // The admin saved by the last successful check opens the panel at once;
+    // the check below then confirms it (or signs out a stale one).
+    let cachedAdmin = null;
+    try {
+      const raw = localStorage.getItem('feonix_dash_cache');
+      const cached = raw ? JSON.parse(raw) : null;
+      if (cached?.user && (cached.user.is_admin || cached.user.role === 'owner')) cachedAdmin = cached.user;
+    } catch {}
 
-    checkAdminSession();
+    // If already authenticated as admin and hitting /admin directly, forward to /admin/dashboard
+    if (cachedAdmin && typeof window !== 'undefined' && window.location.pathname === '/admin') {
+      window.location.replace('/admin/dashboard');
+      return;
+    }
+    if (cachedAdmin) setUser(cachedAdmin);
+
+    checkAdminSession().finally(() => setCheckingSession(false));
   }, []);
 
   const checkAdminSession = async () => {
     try {
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 3000);
+      // A slow server (seen: 2.8 s) is waited for; the loading screen shows meanwhile.
+      const timer = setTimeout(() => controller.abort(), 8000);
 
       const res = await fetch('/api/auth/me', { signal: controller.signal });
       clearTimeout(timer);
@@ -121,9 +115,15 @@ export default function AdminPageView() {
   const handleAuthSubmit = async (e) => {
     e?.preventDefault?.();
     setAuthLoading(true);
-    setAuthMsg({ text: 'Verifying administrator credentials…', type: '' });
+    setAuthMsg({ text: authMode === 'forgot' ? 'Sending reset link…' : 'Verifying administrator credentials…', type: '' });
 
-    if (!authEmail.trim() || !authPassword) {
+    if (authMode === 'forgot' && !authEmail.trim()) {
+      setAuthLoading(false);
+      setAuthMsg({ text: 'Please enter your email.', type: 'err' });
+      return;
+    }
+
+    if (authMode !== 'forgot' && (!authEmail.trim() || !authPassword)) {
       setAuthLoading(false);
       setAuthMsg({ text: 'Please enter both email and password.', type: 'err' });
       return;
@@ -197,7 +197,15 @@ export default function AdminPageView() {
     );
   }
 
-  // If not authenticated or not admin, show Admin Login view immediately
+  // Still asking the server who is signed in: neither the panel nor the
+  // sign-in form yet.
+  if (checkingSession) {
+    // Just the page background (no message or spinner) for the moment the
+    // check takes.
+    return <div style={{ minHeight: '100vh', background: '#07090e' }} />;
+  }
+
+  // Not signed in as an admin: the Admin Sign In page.
   return (
     <div style={{ minHeight: '100vh', background: '#07090e' }}>
       <AuthModal

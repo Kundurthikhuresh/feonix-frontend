@@ -195,9 +195,11 @@ test('reconnect rule: three tries with growing waits, then clips; fatal codes ne
   assert.equal(liveReconnectDelay('upstream_unavailable', 1), 1500);
   assert.equal(liveReconnectDelay('connection_failed', 2), 4000);
   assert.equal(liveReconnectDelay('connection_failed', 3), null);
-  for (const code of ['quota_exhausted', 'session_ended', 'live_off', 'http_401', 'too_many_channels']) {
+  for (const code of ['quota_exhausted', 'session_ended', 'live_off', 'too_many_channels']) {
     assert.equal(liveReconnectDelay(code, 0), null, code);
   }
+  // A slow sign-in check can answer 401 for a moment: retried like a lost connection.
+  assert.equal(liveReconnectDelay('http_401', 0), 500);
 });
 
 test('latency report: every stage, the headline number and the slowest stage', () => {

@@ -185,9 +185,11 @@ export default function FloatingDock({
       </button>
 
       {/* 9. Usage / Trials Badge */}
-      <div className="fe-dock-trials-badge" title="Remaining free trials / session credits">
-        <span>{trialsText}</span>
-      </div>
+      {trialsText && (
+        <div className="fe-dock-trials-badge" title="Remaining free trials / session credits">
+          <span>{trialsText}</span>
+        </div>
+      )}
 
       {/* 10. Glowing Red Session Timer Pill */}
       <div className="fe-dock-timer-pill" title={timerUnlimited ? 'Session time (unlimited plan)' : 'Session time remaining'}>

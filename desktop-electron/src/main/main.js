@@ -127,10 +127,19 @@ if (process.defaultApp) {
 // below — on macOS the OS delivers this Apple Event to whichever process is
 // already running rather than spawning a new one, so it isn't gated on
 // holding the lock the way second-instance below is.
+// On a cold start macOS delivers the link before the app is ready, when no
+// window can be created yet: it is kept and used once the app is ready
+// (handling it at once failed, so "Open desktop app" opened nothing on Mac).
+let linkBeforeReady = null;
 app.on('open-url', (event, url) => {
   event.preventDefault();
   const handoff = parseDeepLink(url);
-  if (handoff) deliverHandoff(handoff);
+  if (!handoff) return;
+  if (!app.isReady()) {
+    linkBeforeReady = handoff;
+    return;
+  }
+  deliverHandoff(handoff);
 });
 
 // Windows/Linux: a second launch (from clicking the link again) is forwarded
@@ -231,7 +240,9 @@ if (!gotLock) {
     // Windows/Linux cold start via protocol link: the URL arrives as an argv entry.
     const prefix = `${SCHEME.toLowerCase()}:`;
     const coldLink = process.argv.find((arg) => typeof arg === 'string' && arg.trim().replace(/^["']/, '').toLowerCase().startsWith(prefix));
-    const coldHandoff = coldLink ? parseDeepLink(coldLink) : null;
+    // macOS: a link that arrived (open-url) before the app was ready.
+    const coldHandoff = linkBeforeReady || (coldLink ? parseDeepLink(coldLink) : null);
+    linkBeforeReady = null;
 
     if (coldHandoff) {
       deliverHandoff(coldHandoff);

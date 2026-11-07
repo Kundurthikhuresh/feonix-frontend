@@ -479,7 +479,10 @@ export default function Page({ searchParams }) {
     const initialAuth = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('auth') : null;
     if (initialAuth === 'login' || initialAuth === 'register') {
       const initialRole = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('role') : null;
-      setAuthRole(initialRole === 'user' ? 'user' : 'admin');
+      // The user sign-in unless the link asks for the admin one: with no role
+      // (e.g. "Go to sign in" after a password reset) it used to open the
+      // Admin Portal, which then refused the user's correct new password.
+      setAuthRole(initialRole === 'admin' ? 'admin' : 'user');
       setAuthMode(initialAuth);
       setShowAuthModal(true);
     }
@@ -1005,7 +1008,10 @@ export default function Page({ searchParams }) {
   const handleAuthSubmit = async (e) => {
     e.preventDefault();
     setAuthLoading(true);
-    setAuthMsg({ text: authMode === 'register' ? 'Creating account…' : 'Signing in…', type: '' });
+    setAuthMsg({
+      text: authMode === 'register' ? 'Creating account…' : authMode === 'forgot' ? 'Sending reset link…' : 'Signing in…',
+      type: '',
+    });
 
     if (authMode === 'forgot') {
       const { ok, data } = await postJSONWithRetry('/api/auth/forgot-password', { email: authEmail });

@@ -2051,10 +2051,8 @@ export default function AdminPane({
               <div style={{ padding: '16px', border: '1px solid var(--ad-border)', borderRadius: '12px', background: 'var(--ad-bg)' }}>
                 <div style={{ fontSize: '12px', color: 'var(--ad-text-muted)' }}>Designated Administrator</div>
                 <div style={{ fontSize: '16px', fontWeight: 700, margin: '4px 0', color: 'var(--ad-purple)' }}>
-                  {settingsData?.admin_email || 'kundurthikhuresh64@gmail.com'}
-                </div>
-                <div style={{ fontSize: '12px', color: 'var(--ad-green)' }}>
-                  🔒 Verified Single-Admin Authorization Enforced
+                  {/* Until the settings load: the signed-in admin's own email. */}
+                  {settingsData?.admin_email || user?.email || '…'}
                 </div>
               </div>
             </div>
