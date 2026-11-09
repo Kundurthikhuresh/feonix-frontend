@@ -1,10 +1,20 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 
-export default function Sidebar({ user, activePane, setActivePane, themeMode, toggleTheme, handleLogout, trialsLeft, creditsLeft, onGoLanding }) {
+export default function Sidebar({ user, activePane, setActivePane, themeMode, toggleTheme, handleLogout, trialsLeft, creditsLeft, onGoLanding, unlimitedPlan }) {
   const numTrials = typeof trialsLeft === 'number' ? trialsLeft : (Number.isFinite(Number(trialsLeft)) ? Number(trialsLeft) : null);
   const displayTrials = numTrials !== null ? `${numTrials}` : '—';
   const displayCredits = creditsLeft !== undefined && creditsLeft !== null ? creditsLeft : '—';
   const progressPercent = numTrials !== null ? Math.min(100, Math.max(0, numTrials * 20)) : 100;
+
+  // "Log out" first asks "Do you want to log out?" — Yes signs out, No (or
+  // Esc, or a click outside the box) keeps the user on the dashboard.
+  const [confirmLogout, setConfirmLogout] = useState(false);
+  useEffect(() => {
+    if (!confirmLogout) return undefined;
+    const onKey = (e) => { if (e.key === 'Escape') setConfirmLogout(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [confirmLogout]);
 
   return (
     <aside className="nav">
@@ -72,7 +82,11 @@ export default function Sidebar({ user, activePane, setActivePane, themeMode, to
         <div className="quota-card">
           <div className="quota-card-head">
             <span>{displayTrials} {numTrials === 1 ? 'free trial' : 'free trials'}</span>
-            <span className="quota-card-sub">{displayCredits} credits left</span>
+            <span className="quota-card-sub">
+              {unlimitedPlan
+                ? (Number(creditsLeft) > 0 ? `${unlimitedPlan} + ${displayCredits} credits` : unlimitedPlan)
+                : `${displayCredits} credits left`}
+            </span>
           </div>
           <div className="meter">
             <div className="meter-fill" style={{ width: `${progressPercent}%` }}></div>
@@ -99,11 +113,63 @@ export default function Sidebar({ user, activePane, setActivePane, themeMode, to
           <button className="btn-link" onClick={toggleTheme} type="button">
             {themeMode === 'light' ? 'Dark mode' : 'Light mode'}
           </button>
-          <button className="btn-link" onClick={handleLogout} type="button">
+          <button className="btn-link" onClick={() => setConfirmLogout(true)} type="button">
             Log out
           </button>
         </div>
       </div>
+
+      {confirmLogout && (
+        <div
+          onClick={() => setConfirmLogout(false)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center',
+            justifyContent: 'center', padding: '16px', background: 'rgba(0, 0, 0, 0.55)',
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="logout-confirm-title"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%', maxWidth: '340px', padding: '24px', borderRadius: '14px',
+              background: 'var(--ink)', color: 'var(--paper)', border: '1px solid var(--line)',
+              boxShadow: '0 20px 50px rgba(0, 0, 0, 0.45)', textAlign: 'center',
+            }}
+          >
+            <h3 id="logout-confirm-title" style={{ margin: '0 0 8px', fontSize: '18px', fontWeight: 700 }}>
+              Log out
+            </h3>
+            <p style={{ margin: '0 0 22px', fontSize: '14px', opacity: 0.8 }}>
+              Do you want to log out?
+            </p>
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+              <button
+                type="button"
+                autoFocus
+                onClick={() => setConfirmLogout(false)}
+                style={{
+                  flex: 1, padding: '10px 0', borderRadius: '10px', cursor: 'pointer', fontSize: '14px',
+                  fontWeight: 600, background: 'transparent', color: 'var(--paper)', border: '1px solid var(--line)',
+                }}
+              >
+                No
+              </button>
+              <button
+                type="button"
+                onClick={() => { setConfirmLogout(false); handleLogout(); }}
+                style={{
+                  flex: 1, padding: '10px 0', borderRadius: '10px', cursor: 'pointer', fontSize: '14px',
+                  fontWeight: 600, background: 'var(--alert)', color: '#fff', border: '1px solid var(--alert)',
+                }}
+              >
+                Yes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </aside>
   );
 }

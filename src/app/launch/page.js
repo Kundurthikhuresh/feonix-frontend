@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 function LaunchContent() {
@@ -10,7 +10,54 @@ function LaunchContent() {
 
   const [sessionName, setSessionName] = useState('');
   const [title, setTitle] = useState('Open FeonixAI Desktop');
-  const [lede, setLede] = useState('Click "Open desktop app" to launch your interview session:');
+  const [lede, setLede] = useState('Click "Open in desktop app" below to open this session in the FeonixAI desktop app.');
+  const autoLaunchedRef = useRef(false);
+  const [showPrompt, setShowPrompt] = useState(false);
+  const [alwaysAllow, setAlwaysAllow] = useState(false);
+  const [siteOrigin, setSiteOrigin] = useState('https://www.feonix-ai.com');
+  const [siteHost, setSiteHost] = useState('www.feonix-ai.com');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setSiteOrigin(window.location.origin);
+      const host = window.location.host;
+      setSiteHost(host.startsWith('www.') ? host : (window.location.hostname === 'localhost' ? host : 'www.' + host));
+    }
+  }, []);
+
+  // The one-time launch link is fetched ahead of time (on load, and again
+  // after each use), so clicking Open opens the app at once instead of
+  // waiting for the server. Links last 90 s on the server; one older than
+  // 60 s is fetched again.
+  const linkRef = useRef(null); // { promise, at }
+  const fetchLaunchLink = () => fetch(`/api/sessions/${sessionId}/handoff`, { method: 'POST' })
+    .then((res) => (res.ok ? res.json() : null))
+    .then((data) => (data && (data.deep_link || data.deepLink
+      || (data.token ? `feonixai://launch?token=${data.token}&session=${sessionId}` : null))) || null)
+    .catch(() => null);
+  const prefetchLaunchLink = () => {
+    if (!sessionId) return;
+    const cur = linkRef.current;
+    if (cur && Date.now() - cur.at < 60000) return;
+    linkRef.current = { promise: fetchLaunchLink(), at: Date.now() };
+  };
+  const takeLaunchLink = async () => {
+    const cur = linkRef.current;
+    linkRef.current = null;
+    const fresh = cur && Date.now() - cur.at < 60000 ? await cur.promise : null;
+    return fresh || fetchLaunchLink();
+  };
+
+  const askToOpen = () => {
+    if (!sessionId) { router.replace('/'); return; }
+    prefetchLaunchLink();
+    setShowPrompt(true);
+  };
+  const confirmOpen = () => {
+    setShowPrompt(false);
+    handleOpenDesktopApp();
+  };
+  const tryRef = useRef(0);
   const [pulsing, setPulsing] = useState(false);
   const [showFallback, setShowFallback] = useState(true);
   const [msg, setMsg] = useState({ text: '', type: '' });
@@ -25,37 +72,84 @@ function LaunchContent() {
     setMsg({ text: '', type: '' });
     setLaunching(true);
     setPulsing(true);
+    tryRef.current += 1;
+    const thisTry = tryRef.current;
 
     let deepLink = null;
     try {
-      const res = await fetch(`/api/sessions/${sessionId}/handoff`, { method: 'POST' });
-      if (res.ok) {
-        const data = await res.json().catch(() => ({}));
-        deepLink = data?.deep_link || data?.deepLink || (data?.token ? `feonixai://launch?token=${data.token}&session=${sessionId}` : null);
-      }
+      deepLink = await takeLaunchLink();
     } catch (err) {
       console.warn('Launch handoff note:', err);
     }
+    // Ready the next link in case this try is cancelled.
+    setTimeout(prefetchLaunchLink, 0);
 
     if (deepLink) {
-      // Opened as a normal navigation: Safari ignores an app link (feonixai://)
-      // in a hidden iframe, so on macOS the desktop app never opened. The page
-      // stays where it is; the browser hands the link to the app.
+      let leftPage = false;
+      const markLeft = () => { leftPage = true; };
+      const markHidden = () => { if (document.hidden) leftPage = true; };
+      window.addEventListener('blur', markLeft);
+      document.addEventListener('visibilitychange', markHidden);
+
       try {
         window.location.href = deepLink;
       } catch { }
-      // The desktop app opens its own Start Interview window, so this tab
-      // stays here: opening the same screen in the browser too showed two
-      // Start Interview windows at once.
+      setTitle('Opening FeonixAI Desktop…');
+      setLede('Click "Open FeonixAI" in the dialog shown by your browser. If you don\'t see the dialog, click "Open in desktop app" below.');
+      setLaunching(false);
+
+      const token = (deepLink.match(/[?&]token=([^&]+)/) || [])[1] || '';
+      const opened = await waitForDesktopApp(token, () => leftPage);
+      window.removeEventListener('blur', markLeft);
+      document.removeEventListener('visibilitychange', markHidden);
+      if (thisTry !== tryRef.current) return;
+
       setLaunching(false);
       setPulsing(false);
-      setTitle('Continue in FeonixAI Desktop');
-      setLede('Your session is opening in the desktop app. If nothing opened, download the app below or run the session in this browser.');
+      if (opened) {
+        setTitle('Continue in FeonixAI Desktop');
+        setLede('Your session is open in the FeonixAI desktop app.');
+        setMsg({ text: '', type: '' });
+      } else {
+        setTitle('FeonixAI Desktop is not installed');
+        setLede('The desktop app did not open on this computer.');
+        setMsg({
+          text: 'Please download our FeonixAI setup below and install it on your system, then click "Open desktop app" again.',
+          type: 'err',
+        });
+      }
       return;
     }
 
-    // No desktop hand-off could be made: run the session in this browser.
     window.location.href = `/session-type?session=${encodeURIComponent(sessionId)}`;
+  };
+
+  const waitForDesktopApp = async (token, pageLeft) => {
+    const started = Date.now();
+    const NO_APP_MS = 3500;
+    const MAX_WAIT_MS = 25000;
+    let sawLeave = false;
+    while (Date.now() - started < MAX_WAIT_MS) {
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      if (pageLeft()) sawLeave = true;
+      if (token) {
+        try {
+          const res = await fetch(
+            `/api/sessions/${encodeURIComponent(sessionId)}/handoff-status?token=${encodeURIComponent(token)}`,
+            { cache: 'no-store' }
+          );
+          if (res.ok) {
+            const data = await res.json().catch(() => ({}));
+            if (data.used) return true;
+            if (data.expired) return false;
+          }
+        } catch { }
+      } else if (sawLeave) {
+        return true;
+      }
+      if (!sawLeave && Date.now() - started >= NO_APP_MS) return false;
+    }
+    return false;
   };
 
   useEffect(() => {
@@ -64,7 +158,6 @@ function LaunchContent() {
       return;
     }
 
-    // If already inside the desktop app, go directly to Start Interview without delay
     if (typeof window !== 'undefined' && window.feonix) {
       window.location.href = `/session-type?session=${encodeURIComponent(sessionId)}`;
       return;
@@ -91,6 +184,11 @@ function LaunchContent() {
 
       const isMac = typeof navigator !== 'undefined' && (/Mac|iPod|iPhone|iPad/.test(navigator.platform) || /Macintosh|Mac OS X/.test(navigator.userAgent));
       setIsMacOS(isMac);
+
+      // The "Open ?" prompt is shown only when the user clicks
+      // "Open in desktop app" (askToOpen), never by itself on load. The
+      // launch link is readied now, so that click is instant.
+      prefetchLaunchLink();
     } catch {
       router.replace('/');
     }
@@ -139,97 +237,100 @@ function LaunchContent() {
 
   return (
     <div className="launch">
-      <div className="launch-card">
-        <div className={`launch-mark ${pulsing ? 'pulse' : ''}`} id="mark">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="7" y1="17" x2="17" y2="7" />
-            <polyline points="7 7 17 7 17 17" />
-          </svg>
+      {showPrompt && (
+        <div className="open-prompt-layer" onMouseDown={() => setShowPrompt(false)}>
+          <div
+            className="open-prompt"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="open-prompt-title"
+            onMouseDown={(e) => e.stopPropagation()}
+            onKeyDown={(e) => { if (e.key === 'Escape') setShowPrompt(false); }}
+          >
+            <h2 id="open-prompt-title">Open ?</h2>
+            <p>
+              {siteOrigin} wants to open this application.
+            </p>
+            <label className="open-prompt-checkbox">
+              <input
+                type="checkbox"
+                checked={alwaysAllow}
+                onChange={(e) => setAlwaysAllow(e.target.checked)}
+              />
+              <span>Always allow {siteHost} to open links of this type in the associated app</span>
+            </label>
+            <div className="open-prompt-buttons">
+              <button type="button" className="open-prompt-open" onClick={confirmOpen} autoFocus>
+                Open
+              </button>
+              <button type="button" className="open-prompt-cancel" onClick={() => setShowPrompt(false)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      <div className="launch-card launch-card-v2">
+        <div className="launch-brand-lockup">
+          <div className="launch-brand-logo">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none">
+              <path d="M12 2L2 7L12 12L22 7L12 2Z" fill="#10b981" />
+              <path d="M2 17L12 22L22 17" stroke="#10b981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M2 12L12 17L22 12" stroke="#10b981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
+          <span className="launch-brand-name">Feonix <span className="launch-brand-pill">AI</span></span>
         </div>
 
-        <h1 id="title">{title}</h1>
-        <p className="lede" id="lede">{lede}</p>
-        <div className="session-name" id="sessionName">{sessionName}</div>
+        <p className="lede" id="lede">
+          Click &quot;Open FeonixAI&quot; in the dialog shown by your browser. If you don&apos;t see the dialog, click &quot;Open in desktop app&quot; below.
+        </p>
 
-        <button className="launch-btn" onClick={handleOpenDesktopApp} disabled={launching} type="button">
-          {launching ? 'Opening…' : 'Open desktop app'}
+        <button className="launch-btn launch-btn-wide" onClick={askToOpen} disabled={launching} type="button">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <rect x="2" y="3" width="20" height="14" rx="2" />
+            <line x1="8" y1="21" x2="16" y2="21" />
+            <line x1="12" y1="17" x2="12" y2="21" />
+            <polyline points="9 9 12 12 15 9" />
+          </svg>
+          <span>{launching ? 'Opening…' : 'Open in desktop app'}</span>
         </button>
 
         {msg.text && msg.type === 'err' && (
-          <div 
-            className="launch-msg launch-msg-err"
-            style={{ marginBottom: '24px', textAlign: 'center', fontWeight: '500' }}
-          >
+          <div className="launch-msg launch-msg-err" style={{ marginBottom: '20px', textAlign: 'center', fontWeight: '500' }}>
             {msg.text}
           </div>
         )}
 
         {showFallback && (
-          <div className="launch-fallback" id="fallback">
+          <div className="launch-get-app">
+            <h2>Don&apos;t have the desktop app yet?</h2>
+            <p>Download it to run FeonixAI privately during your calls.</p>
             <button
-              className="launch-btn"
-              onClick={handleDownloadWin}
+              className="launch-download-btn"
+              onClick={isMacOS ? handleDownloadMac : handleDownloadWin}
               type="button"
             >
-              Download for Windows
+              {isMacOS ? (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.4 12.6c0-2.5 2.1-3.7 2.2-3.8-1.2-1.7-3-2-3.7-2-1.6-.2-3.1.9-3.9.9-.8 0-2-.9-3.4-.9-1.7 0-3.3 1-4.2 2.6-1.8 3.1-.5 7.7 1.3 10.2.9 1.2 1.9 2.6 3.2 2.6 1.3-.1 1.8-.8 3.3-.8 1.6 0 2 .8 3.4.8 1.4 0 2.3-1.3 3.1-2.5 1-1.4 1.4-2.8 1.4-2.9 0 0-2.7-1-2.7-4.2zM13.9 5.1c.7-.9 1.2-2 1-3.1-1 0-2.2.7-2.9 1.5-.6.7-1.2 1.9-1 3 1.1.1 2.2-.6 2.9-1.4z" /></svg>
+              ) : (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5.5l7.5-1v7H3zM11.5 4.4L21 3v8.5h-9.5zM3 12.5h7.5v7L3 18.5zM11.5 12.5H21V21l-9.5-1.4z" /></svg>
+              )}
+              <span>{isMacOS ? 'Download for macOS' : 'Download for Windows'}</span>
             </button>
-            <button
-              className="launch-btn"
-              onClick={handleDownloadMac}
-              type="button"
-              style={{ marginBottom: '20px' }}
-            >
-              Download for macOS
-            </button>
-
             <div className="launch-platform-note">
-              Or,{' '}
-              <button className="launch-link" onClick={handleStayInBrowser} type="button">
-                run this session in the browser
-              </button>{' '}
-              instead.
+              Need it for{' '}
+              <button className="launch-link" onClick={isMacOS ? handleDownloadWin : handleDownloadMac} type="button">
+                {isMacOS ? 'Windows' : 'macOS'}
+              </button>
+              ?
             </div>
           </div>
         )}
 
-        <div style={{ marginTop: '20px', borderTop: '1px solid rgba(255, 255, 255, 0.08)', paddingTop: '16px', display: 'flex', justifyContent: 'center' }}>
-          <button
-            onClick={handleBackToDashboard}
-            type="button"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '8px',
-              // Theme colours (--paper is the page's text colour), so it reads
-              // on the light page as well as the dark one; it was white-on-white.
-              background: 'color-mix(in srgb, var(--paper) 5%, transparent)',
-              border: '1px solid color-mix(in srgb, var(--paper) 28%, transparent)',
-              borderRadius: '999px',
-              padding: '6px 14px',
-              color: 'color-mix(in srgb, var(--paper) 80%, transparent)',
-              fontSize: '12.5px',
-              fontWeight: '600',
-              cursor: 'pointer',
-              transition: 'all 150ms ease'
-            }}
-            onMouseOver={(e) => {
-              e.currentTarget.style.color = 'var(--paper)';
-              e.currentTarget.style.borderColor = 'color-mix(in srgb, var(--paper) 50%, transparent)';
-              e.currentTarget.style.background = 'color-mix(in srgb, var(--paper) 10%, transparent)';
-            }}
-            onMouseOut={(e) => {
-              e.currentTarget.style.color = 'color-mix(in srgb, var(--paper) 80%, transparent)';
-              e.currentTarget.style.borderColor = 'color-mix(in srgb, var(--paper) 28%, transparent)';
-              e.currentTarget.style.background = 'color-mix(in srgb, var(--paper) 5%, transparent)';
-            }}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="19" y1="12" x2="5" y2="12"></line>
-              <polyline points="12 19 5 12 12 5"></polyline>
-            </svg>
-            <span>Back to Dashboard</span>
-          </button>
-        </div>
+        <button className="launch-back-link" onClick={handleBackToDashboard} type="button">
+          <span>← Back to dashboard</span>
+        </button>
       </div>
     </div>
   );

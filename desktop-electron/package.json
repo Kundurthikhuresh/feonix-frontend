@@ -39,7 +39,8 @@
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "artifactName": "FeonixAI Setup ${version}.exe"
+      "artifactName": "FeonixAI Setup ${version}.exe",
+      "include": "build/installer.nsh"
     },
     "mac": {
       "target": [

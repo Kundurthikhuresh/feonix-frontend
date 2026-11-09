@@ -1537,3 +1537,29 @@
 
 
 
+
+/* Navbar: stays at the top while scrolling, always see-through (no bar or
+   border behind it). After a navbar link is clicked it slides up out of
+   view, and scrolling down hides it; scrolling up shows it (PremiumNavbar.js). */
+.px-landing-root .px-navbar {
+  transition: transform 0.25s ease, opacity 0.25s ease;
+}
+/* Away from the top, the navbar sits over the page's content: it gets the
+   page's own background colour (no line, no shadow) so the links stay
+   readable instead of mixing with the text behind them. */
+.px-landing-root .px-navbar.is-scrolled {
+  background: var(--px-bg) !important;
+  border-bottom: 0 !important;
+  box-shadow: none !important;
+}
+.px-landing-root .px-navbar.is-hidden {
+  transform: translateY(-100%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Clicking a navbar link stops the section just below the sticky navbar,
+   not underneath it. */
+html {
+  scroll-padding-top: 72px;
+}

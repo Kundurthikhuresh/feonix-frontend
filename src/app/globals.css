@@ -3663,6 +3663,11 @@ body[data-shell="tauri"] .answer-pane {
   width: 100%;
   overflow-y: auto;
   overflow-x: hidden;
+  /* This box never scrolls by itself (the page does), and 'auto'/'hidden'
+     here stopped the landing navbar from staying at the top while
+     scrolling. 'clip' still trims the sideways glows without that. */
+  overflow-y: visible;
+  overflow-x: clip;
   font-family: 'Plus Jakarta Sans', var(--sans);
   color: #f3f4f4;
   position: relative;
@@ -5583,10 +5588,14 @@ body[data-shell="tauri"] .answer-pane {
   align-items: center;
   justify-content: center;
   min-height: 100vh;
-  background: var(--ink);
-  color: var(--paper);
-  font-family: var(--sans);
-  padding: 24px;
+  background: #ffffff;
+  color: #111827;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  padding: 32px 16px;
+  box-sizing: border-box;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 .launch-card {
@@ -6932,6 +6941,9 @@ body[data-shell="tauri"] .answer-pane {
   color: var(--text-primary);
   font-family: var(--font-sans);
   overflow-x: hidden;
+  /* 'clip' where supported: same clipping, but it lets the landing navbar
+     stay stuck to the top while scrolling ('hidden' silently blocks that). */
+  overflow-x: clip;
   background-image:
     radial-gradient(ellipse 80% 50% at 50% -10%, rgba(30, 27, 75, 0.5) 0%, transparent 60%),
     radial-gradient(circle at 10% 20%, rgba(0, 245, 255, 0.08) 0%, transparent 45%),
@@ -14824,4 +14836,1158 @@ body[data-shell="tauri"] .answer-pane {
 [data-theme="light"] .auth-brand-lockup .brand-ai,
 .auth-brand-lockup .brand-ai {
   color: #38bdf8 !important;
+}
+
+/* ==========================================================================
+   Create session: two-part window — steps on the left (1 Details,
+   2 Preferences), the step's fields on the right.
+   ========================================================================== */
+.sheet-card.cs-wizard {
+  max-width: 900px;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 250px 1fr;
+  overflow: hidden;
+}
+.cs-side {
+  padding: 30px 26px;
+  border-right: 1px solid var(--line);
+  background: var(--raised);
+  display: flex;
+  flex-direction: column;
+}
+.cs-side h2 {
+  margin: 0 0 8px;
+  font-size: 22px;
+  font-weight: 600;
+}
+.cs-side-lede {
+  margin: 0 0 30px;
+  color: var(--dim);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+.cs-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  position: relative;
+}
+.cs-steps li + li {
+  margin-top: 26px;
+}
+/* The line joining step 1 to step 2 */
+.cs-steps li + li::before {
+  content: '';
+  position: absolute;
+  left: 13px;
+  top: 30px;
+  height: 22px;
+  width: 1px;
+  background: var(--line);
+}
+.cs-steps button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--dim);
+  font: inherit;
+  font-size: 14.5px;
+  cursor: pointer;
+}
+.cs-step-num {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.cs-steps li.is-current button {
+  color: var(--paper);
+  font-weight: 600;
+}
+.cs-steps li.is-current .cs-step-num,
+.cs-steps li.is-done .cs-step-num {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+.cs-main {
+  position: relative;
+  padding: 30px 30px 26px;
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+}
+.cs-close {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 0;
+  background: transparent;
+  color: var(--dim);
+  font-size: 15px;
+  cursor: pointer;
+}
+.cs-close:hover {
+  background: var(--raised);
+  color: var(--paper);
+}
+.cs-type-tabs {
+  margin-right: 34px; /* room for the close button */
+}
+.cs-context-label {
+  margin: 6px 0 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  color: var(--dim);
+  font-size: 12.5px;
+}
+.cs-wizard .mode-select {
+  padding: 10px 12px;
+  margin-bottom: 0;
+}
+.cs-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 18px;
+}
+.cs-actions .btn {
+  min-width: 140px;
+  justify-content: center;
+}
+.btn-ghost-cs {
+  min-width: 120px;
+  padding: 10px 18px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--raised);
+  color: var(--paper);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-ghost-cs:hover:not([disabled]) {
+  filter: brightness(1.1);
+}
+/* Phones: steps across the top, fields underneath. */
+@media (max-width: 720px) {
+  .sheet-card.cs-wizard {
+    grid-template-columns: 1fr;
+  }
+  .cs-side {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+    padding: 22px 20px;
+  }
+  .cs-side-lede {
+    margin-bottom: 16px;
+  }
+  .cs-steps {
+    display: flex;
+    gap: 22px;
+  }
+  .cs-steps li + li {
+    margin-top: 0;
+  }
+  .cs-steps li + li::before {
+    display: none;
+  }
+  .cs-main {
+    padding: 22px 20px;
+  }
+}
+/* Tick-boxes in the Create session window: box and label on one line. */
+.cs-wizard .field label.toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-family: inherit;
+  font-size: 13.5px;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--paper);
+  cursor: pointer;
+}
+.cs-wizard .field label.toggle input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  margin: 0;
+  flex-shrink: 0;
+  accent-color: var(--primary);
+}
+
+/* Create session: CV / Resume and Documents pickers. */
+.cs-picker {
+  position: relative;
+}
+.cs-picker-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--paper);
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+.cs-picker-btn.is-open,
+.cs-picker-btn:focus-visible {
+  border-color: var(--primary);
+  outline: none;
+}
+.cs-picker-value {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.cs-picker-chev {
+  flex-shrink: 0;
+  color: var(--dim);
+}
+.cs-picker-btn.is-open .cs-picker-chev {
+  transform: rotate(180deg);
+}
+/* Both pickers keep equal width however long a file name is. */
+.cs-wizard .field-pair > * {
+  min-width: 0;
+}
+.cs-picker-menu {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 6px);
+  z-index: 20;
+  padding: 6px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  max-height: 260px;
+  overflow-y: auto;
+}
+.cs-picker-opt {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--paper);
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+.cs-picker-opt:hover {
+  background: var(--raised);
+}
+.cs-picker-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
+}
+.cs-picker-tick {
+  flex-shrink: 0;
+  color: var(--dim);
+}
+.cs-picker-sep {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--line);
+}
+.cs-picker-upload {
+  justify-content: flex-start;
+  color: var(--paper);
+}
+
+/* Create session: "View tutorial" and "Mock presets" at the bottom left. */
+.cs-side-actions {
+  position: relative;
+  margin-top: auto;
+  padding-top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.cs-side-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--paper);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.cs-side-btn:hover:not([disabled]),
+.cs-side-btn.is-open {
+  border-color: var(--primary);
+}
+.cs-presets-menu {
+  bottom: calc(100% - 14px);
+}
+@media (max-width: 720px) {
+  .cs-side-actions {
+    flex-direction: row;
+    padding-top: 16px;
+  }
+}
+
+/* Create session, step 2 (Preferences): one row per setting — icon, title
+   and hint on the left, its control on the right. */
+.cs-group-label {
+  margin: 4px 0 6px;
+  color: var(--dim);
+  font-size: 12.5px;
+}
+.cs-group-label.is-later {
+  margin-top: 18px;
+}
+.cs-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 0;
+}
+.cs-row-icon {
+  flex-shrink: 0;
+  color: var(--dim);
+}
+.cs-row-text {
+  flex: 1;
+  min-width: 0;
+}
+.cs-row-title {
+  color: var(--paper);
+  font-size: 14.5px;
+  font-weight: 600;
+}
+.cs-row-sub {
+  color: var(--dim);
+  font-size: 13px;
+  margin-top: 2px;
+}
+.cs-wizard .cs-row-control {
+  width: auto;
+  min-width: 170px;
+  max-width: 240px;
+  flex-shrink: 0;
+}
+.cs-row-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex-shrink: 0;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--raised);
+  color: var(--paper);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.cs-row-btn.is-dark {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+.cs-row-btn.is-open {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 35%, transparent);
+}
+.cs-row-panel {
+  margin: 0 0 8px 32px;
+}
+.cs-row-textarea {
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--paper);
+  font: inherit;
+  font-size: 13.5px;
+  resize: vertical;
+}
+.cs-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.cs-chip {
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--raised);
+  color: var(--paper);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.cs-chip.is-on {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+/* On/off switch */
+.cs-switch {
+  position: relative;
+  flex-shrink: 0;
+  width: 42px;
+  height: 24px;
+  cursor: pointer;
+}
+.cs-switch input {
+  position: absolute;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  cursor: pointer;
+}
+.cs-switch-track {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: var(--line);
+  transition: background 0.2s ease;
+}
+.cs-switch-track::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.2s ease;
+}
+.cs-switch input:checked + .cs-switch-track {
+  background: var(--primary);
+}
+.cs-switch input:checked + .cs-switch-track::after {
+  transform: translateX(18px);
+}
+.cs-switch input:focus-visible + .cs-switch-track {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.cs-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+@media (max-width: 720px) {
+  .cs-row {
+    flex-wrap: wrap;
+  }
+  .cs-wizard .cs-row-control {
+    max-width: none;
+    width: 100%;
+  }
+}
+
+/* Answer preferences window (Create session → Answer Preferences →
+   Configure): choices on the left, live answer preview on the right. */
+.ap-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.45);
+}
+.ap-card {
+  width: 100%;
+  max-width: 1080px;
+  max-height: calc(100vh - 48px);
+  display: grid;
+  grid-template-columns: 1fr 1.25fr;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+}
+.ap-left {
+  display: flex;
+  flex-direction: column;
+  padding: 28px 26px 24px;
+  border-right: 1px solid var(--line);
+  overflow-y: auto;
+}
+.ap-left h3 {
+  margin: 0 0 6px;
+  font-size: 20px;
+  font-weight: 600;
+}
+.ap-lede {
+  margin: 0 0 20px;
+  color: var(--dim);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.ap-list {
+  background: var(--raised);
+  border-radius: 12px;
+  padding: 4px 14px;
+}
+.ap-item + .ap-item {
+  border-top: 1px solid var(--line);
+}
+.ap-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 0;
+  background: none;
+  border: 0;
+  color: var(--paper);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.ap-row-icon {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  border-radius: 10px;
+  background: var(--panel);
+  color: var(--paper);
+}
+.ap-row-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.ap-row-title {
+  font-size: 15px;
+  font-weight: 600;
+}
+.ap-row-sub {
+  color: var(--dim);
+  font-size: 13.5px;
+  margin-top: 2px;
+}
+.ap-row-chev {
+  color: var(--dim);
+  transition: transform 0.15s ease;
+}
+.ap-row-chev.is-open {
+  transform: rotate(90deg);
+}
+.ap-options {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 0 12px 52px;
+}
+.ap-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--paper);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.ap-option:hover {
+  background: var(--panel);
+}
+.ap-option.is-on {
+  border-color: var(--primary);
+  background: var(--panel);
+}
+.ap-option-label {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+}
+.ap-option-hint {
+  display: block;
+  color: var(--dim);
+  font-size: 12.5px;
+}
+.ap-buttons {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: auto;
+  padding-top: 24px;
+}
+.ap-buttons .btn {
+  min-width: 150px;
+  justify-content: center;
+}
+.ap-right {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 28px 26px 24px;
+  background: var(--raised);
+  min-height: 0;
+}
+.ap-label {
+  display: block;
+  margin: 0 0 8px;
+  color: var(--dim);
+  font-size: 14px;
+}
+.ap-select {
+  margin-bottom: 20px !important;
+  margin-right: 36px;
+  width: calc(100% - 36px) !important;
+}
+.ap-preview {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 18px 20px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.ap-preview-body {
+  color: var(--paper);
+  font-size: 14.5px;
+  line-height: 1.6;
+}
+.ap-preview-q {
+  margin: 0 0 14px;
+  padding-left: 14px;
+  border-left: 2px solid var(--line);
+  font-weight: 600;
+}
+.ap-preview-body p {
+  margin: 0 0 10px;
+}
+.ap-preview-body ul {
+  margin: 0 0 10px;
+  padding-left: 22px;
+}
+.ap-preview-body li {
+  margin-bottom: 6px;
+}
+@media (max-width: 820px) {
+  .ap-card {
+    grid-template-columns: 1fr;
+    overflow-y: auto;
+  }
+  .ap-left {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+}
+
+/* Answer preferences: a setting's own page — choice cards with a radio. */
+.ap-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.ap-choice {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  color: var(--paper);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.ap-choice:hover {
+  border-color: color-mix(in srgb, var(--primary) 55%, var(--line));
+}
+.ap-choice.is-on {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 1px var(--primary);
+}
+.ap-choice .ap-option-label {
+  font-size: 15px;
+}
+.ap-choice .ap-option-hint {
+  font-size: 13.5px;
+  margin-top: 2px;
+}
+.ap-radio {
+  position: relative;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 2px solid var(--dim);
+}
+.ap-choice.is-on .ap-radio {
+  border-color: var(--primary);
+}
+.ap-choice.is-on .ap-radio::after {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  background: var(--primary);
+}
+
+/* Create session: three session-type tabs with icons; Mock's quick picks. */
+.cs-type-tabs .seg {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+.cs-mock-picks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* "Add AI instructions" window. */
+.ai-card {
+  position: relative;
+  width: 100%;
+  max-width: 820px;
+  padding: 30px 30px 26px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+}
+.ai-card h3 {
+  margin: 0 0 6px;
+  font-size: 20px;
+  font-weight: 600;
+}
+.ai-label {
+  display: block;
+  margin: 4px 0 8px;
+  color: var(--paper);
+  font-size: 14.5px;
+  font-weight: 600;
+}
+.ai-textarea {
+  width: 100%;
+  min-height: 220px;
+  padding: 14px 16px;
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  color: var(--paper);
+  font: inherit;
+  font-size: 14.5px;
+  line-height: 1.5;
+  resize: vertical;
+}
+.ai-textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+.ai-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+.ai-buttons .btn[disabled],
+.ai-buttons .btn-ghost-cs[disabled] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.cs-row-sub-clip {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Answer preview, played line by line like a short video. */
+.ap-line {
+  animation: ap-line-in 0.45s ease both;
+}
+.ap-line-inline {
+  display: inline;
+}
+@keyframes ap-line-in {
+  from { opacity: 0; transform: translateY(6px); filter: blur(2px); }
+  to { opacity: 1; transform: none; filter: none; }
+}
+.ap-caret {
+  display: inline-block;
+  width: 8px;
+  height: 16px;
+  margin-left: 2px;
+  vertical-align: -2px;
+  border-radius: 2px;
+  background: var(--primary);
+  animation: ap-caret-blink 0.9s steps(2, start) infinite;
+}
+@keyframes ap-caret-blink {
+  to { visibility: hidden; }
+}
+.ap-replay {
+  margin-top: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--raised);
+  color: var(--paper);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  animation: ap-line-in 0.3s ease both;
+}
+.ap-replay:hover {
+  border-color: var(--primary);
+}
+@media (prefers-reduced-motion: reduce) {
+  .ap-line, .ap-replay { animation: none; }
+  .ap-caret { display: none; }
+}
+
+/* Answer preferences: the Question Type list opens downwards. */
+.ap-qtype {
+  margin: 0 36px 20px 0;
+}
+.ap-qtype-menu {
+  top: calc(100% + 6px);
+  bottom: auto;
+  max-height: 380px;
+}
+
+/* Launch page (Open desktop app): opens the app on load; explains the
+   browser's "Open FeonixAI?" dialog; download card; back link. */
+.launch-card-v2 {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  width: 100%;
+  max-width: 440px;
+  margin: 0 auto;
+}
+.launch-card-v2 .lede {
+  font-size: 15px;
+  line-height: 1.6;
+  color: #f1f5f9;
+  margin: 0 auto 24px;
+  max-width: 440px;
+  text-align: center;
+  font-weight: 400;
+}
+.launch-card-v2 {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  max-width: 440px;
+  width: 100%;
+}
+
+.launch-brand-lockup {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 22px;
+}
+
+.launch-brand-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.launch-brand-name {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #111827;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.launch-brand-pill {
+  background: #111827;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 6px;
+  letter-spacing: normal;
+}
+
+.launch-card .lede {
+  font-size: 14px;
+  color: #4b5563;
+  margin: 0 0 20px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.launch-btn-wide {
+  width: 100%;
+  max-width: 440px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  color: #111827;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  transition: all 0.15s ease;
+  margin: 0 0 24px;
+}
+.launch-btn-wide:hover {
+  background: #f9fafb;
+  border-color: #d1d5db;
+  color: #111827;
+}
+.launch-btn-wide[disabled] {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.launch-get-app {
+  width: 100%;
+  max-width: 440px;
+  box-sizing: border-box;
+  padding: 24px 22px;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: #ffffff;
+  text-align: center;
+  margin-bottom: 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+}
+.launch-get-app h2 {
+  margin: 0 0 6px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #111827;
+  letter-spacing: -0.01em;
+}
+.launch-get-app p {
+  margin: 0 0 18px;
+  color: #6b7280;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.launch-download-btn {
+  width: 100%;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: none;
+  border-radius: 8px;
+  background: #000000;
+  color: #ffffff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-bottom: 14px;
+  transition: all 0.15s ease;
+}
+.launch-download-btn:hover {
+  background: #18181b;
+}
+.launch-get-app .launch-platform-note {
+  text-align: center;
+  margin: 0;
+  font-size: 13px;
+  color: #6b7280;
+}
+.launch-link {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: #2563eb;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.launch-link:hover {
+  color: #1d4ed8;
+}
+.launch-back-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 0;
+  background: none;
+  color: #6b7280;
+  font: inherit;
+  font-size: 13.5px;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+.launch-back-link:hover {
+  color: #111827;
+}
+
+/* Prompt modal: matching Chrome/Parakeet native styling */
+.open-prompt-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 10px 16px 0;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.open-prompt {
+  width: 100%;
+  max-width: 480px;
+  margin-top: 0;
+  padding: 24px 28px 22px;
+  border-radius: 22px;
+  background: #ffffff;
+  color: #1f1f1f;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.32);
+  animation: open-prompt-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+  box-sizing: border-box;
+}
+
+@keyframes open-prompt-in {
+  from { transform: translateY(-16px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+.open-prompt h2 {
+  margin: 0 0 14px;
+  font-size: 18px;
+  font-weight: 500;
+  color: #1f1f1f;
+  letter-spacing: -0.01em;
+}
+
+.open-prompt p {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: #3c3c3c;
+}
+
+.open-prompt-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 18px 0 0;
+  font-size: 13px;
+  color: #383838;
+  line-height: 1.4;
+  cursor: pointer;
+  user-select: none;
+}
+
+.open-prompt-checkbox input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #642334;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.open-prompt-buttons {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.open-prompt-buttons button {
+  min-width: 90px;
+  height: 38px;
+  padding: 0 24px;
+  border-radius: 9999px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.open-prompt-open {
+  border: 0;
+  background: #fde8ed;
+  color: #3b1822;
+}
+.open-prompt-open:hover {
+  background: #fcd5de;
+}
+
+.open-prompt-cancel {
+  border: 0;
+  background: #642334;
+  color: #ffffff;
+}
+.open-prompt-cancel:hover {
+  background: #521c2a;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .open-prompt { animation: none; }
 }

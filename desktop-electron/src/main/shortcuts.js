@@ -1,4 +1,4 @@
-const { globalShortcut } = require('electron');
+const { globalShortcut, BrowserWindow } = require('electron');
 const { getOverlayWindow, getMainWindow, bringToFront } = require('./window');
 const { syncPrivateMode } = require('./privateMode');
 
@@ -120,4 +120,15 @@ function registerShortcuts(settingsStore) {
   }
 }
 
-module.exports = { registerShortcuts, unregisterShortcuts };
+/* The shortcuts are claimed only while a FeonixAI window exists (the Start
+ * Interview / Connect window or the copilot, shown or hidden). With the app
+ * only in the tray they are released: a global hotkey is taken from every
+ * other program, so a copilot running in the browser never got Ctrl+Shift+H
+ * while the desktop app sat in the tray. */
+function syncShortcuts(settingsStore) {
+  const anyWindow = BrowserWindow.getAllWindows().some((w) => !w.isDestroyed());
+  if (anyWindow) registerShortcuts(settingsStore);
+  else unregisterShortcuts();
+}
+
+module.exports = { registerShortcuts, unregisterShortcuts, syncShortcuts };

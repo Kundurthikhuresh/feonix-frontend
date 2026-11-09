@@ -28,6 +28,16 @@ import DualModeSection from '../components/landing/DualModeSection';
 import HowItWorks3DSection from '../components/landing/HowItWorks3DSection';
 import Pricing3DSection from '../components/landing/Pricing3DSection';
 import FAQ3DSection from '../components/landing/FAQ3DSection';
+
+// "Unlimited · Monthly" for an account on an Unlimited plan, otherwise null.
+// The plan is bought as a subscription, not as credits, so the credits
+// figures stay at 0 for it; the dashboard shows this label instead.
+function unlimitedPlanLabel(account, user) {
+  if (!account || !account.unlimited) return null;
+  const names = { sub_weekly: 'Weekly', sub_monthly: 'Monthly', sub_yearly: 'Yearly' };
+  const name = names[user && user.plan];
+  return name ? `Unlimited · ${name}` : 'Unlimited';
+}
 import CTA3DSection from '../components/landing/CTA3DSection';
 import Footer3D from '../components/landing/Footer3D';
 import FloatingAskAI from '../components/landing/FloatingAskAI';
@@ -284,6 +294,24 @@ export default function Page({ searchParams }) {
   const [libMsg, setLibMsg] = useState('');
   const [themeMode, setThemeMode] = useState('dark');
 
+  // Exactly two looks, dark and light, and every part of the page in the same
+  // one. The page-wide setting always follows this page's choice, and a
+  // switch made in another tab (dashboard, admin panel) is followed here too:
+  // before, that left the background light while the text stayed dark-mode
+  // white, an unreadable mix of the two.
+  useEffect(() => {
+    if (typeof document !== 'undefined') document.documentElement.dataset.theme = themeMode;
+  }, [themeMode]);
+  useEffect(() => {
+    const onStorage = (e) => {
+      if (e.key === 'feonix-theme' && (e.newValue === 'light' || e.newValue === 'dark')) {
+        setThemeMode(e.newValue);
+      }
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
+
   // New Session Creation Form State
   const [showCreateSheet, setShowCreateSheet] = useState(false);
   const [billingChoice, setBillingChoice] = useState('trial'); // 'trial', 'paid'
@@ -299,7 +327,7 @@ export default function Page({ searchParams }) {
       setBillingChoice('paid');
     }
   }, [showCreateSheet, trialsLeft]);
-  const [sessionType, setSessionType] = useState('interview'); // 'interview', 'call'
+  const [sessionType, setSessionType] = useState('interview'); // 'interview', 'call', 'mock' (a practice interview)
   const [newCompany, setNewCompany] = useState('');
   const [newRole, setNewRole] = useState('');
   const [newJd, setNewJd] = useState('');
@@ -888,22 +916,51 @@ export default function Page({ searchParams }) {
 
   const handleUploadDocument = async (file, kind) => {
     if (!file) return;
-    setLibMsg('Uploading…');
+    // The card shows up the moment the file is picked (marked "Uploading…")
+    // and is swapped for the saved document when the server answers.
+    const setList = kind === 'resume' ? setResumes : setDocuments;
+    const tempId = `uploading-${Date.now()}`;
+    setList((list) => [
+      { id: tempId, kind, filename: file.name, created_at: new Date().toISOString(), uploading: true },
+      ...list,
+    ]);
+    setLibMsg('');
+    const dropTemp = () => setList((list) => list.filter((d) => d.id !== tempId));
     try {
       const formData = new FormData();
       formData.append('file', file);
       formData.append('kind', kind);
       const res = await fetch('/api/documents', { method: 'POST', body: formData });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
+      if (!res.ok || !data.document) {
+        dropTemp();
         setLibMsg(data.message || 'Upload failed.');
         return;
       }
-      setLibMsg('');
-      loadDocuments();
+      const saved = data.document;
+      setList((list) => list.map((d) => (d.id === tempId ? saved : d)));
+      return saved;
     } catch (err) {
+      dropTemp();
       setLibMsg('Upload failed.');
     }
+    return null;
+  };
+
+  // "None" in the Create session window: no resume (or no document) is used.
+  const handleSelectNoDocument = async (kind) => {
+    const setList = kind === 'resume' ? setResumes : setDocuments;
+    setList((list) => list.map((d) => ({ ...d, is_active: 0 })));
+    try {
+      await fetch('/api/documents/none', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind }),
+      });
+    } catch (err) {
+      console.error('Error clearing document choice:', err);
+    }
+    loadDocuments();
   };
 
   const handleActivateDocument = async (id) => {
@@ -1067,8 +1124,10 @@ export default function Page({ searchParams }) {
   };
 
   const handleLogout = async () => {
-    await stopRecording();
-    await fetch('/api/auth/logout', { method: 'POST' });
+    // The page changes at once; the server is told in the background
+    // (keepalive lets the request finish even as the page moves on).
+    stopRecording().catch(() => {});
+    fetch('/api/auth/logout', { method: 'POST', keepalive: true }).catch(() => {});
     clearDashCache();
     setUser(null);
     setTrialsLeft(5);
@@ -1090,9 +1149,12 @@ export default function Page({ searchParams }) {
 
     try {
       const body = {
-        company: sessionType === 'interview' ? newCompany : newTitle,
-        role: sessionType === 'interview' ? newRole : '',
-        job_description: sessionType === 'interview' ? newJd : newDesc,
+        mode: sessionType === 'call' ? 'call' : 'interview',
+        company: sessionType === 'call'
+          ? newTitle
+          : (sessionType === 'mock' ? (String(newCompany || '').trim() || 'Mock Interview') : newCompany),
+        role: sessionType === 'call' ? '' : newRole,
+        job_description: sessionType === 'call' ? newDesc : newJd,
         context: newContext,
         language: newLanguage,
         agent: newAgent,
@@ -1611,6 +1673,7 @@ export default function Page({ searchParams }) {
     return (
       <div id="dashView">
         <Sidebar
+          unlimitedPlan={unlimitedPlanLabel(account, user)}
           user={user}
           activePane={effectivePane}
           setActivePane={setActivePane}
@@ -1624,6 +1687,7 @@ export default function Page({ searchParams }) {
 
         {effectivePane === 'sessions' && (
           <SessionsPane
+            unlimitedPlan={unlimitedPlanLabel(account, user)}
             sessions={sessions}
             sessionFilter={sessionFilter}
             setSessionFilter={setSessionFilter}
@@ -1687,6 +1751,11 @@ export default function Page({ searchParams }) {
             isCreating={isCreatingSession}
             handleCreateSession={handleCreateSession}
             setShowCreateSheet={setShowCreateSheet}
+            resumes={resumes}
+            documents={documents}
+            onActivateDocument={handleActivateDocument}
+            onUploadDocument={handleUploadDocument}
+            onSelectNoDocument={handleSelectNoDocument}
           />
         )}
       </div>
@@ -1729,6 +1798,7 @@ export default function Page({ searchParams }) {
         {user && (
           <>
             <Sidebar
+              unlimitedPlan={unlimitedPlanLabel(account, user)}
               user={user}
               activePane="sessions"
               setActivePane={setActivePane}
@@ -1740,6 +1810,7 @@ export default function Page({ searchParams }) {
               onGoLanding={() => changeView('landing')}
             />
             <SessionsPane
+              unlimitedPlan={unlimitedPlanLabel(account, user)}
               sessions={sessions}
               sessionFilter={sessionFilter}
               setSessionFilter={setSessionFilter}

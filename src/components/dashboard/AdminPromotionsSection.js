@@ -2,6 +2,27 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import DateTimePickerField from './DateTimePickerField';
+import {
+  Eye,
+  Pencil,
+  Pause,
+  Play,
+  Trash2,
+  Plus,
+  Tag,
+  Paperclip,
+  X,
+  FileText,
+  Download,
+  Clock,
+  AlertCircle,
+  Ban,
+} from 'lucide-react';
+
+// The "Redemptions" column of the promotions list: hidden, code kept — set to true to show it again.
+const SHOW_REDEMPTIONS_COLUMN = false;
+// The Pause / Activate button on each promotion row.
+const SHOW_PAUSE_BUTTON = false;
 
 const OFFER_TYPES = [
   { value: 'percentage_discount', label: '1. Percentage Discount (e.g. 50% off)' },
@@ -311,16 +332,41 @@ export default function AdminPromotionsSection() {
   const renderStatusBadge = (calculatedStatus) => {
     switch (calculatedStatus) {
       case 'active':
-        return <span className="admin-badge active">● Active</span>;
+        return (
+          <span className="admin-badge active" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'currentColor' }} />
+            Active
+          </span>
+        );
       case 'scheduled':
-        return <span className="admin-badge scheduled">⏱ Scheduled</span>;
+        return (
+          <span className="admin-badge scheduled" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+            <Clock size={11} strokeWidth={2.2} />
+            Scheduled
+          </span>
+        );
       case 'expired':
-        return <span className="admin-badge expired">✕ Expired</span>;
+        return (
+          <span className="admin-badge expired" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+            <AlertCircle size={11} strokeWidth={2.2} />
+            Expired
+          </span>
+        );
       case 'exhausted':
-        return <span className="admin-badge exhausted">⛔ Exhausted</span>;
+        return (
+          <span className="admin-badge exhausted" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+            <Ban size={11} strokeWidth={2.2} />
+            Exhausted
+          </span>
+        );
       case 'inactive':
       default:
-        return <span className="admin-badge inactive">⏸ Inactive</span>;
+        return (
+          <span className="admin-badge inactive" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+            <Pause size={11} strokeWidth={2.2} />
+            Inactive
+          </span>
+        );
     }
   };
 
@@ -468,7 +514,8 @@ export default function AdminPromotionsSection() {
               onClick={openCreateModal}
               style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
             >
-              <span>＋</span> Create Promotion
+              <Plus size={15} strokeWidth={2.5} />
+              <span>Create Promotion</span>
             </button>
           </div>
         </div>
@@ -484,9 +531,9 @@ export default function AdminPromotionsSection() {
                 <th>Discount / Bonus</th>
                 <th>Eligible Products</th>
                 <th>Validity Period</th>
-                <th>Redemptions</th>
+                {SHOW_REDEMPTIONS_COLUMN && <th>Redemptions</th>}
                 <th>Status</th>
-                <th style={{ textAlign: 'right' }}>Actions</th>
+                <th style={{ textAlign: 'right', minWidth: '320px', whiteSpace: 'nowrap' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -526,15 +573,17 @@ export default function AdminPromotionsSection() {
                             }}
                             title={`Download ${p.attachment.name} (${p.attachment.size})`}
                           >
-                            📎 {p.attachment.name} ({p.attachment.size})
+                            <Paperclip size={11} strokeWidth={2.2} />
+                            <span>{p.attachment.name} ({p.attachment.size})</span>
                           </a>
                         </div>
                       )}
                     </td>
 
                     <td>
-                      <span className="admin-coupon-pill" title="Click to copy code">
-                        🏷️ {p.code}
+                      <span className="admin-coupon-pill" title="Click to copy code" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                        <Tag size={12} strokeWidth={2} />
+                        <span>{p.code}</span>
                       </span>
                     </td>
 
@@ -561,21 +610,24 @@ export default function AdminPromotionsSection() {
                       <div>End: {p.expiry_date ? new Date(p.expiry_date).toLocaleDateString() : 'No expiry'}</div>
                     </td>
 
-                    <td style={{ fontSize: '12.5px', fontWeight: 600 }}>
-                      {maxRedemptionsText}
-                    </td>
+                    {SHOW_REDEMPTIONS_COLUMN && (
+                      <td style={{ fontSize: '12.5px', fontWeight: 600 }}>
+                        {maxRedemptionsText}
+                      </td>
+                    )}
 
                     <td>{renderStatusBadge(dynamicStatus)}</td>
 
-                    <td style={{ textAlign: 'right' }}>
-                      <div style={{ display: 'inline-flex', gap: '6px' }}>
+                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      <div className="admin-action-btn-group" style={{ justifyContent: 'flex-end', flexWrap: 'nowrap' }}>
                         <button
                           type="button"
-                          className="admin-sm-btn"
+                          className="admin-sm-btn info"
                           onClick={() => handleViewRedemptions(p)}
-                          title="View customer redemptions"
+                          title="View customer redemptions & analytics"
                         >
-                          👁 Details
+                          <Eye size={13} strokeWidth={2.2} />
+                          <span>Details</span>
                         </button>
 
                         <button
@@ -584,26 +636,40 @@ export default function AdminPromotionsSection() {
                           onClick={() => openEditModal(p)}
                           title="Edit promotion settings"
                         >
-                          ✏ Edit
+                          <Pencil size={13} strokeWidth={2.2} />
+                          <span>Edit</span>
                         </button>
+
+                        {/* Pause / Activate button: hidden, code kept — set SHOW_PAUSE_BUTTON to true to show it again. */}
+                        {SHOW_PAUSE_BUTTON && (
+                          <button
+                            type="button"
+                            className={`admin-sm-btn ${p.status === 'active' ? 'warning' : 'success'}`}
+                            onClick={() => handleToggleStatus(p)}
+                            title={p.status === 'active' ? 'Pause promotion' : 'Activate promotion'}
+                          >
+                            {p.status === 'active' ? (
+                              <>
+                                <Pause size={13} strokeWidth={2.2} />
+                                <span>Pause</span>
+                              </>
+                            ) : (
+                              <>
+                                <Play size={13} strokeWidth={2.2} />
+                                <span>Activate</span>
+                              </>
+                            )}
+                          </button>
+                        )}
 
                         <button
                           type="button"
-                          className="admin-sm-btn"
-                          onClick={() => handleToggleStatus(p)}
-                          title={p.status === 'active' ? 'Deactivate' : 'Activate'}
-                        >
-                          {p.status === 'active' ? '⏸' : '▶'}
-                        </button>
-
-                        <button
-                          type="button"
-                          className="admin-sm-btn"
+                          className="admin-sm-btn danger"
                           onClick={() => handleDeletePromo(p)}
-                          style={{ color: 'var(--ad-red)', borderColor: 'rgba(239, 68, 68, 0.3)' }}
                           title="Delete promotion"
                         >
-                          🗑
+                          <Trash2 size={13} strokeWidth={2.2} />
+                          <span>Delete</span>
                         </button>
                       </div>
                     </td>
@@ -613,7 +679,7 @@ export default function AdminPromotionsSection() {
 
               {(!promotionsData?.promotions || promotionsData.promotions.length === 0) && (
                 <tr>
-                  <td colSpan="9" style={{ textAlign: 'center', padding: '36px', color: 'var(--ad-text-muted)' }}>
+                  <td colSpan={SHOW_REDEMPTIONS_COLUMN ? 9 : 8} style={{ textAlign: 'center', padding: '36px', color: 'var(--ad-text-muted)' }}>
                     {loading ? 'Loading promotions...' : 'No promotions found. Click "Create Promotion" to launch an offer.'}
                   </td>
                 </tr>
@@ -763,7 +829,8 @@ export default function AdminPromotionsSection() {
                   <input
                     type="number"
                     min="1"
-                    placeholder="Leave empty for unlimited"
+                    placeholder="Unlimited"
+                    title="Leave empty for unlimited redemptions"
                     className="admin-input-styled"
                     value={formData.max_redemptions}
                     onChange={(e) => setFormData({ ...formData, max_redemptions: e.target.value })}
@@ -860,19 +927,20 @@ export default function AdminPromotionsSection() {
                         href={formData.attachment.data_url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="admin-sm-btn"
+                        className="admin-sm-btn info"
                         download={formData.attachment.name}
                         style={{ textDecoration: 'none' }}
                       >
-                        👁 View
+                        <Eye size={13} strokeWidth={2} />
+                        <span>View</span>
                       </a>
                       <button
                         type="button"
-                        className="admin-sm-btn"
-                        style={{ color: 'var(--ad-red)', borderColor: 'rgba(239, 68, 68, 0.4)' }}
+                        className="admin-sm-btn danger"
                         onClick={() => setFormData({ ...formData, attachment: null })}
                       >
-                        ✕ Remove
+                        <X size={13} strokeWidth={2} />
+                        <span>Remove</span>
                       </button>
                     </div>
                   </div>
@@ -1012,11 +1080,12 @@ export default function AdminPromotionsSection() {
                   href={viewingPromo.attachment.data_url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="admin-sm-btn"
+                  className="admin-sm-btn info"
                   download={viewingPromo.attachment.name}
                   style={{ textDecoration: 'none' }}
                 >
-                  📥 Download Attachment
+                  <Download size={13} strokeWidth={2} />
+                  <span>Download Attachment</span>
                 </a>
               </div>
             )}

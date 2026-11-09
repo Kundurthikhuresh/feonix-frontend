@@ -1,7 +1,7 @@
 const { app, BrowserWindow, ipcMain, shell, session, screen } = require('electron');
 const { DEV_TOOLS_ALLOWED, WEB_URL, getMainWindow, getOverlayWindow, createOverlayWindow, createMainWindow, bringToFront } = require('./window');
 const { createTray, destroyTray, setListeningState } = require('./tray');
-const { registerShortcuts } = require('./shortcuts');
+const { syncShortcuts } = require('./shortcuts');
 const { SUPPORTED_PLATFORMS, getScreenShareDetector } = require('./screenShareDetector');
 const { isPrivateMode, syncPrivateMode, setPrivateMode } = require('./privateMode');
 
@@ -244,7 +244,7 @@ function registerIpcHandlers({ logger, settingsStore, getPendingHandoff, clearPe
     // when the setting actually changes rather than only at next launch.
     if (key === 'shortcutToggle' || key === 'shortcutHide' || key === 'shortcutScreenshot'
       || key === 'shortcutListenToggle' || key === 'shortcutAnswer') {
-      registerShortcuts(settingsStore);
+      syncShortcuts(settingsStore);
     } else if (key === 'launchAtStartup') {
       applyLaunchAtStartup(updated.launchAtStartup);
     } else if (key === 'showTrayIcon') {

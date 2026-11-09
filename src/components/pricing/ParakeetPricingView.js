@@ -299,6 +299,16 @@ export default function ParakeetPricingView({
     return { main: money(total), unit: '', note: null };
   };
 
+  // The buy button shows the price the way the user chose to view it above
+  // (Total / Per month / Per call, or Per credit) for the selected plan, plus
+  // the amount actually charged when that differs, e.g.
+  // "Monthly ₹315.67 / call · ₹9,470 billed".
+  const ctaPrice = (price, billedTotal) => {
+    const unit = String(price.unit || '').replace('*', '').trim();
+    const shown = unit ? `${price.main} ${unit}` : price.main;
+    return price.note ? `${shown} · ${money(billedTotal)} billed` : shown;
+  };
+
   const couponSuffix = (kind) => {
     if (!appliedCoupon) return '';
     if (kind === 'credits' && appliedCoupon.bonus_credits > 0) return ` (+ ${appliedCoupon.bonus_credits} Bonus Credits!)`;
@@ -425,7 +435,7 @@ export default function ParakeetPricingView({
             >
               {loadingPlan === activeSub.id
                 ? 'Opening Checkout…'
-                : `Go Unlimited · ${activeSub.name} ${money(activeSubTotal)}${couponSuffix('sub')}`}
+                : `Go Unlimited · ${activeSub.name} ${ctaPrice(subPrice(activeSub), activeSubTotal)}${couponSuffix('sub')}`}
             </button>
             <div className="pk-action-single-credit">
               or, only need a week?{' '}
@@ -515,7 +525,7 @@ export default function ParakeetPricingView({
             >
               {loadingPlan === activePack.id
                 ? 'Opening Checkout…'
-                : `Get ${activePack.credits} Credits · ${money(activePackTotal)}${couponSuffix('credits')}`}
+                : `Get ${activePack.credits} Credits · ${ctaPrice(packPrice(activePack), activePackTotal)}${couponSuffix('credits')}`}
             </button>
             <div className="pk-action-single-credit">
               or, just need 1 credit?{' '}

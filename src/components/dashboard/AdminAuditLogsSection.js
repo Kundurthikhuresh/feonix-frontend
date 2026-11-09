@@ -2,6 +2,9 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 
+// The "System & Security Audit Event Stream" tab on the Audit Logs page.
+const SHOW_EVENT_STREAM_TAB = false;
+
 // The last reports fetched, kept while the page is open, so coming back to
 // Audit Logs shows them at once while fresh numbers load in the background.
 let lastAnalytics = null;
@@ -555,28 +558,31 @@ export default function AdminAuditLogsSection() {
           User-Level Financial & Cost Audit Table
         </button>
 
-        <button
-          onClick={() => setActiveTab('events')}
-          style={{
-            padding: '9px 18px',
-            borderRadius: 'var(--ad-radius-md)',
-            border: activeTab === 'events' ? '1px solid var(--ad-purple)' : '1px solid transparent',
-            background: activeTab === 'events' ? 'rgba(124, 58, 237, 0.15)' : 'transparent',
-            color: activeTab === 'events' ? '#c4b5fd' : 'var(--ad-text-muted)',
-            fontWeight: 600,
-            fontSize: '13.5px',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            transition: 'all 0.15s ease',
-          }}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-          </svg>
-          System & Security Audit Event Stream
-        </button>
+        {/* "System & Security Audit Event Stream" tab: hidden, code kept — set SHOW_EVENT_STREAM_TAB to true to show it again. */}
+        {SHOW_EVENT_STREAM_TAB && (
+          <button
+            onClick={() => setActiveTab('events')}
+            style={{
+              padding: '9px 18px',
+              borderRadius: 'var(--ad-radius-md)',
+              border: activeTab === 'events' ? '1px solid var(--ad-purple)' : '1px solid transparent',
+              background: activeTab === 'events' ? 'rgba(124, 58, 237, 0.15)' : 'transparent',
+              color: activeTab === 'events' ? '#c4b5fd' : 'var(--ad-text-muted)',
+              fontWeight: 600,
+              fontSize: '13.5px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+            </svg>
+            System & Security Audit Event Stream
+          </button>
+        )}
       </div>
 
       {/* ================================================================

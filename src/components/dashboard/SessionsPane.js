@@ -37,6 +37,7 @@ export default function SessionsPane({
   sessionSearch,
   setSessionSearch,
   creditsLeft,
+  unlimitedPlan,
   usedCredits,
   trialsLeft,
   setShowCreateSheet,
@@ -108,8 +109,20 @@ export default function SessionsPane({
       <div className="account-strip">
         <div className="acct">
           <span className="acct-label">Available</span>
-          <span className="acct-value">{creditsLeft}</span>
-          <span className="acct-sub">credits remaining</span>
+          {unlimitedPlan ? (
+            <>
+              <span className="acct-value">Unlimited</span>
+              <span className="acct-sub">
+                {unlimitedPlan.replace('Unlimited · ', '')} plan
+                {Number(creditsLeft) > 0 ? ` · + ${creditsLeft} credits` : ' · no credits needed'}
+              </span>
+            </>
+          ) : (
+            <>
+              <span className="acct-value">{creditsLeft}</span>
+              <span className="acct-sub">credits remaining</span>
+            </>
+          )}
         </div>
         <div className="acct">
           <span className="acct-label">Used</span>
