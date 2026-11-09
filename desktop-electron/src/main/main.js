@@ -5,7 +5,7 @@ const { SettingsStore } = require('./settingsStore');
 const { createMainWindow, getMainWindow, bringToFront, getOverlayWindow, WEB_URL } = require('./window');
 const { registerIpcHandlers, applyLaunchAtStartup } = require('./ipc');
 const { createTray, destroyTray } = require('./tray');
-const { registerShortcuts, unregisterShortcuts } = require('./shortcuts');
+const { unregisterShortcuts, syncShortcuts } = require('./shortcuts');
 const { initScreenShareDetector } = require('./screenShareDetector');
 
 const SCHEME = process.env.DESKTOP_SCHEME || 'feonixai';
@@ -234,7 +234,13 @@ if (!gotLock) {
 
     applyLaunchAtStartup(settingsStore.get('launchAtStartup'));
     if (settingsStore.get('showTrayIcon')) createTray({ onOpenSettings: () => { } });
-    registerShortcuts(settingsStore);
+    // Shortcuts follow the windows: claimed while one is open, released
+    // when the app is only in the tray (see syncShortcuts).
+    app.on('browser-window-created', (_event, win) => {
+      syncShortcuts(settingsStore);
+      win.on('closed', () => syncShortcuts(settingsStore));
+    });
+    syncShortcuts(settingsStore);
     initScreenShareDetector(settingsStore, logger);
 
     // Windows/Linux cold start via protocol link: the URL arrives as an argv entry.

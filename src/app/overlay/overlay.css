@@ -5719,3 +5719,25 @@ body.is-resizing #answerCard {
 .fe-floating-chat-bar {
   background: rgba(20, 20, 24, calc(0.98 * var(--copilot-bg-alpha, 1)));
 }
+
+/* Question strip: the whole question is always shown. Text wraps onto a
+   second line instead of running off the right edge; the strip grows to
+   fit (still a single-line pill for short questions). */
+.fe-transcript-pill {
+  height: auto;
+  min-height: 38px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  border-radius: 19px;
+}
+.fe-ticker-scroll {
+  overflow: visible;
+  white-space: normal;
+  mask-image: none;
+  -webkit-mask-image: none;
+}
+.fe-ticker-text {
+  display: block;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}

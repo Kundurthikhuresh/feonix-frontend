@@ -22,7 +22,9 @@ const LEAD_IN_FRAMES = 3; // 300 ms sent from before the voice was detected
  * stretches back together (useSpeechRecognition holds text that is not yet a
  * finished question until the speaker has really stopped). Measured: 600 ms
  * here put 650 ms of waiting before every answer. */
-const END_SILENCE_MS = 250;
+// 350 (was 250): at 250 a short breath mid-question cut it into pieces
+// ("...list and tuple" / "Python."), each heard without the rest.
+const END_SILENCE_MS = 350;
 /* A turn whose live words end in "?" is a finished question: its live words
  * are handed on at once instead of waiting for the final transcript (which
  * took 0.5-1.1 s more). If the final then reads differently, it is handed on
@@ -62,8 +64,10 @@ const RECONNECT_DELAYS_MS = [500, 1500, 4000];
 // A 401 on the ticket request is retried, not fatal: it also happens when the
 // database is too slow to read the sign-in in time (seen: 401 after 15 s),
 // and treating it as final dropped the whole session to clips.
+// 'too_many_channels' is retried too: right after Stop then Start the old
+// channels are still closing, and they are gone a few seconds later.
 const FATAL_CODES = new Set([
-  'live_off', 'session_ended', 'quota_exhausted', 'unauthenticated', 'too_many_channels',
+  'live_off', 'session_ended', 'quota_exhausted', 'unauthenticated',
   'http_403', 'http_409', 'http_410',
 ]);
 

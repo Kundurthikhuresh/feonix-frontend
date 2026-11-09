@@ -102,6 +102,15 @@ export default function AdminPane({
   const [dateRangeLabel, setDateRangeLabel] = useState('Last 30 Days');
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
+  // "Log out" first asks "Do you want to log out?" — Yes signs out, No (or
+  // Esc, or a click outside the box) keeps the admin in the panel.
+  const [confirmLogout, setConfirmLogout] = useState(false);
+  useEffect(() => {
+    if (!confirmLogout) return undefined;
+    const onKey = (e) => { if (e.key === 'Escape') setConfirmLogout(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [confirmLogout]);
   const topUserMenuRef = useRef(null);
   const datePickerRef = useRef(null);
 
@@ -128,6 +137,8 @@ export default function AdminPane({
   const [showBalanceModal, setShowBalanceModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [balanceAction, setBalanceAction] = useState('grant');
+  // Free trials to add in the same Edit Balance window (optional).
+  const [balanceTrials, setBalanceTrials] = useState('');
   const [balanceAmount, setBalanceAmount] = useState('');
   const [balanceReason, setBalanceReason] = useState('');
   const [balanceMsg, setBalanceMsg] = useState({ text: '', type: '' });
@@ -503,29 +514,57 @@ export default function AdminPane({
   // Balance Adjustment Handler
   const handleApplyBalance = async (e) => {
     e.preventDefault();
-    if (!balanceAmount || isNaN(balanceAmount)) {
+    // Credits, free trials, or both: at least one of the two.
+    const hasCredits = String(balanceAmount).trim() !== '';
+    const hasTrials = String(balanceTrials).trim() !== '';
+    if (!hasCredits && !hasTrials) {
+      setBalanceMsg({ text: 'Enter credits, free trials, or both', type: 'err' });
+      return;
+    }
+    if (hasCredits && isNaN(balanceAmount)) {
       setBalanceMsg({ text: 'Enter a valid numeric amount', type: 'err' });
+      return;
+    }
+    const trialsCount = Number(balanceTrials);
+    if (hasTrials && (!Number.isInteger(trialsCount) || trialsCount <= 0)) {
+      setBalanceMsg({ text: 'Free trials must be a whole number of 1 or more', type: 'err' });
       return;
     }
     setBalanceLoading(true);
     setBalanceMsg({ text: '', type: '' });
     try {
-      const res = await fetch(`/api/admin/users/${selectedUser.id}/credits`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: balanceAction,
-          amount: Number(balanceAmount),
-          reason: balanceReason || null,
-        }),
-      });
-      const data = await res.json();
-      if (res.ok) {
+      let data = {};
+      let ok = true;
+      if (hasCredits) {
+        const res = await fetch(`/api/admin/users/${selectedUser.id}/credits`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: balanceAction,
+            amount: Number(balanceAmount),
+            reason: balanceReason || null,
+          }),
+        });
+        data = await res.json().catch(() => ({}));
+        ok = res.ok;
+      }
+      if (ok && hasTrials) {
+        const res = await fetch(`/api/admin/users/${selectedUser.id}/trials`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ count: trialsCount, reason: balanceReason || null }),
+        });
+        data = await res.json().catch(() => ({}));
+        ok = res.ok;
+        if (!ok && hasCredits) data.message = `Credits were updated, but free trials were not: ${data.message || 'failed'}`;
+      }
+      if (ok) {
         setBalanceMsg({ text: 'Balance updated successfully!', type: 'ok' });
         setTimeout(() => {
           setShowBalanceModal(false);
           setBalanceMsg({ text: '', type: '' });
           setBalanceAmount('');
+          setBalanceTrials('');
           setBalanceReason('');
           loadUsers();
           loadOverview();
@@ -1087,7 +1126,7 @@ export default function AdminPane({
                     className="admin-popover-item is-logout"
                     onClick={() => {
                       setShowUserDropdown(false);
-                      handleLogout();
+                      setConfirmLogout(true);
                     }}
                     style={{ color: 'var(--ad-red, #ef4444)' }}
                   >
@@ -1322,7 +1361,7 @@ export default function AdminPane({
               <div className="admin-table-card">
                 <div className="admin-table-header">
                   <h3 className="admin-chart-title">Recent user activity</h3>
-                  <button type="button" className="admin-table-view-all" onClick={() => navigateSection('audit_logs')}>
+                  <button type="button" className="admin-table-view-all" onClick={() => navigateSection('ai_usage')}>
                     View all →
                   </button>
                 </div>
@@ -1753,7 +1792,7 @@ export default function AdminPane({
             <h3 className="admin-chart-title">AI Model &amp; Token Breakdown</h3>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '16px', margin: '8px 0 16px 0' }}>
               {(aiUsageData?.models || [])
-                .filter((m) => m.model !== 'whisper-1' && m.model !== 'gpt-4o-mini-transcribe')
+                .filter((m) => m.model !== 'whisper-1' && m.model !== 'gpt-4o-mini-transcribe' && m.model !== 'gpt-live-transcribe')
                 .map((m, idx) => (
                   <div key={idx} style={{ padding: '16px', border: '1px solid var(--ad-border)', borderRadius: '12px', background: 'var(--ad-bg)' }}>
                     <div style={{ fontSize: '12px', color: 'var(--ad-text-muted)', textTransform: 'uppercase' }}>Model</div>
@@ -1786,7 +1825,7 @@ export default function AdminPane({
                 </thead>
                 <tbody>
                   {(aiUsageData?.usage || [])
-                    .filter((u) => u.model !== 'whisper-1' && u.model !== 'gpt-4o-mini-transcribe')
+                    .filter((u) => u.model !== 'whisper-1' && u.model !== 'gpt-4o-mini-transcribe' && u.model !== 'gpt-live-transcribe')
                     .map((u, idx) => (
                       <tr key={idx}>
                         <td><span className="admin-user-email-text">{u.user_email}</span></td>
@@ -1964,8 +2003,9 @@ export default function AdminPane({
                   <tr>
                     <th>Ledger</th>
                     <th>Type</th>
-                    <th>Amount</th>
+                    <th>Credits</th>
                     <th>Customer</th>
+                    <th>Free Trials Left</th>
                     <th>Reason / Details</th>
                     <th>Date</th>
                   </tr>
@@ -1983,13 +2023,18 @@ export default function AdminPane({
                         {tx.amount > 0 ? `+${tx.amount}` : tx.amount}
                       </td>
                       <td><span className="admin-user-email-text">{tx.user_email}</span></td>
+                      <td style={{ fontWeight: 700, color: tx.trials_remaining > 0 ? 'var(--ad-green)' : 'var(--ad-text-muted)' }}>
+                        {tx.trials_remaining === null || tx.trials_remaining === undefined
+                          ? '—'
+                          : `${tx.trials_remaining} ${tx.trials_remaining === 1 ? 'trial' : 'trials'}`}
+                      </td>
                       <td>{tx.reason}</td>
                       <td style={{ color: 'var(--ad-text-muted)', fontSize: '12px' }}>{formatWhen(tx.created_at)}</td>
                     </tr>
                   ))}
                   {ledgerTxs.length === 0 && (
                     <tr>
-                      <td colSpan="6" style={{ textAlign: 'center', padding: '24px', color: 'var(--ad-text-muted)' }}>
+                      <td colSpan="7" style={{ textAlign: 'center', padding: '24px', color: 'var(--ad-text-muted)' }}>
                         No ledger transactions recorded yet.
                       </td>
                     </tr>
@@ -2088,6 +2133,58 @@ export default function AdminPane({
       {/* ================================================================
           MODAL: CREATE CUSTOMER USER
           ================================================================ */}
+      {confirmLogout && (
+        <div
+          onClick={() => setConfirmLogout(false)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 2000, display: 'flex', alignItems: 'center',
+            justifyContent: 'center', padding: '16px', background: 'rgba(0, 0, 0, 0.55)',
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="admin-logout-confirm-title"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%', maxWidth: '340px', padding: '24px', borderRadius: '14px',
+              background: 'var(--ad-card)', color: 'var(--ad-text)', border: '1px solid var(--ad-border)',
+              boxShadow: '0 20px 50px rgba(0, 0, 0, 0.45)', textAlign: 'center',
+            }}
+          >
+            <h3 id="admin-logout-confirm-title" style={{ margin: '0 0 8px', fontSize: '18px', fontWeight: 700 }}>
+              Log out
+            </h3>
+            <p style={{ margin: '0 0 22px', fontSize: '14px', color: 'var(--ad-text-muted)' }}>
+              Do you want to log out?
+            </p>
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+              <button
+                type="button"
+                autoFocus
+                onClick={() => setConfirmLogout(false)}
+                style={{
+                  flex: 1, padding: '10px 0', borderRadius: '10px', cursor: 'pointer', fontSize: '14px',
+                  fontWeight: 600, background: 'transparent', color: 'var(--ad-text)', border: '1px solid var(--ad-border)',
+                }}
+              >
+                No
+              </button>
+              <button
+                type="button"
+                onClick={() => { setConfirmLogout(false); handleLogout(); }}
+                style={{
+                  flex: 1, padding: '10px 0', borderRadius: '10px', cursor: 'pointer', fontSize: '14px',
+                  fontWeight: 600, background: 'var(--ad-red, #ef4444)', color: '#fff', border: '1px solid var(--ad-red, #ef4444)',
+                }}
+              >
+                Yes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showCreateModal && (
         <div className="admin-modal-backdrop" onClick={() => setShowCreateModal(false)}>
           <div className="admin-modal-card" onClick={(e) => e.stopPropagation()}>
@@ -2170,10 +2267,22 @@ export default function AdminPane({
                   className="admin-input-styled"
                   type="number"
                   step="0.5"
-                  required
                   placeholder="e.g. 5"
                   value={balanceAmount}
                   onChange={(e) => setBalanceAmount(e.target.value)}
+                />
+              </div>
+
+              <div className="admin-field-group">
+                <label>Free Trials (+)</label>
+                <input
+                  className="admin-input-styled"
+                  type="number"
+                  step="1"
+                  min="1"
+                  placeholder="e.g. 2"
+                  value={balanceTrials}
+                  onChange={(e) => setBalanceTrials(e.target.value)}
                 />
               </div>
 

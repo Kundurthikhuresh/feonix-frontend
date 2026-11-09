@@ -23,7 +23,11 @@ export default function TranscriptTicker({
   // just the latest question again.
   const latest = questions[questions.length - 1] || '';
   const heard = listening && lastHeard && lastHeard.trim() !== latest.trim() ? lastHeard : '';
-  const hasContent = questions.length > 0 || heard;
+  // Only two items in the strip: the previous question and the present one.
+  // While a new question is still being heard, that is the present one, so
+  // the last finished question is shown before it.
+  const shown = questions.slice(heard ? -1 : -2);
+  const hasContent = shown.length > 0 || heard;
 
   // Auto-scroll to the end of the text stream when new words arrive
   useEffect(() => {
@@ -49,10 +53,10 @@ export default function TranscriptTicker({
       <div className={`fe-ticker-scroll ${hasContent ? '' : 'fe-ticker-idle'}`} ref={scrollRef}>
         {hasContent ? (
           <span className="fe-ticker-text">
-            {questions.map((q, i) => (
+            {shown.map((q, i) => (
               <span
-                key={`${i}-${q.slice(0, 24)}`}
-                className={i === questions.length - 1 && !heard ? 'fe-ticker-q fe-ticker-q-latest' : 'fe-ticker-q'}
+                key={`${questions.length - shown.length + i}-${q.slice(0, 24)}`}
+                className={i === shown.length - 1 && !heard ? 'fe-ticker-q fe-ticker-q-latest' : 'fe-ticker-q'}
               >
                 {q}
               </span>

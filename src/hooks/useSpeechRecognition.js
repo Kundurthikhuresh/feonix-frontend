@@ -34,7 +34,9 @@ const TURN_END_MS = 550;
 // liveTranscriber.js), so text that is not yet a finished question waits this
 // long for the speaker to go on; the voice detector is checked again before
 // it is answered. A question ending in "?" is answered without this wait.
-const LIVE_TURN_END_MS = 400;
+// 550 (was 400): a pause mid-question no longer ends it early. Questions
+// that end in "?" are still handed on at once (see LIVE_QUESTION_QUIET_MS).
+const LIVE_TURN_END_MS = 550;
 // A question ending in "?" is answered once the speaker has been quiet this
 // long. A short thinking pause mid-question also ends a stretch of speech,
 // and the transcriber can punctuate that fragment as a question ("What is the

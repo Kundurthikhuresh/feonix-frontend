@@ -46,7 +46,7 @@ export default function Simple3DLandingPage({
   onWatchDemo,
 }) {
   return (
-    <div className="px-landing-root" data-theme={themeMode} style={{ position: 'relative', overflow: 'hidden' }}>
+    <div className="px-landing-root" data-theme={themeMode} style={{ position: 'relative', overflow: 'clip' }}>
       {/* 1. 3D WebGL Interactive Particle Constellation Background */}
       <ParticleBackground />
 

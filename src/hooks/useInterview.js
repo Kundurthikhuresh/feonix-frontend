@@ -327,7 +327,7 @@ export function useInterview({ querySessionId, plan, queryAuto = true, screensho
 
     // If session was already expired before mount, mark ended but do not abruptly terminate
     if (expiresAtMs <= Date.now()) {
-      setRemainingText('00:00');
+      setRemainingText('0:00');
       sessionEndedRef.current = true;
       return;
     }
@@ -337,7 +337,7 @@ export function useInterview({ querySessionId, plan, queryAuto = true, screensho
     const tick = () => {
       const remainingMs = expiresAtMs - Date.now();
       if (remainingMs <= 0) {
-        setRemainingText('00:00');
+        setRemainingText('0:00');
         if (iv) clearInterval(iv);
         if (!sessionEndedRef.current) {
           const isTrial = session?.billing_kind === 'trial' || plan === 'free';
@@ -353,7 +353,8 @@ export function useInterview({ querySessionId, plan, queryAuto = true, screensho
       const totalSecs = Math.floor(remainingMs / 1000);
       const m = Math.floor(totalSecs / 60);
       const s = totalSecs % 60;
-      setRemainingText(`${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
+      // 10:00, 9:59 … 0:01 (credit sessions run longer: 120:00, 119:59 …).
+      setRemainingText(`${m}:${String(s).padStart(2, '0')}`);
       if (!warned && remainingMs <= 60000) {
         warned = true;
         setShowWarningModal(true);
