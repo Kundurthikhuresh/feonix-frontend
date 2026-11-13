@@ -16066,3 +16066,36 @@ body[data-shell="tauri"] .answer-pane {
   .mock-card { flex-direction: column; align-items: flex-start; }
   .mock-card-btn { width: 100%; justify-content: center; }
 }
+
+/* Mac install help on the launch page (shown after "Download for macOS") */
+.launch-mac-help {
+  margin-top: 18px;
+  padding: 16px 18px;
+  border-radius: 10px;
+  border: 1px solid #fcd34d;
+  background: #fffbeb;
+  color: #3f3f46;
+  text-align: left;
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+.launch-mac-help h3 { margin: 0 0 6px; font-size: 14.5px; font-weight: 650; color: #18181b; }
+.launch-mac-help p { margin: 0 0 8px; }
+.launch-mac-help ol { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+.launch-mac-help kbd {
+  padding: 0 5px; border: 1px solid #d4d4d8; border-bottom-width: 2px; border-radius: 4px;
+  background: #fff; font: inherit; font-size: 12px;
+}
+.launch-mac-cmd {
+  display: flex; align-items: center; gap: 8px; margin-top: 6px;
+  padding: 8px 8px 8px 12px; border-radius: 8px; background: #18181b; overflow-x: auto;
+}
+.launch-mac-cmd code {
+  flex: 1; min-width: 0; white-space: nowrap; color: #f4f4f5; user-select: all;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px;
+}
+.launch-mac-cmd button {
+  flex: none; padding: 5px 10px; border: 0; border-radius: 6px; cursor: pointer;
+  background: #3f3f46; color: #fff; font: inherit; font-size: 12px; font-weight: 600;
+}
+.launch-mac-cmd button:hover { background: #52525b; }

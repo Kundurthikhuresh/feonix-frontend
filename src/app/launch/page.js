@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
+const MAC_UNBLOCK_COMMAND = 'sudo xattr -cr /Applications/FeonixAI.app';
+
 function LaunchContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -63,6 +65,11 @@ function LaunchContent() {
   const [msg, setMsg] = useState({ text: '', type: '' });
   const [isMacOS, setIsMacOS] = useState(false);
   const [launching, setLaunching] = useState(false);
+  // The Mac app is not notarized by Apple yet, so macOS reports it as
+  // "damaged" until the download's quarantine mark is removed. Shown after
+  // a Mac download, with the one command that does it.
+  const [showMacHelp, setShowMacHelp] = useState(false);
+  const [macCmdCopied, setMacCmdCopied] = useState(false);
 
   const handleOpenDesktopApp = async () => {
     if (!sessionId) {
@@ -208,7 +215,15 @@ function LaunchContent() {
   };
 
   const handleDownloadMac = () => {
+    setShowMacHelp(true);
     window.location.href = '/api/download/mac';
+  };
+
+  const copyMacCommand = () => {
+    const done = () => { setMacCmdCopied(true); setTimeout(() => setMacCmdCopied(false), 2000); };
+    try {
+      navigator.clipboard.writeText(MAC_UNBLOCK_COMMAND).then(done, () => {});
+    } catch { /* clipboard unavailable: the command stays selectable */ }
   };
 
   const handleDownloadWin = () => {
@@ -325,6 +340,25 @@ function LaunchContent() {
               </button>
               ?
             </div>
+
+            {showMacHelp && (
+              <div className="launch-mac-help" role="note">
+                <h3>Opening FeonixAI on a Mac</h3>
+                <p>If macOS says <em>&ldquo;FeonixAI is damaged and can&apos;t be opened&rdquo;</em>, click <strong>Cancel</strong> (not Move to Bin), then:</p>
+                <ol>
+                  <li>Open the downloaded file and drag <strong>FeonixAI</strong> into <strong>Applications</strong>.</li>
+                  <li>Open <strong>Terminal</strong> (press <kbd>⌘</kbd> + <kbd>Space</kbd>, type <em>Terminal</em>, press Return).</li>
+                  <li>
+                    Paste this command, press Return, and enter your Mac password if asked:
+                    <div className="launch-mac-cmd">
+                      <code>{MAC_UNBLOCK_COMMAND}</code>
+                      <button type="button" onClick={copyMacCommand}>{macCmdCopied ? 'Copied' : 'Copy'}</button>
+                    </div>
+                  </li>
+                  <li>Open <strong>FeonixAI</strong> from Applications and allow Microphone and Screen Recording.</li>
+                </ol>
+              </div>
+            )}
           </div>
         )}
 

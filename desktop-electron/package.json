@@ -29,7 +29,9 @@
     "protocols": [
       {
         "name": "FeonixAI Handoff",
-        "schemes": ["feonixai"]
+        "schemes": [
+          "feonixai"
+        ]
       }
     ],
     "win": {
@@ -44,14 +46,29 @@
     },
     "mac": {
       "target": [
-        { "target": "dmg", "arch": ["universal"] },
-        { "target": "zip", "arch": ["universal"] }
+        {
+          "target": "dmg",
+          "arch": [
+            "universal"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "universal"
+          ]
+        }
       ],
       "category": "public.app-category.productivity",
       "artifactName": "FeonixAI-${version}.${ext}",
       "extendInfo": {
-        "NSMicrophoneUsageDescription": "FeonixAI listens to your microphone during interview sessions to transcribe questions and generate answers."
-      }
+        "NSMicrophoneUsageDescription": "FeonixAI listens to your microphone during interview sessions to transcribe questions and generate answers.",
+        "NSAudioCaptureUsageDescription": "FeonixAI captures meeting audio during interview sessions to transcribe the interviewer’s questions."
+      },
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist"
     },
     "dmg": {
       "artifactName": "FeonixAI-${version}.dmg"
