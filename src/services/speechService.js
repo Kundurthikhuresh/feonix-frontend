@@ -376,7 +376,20 @@ export async function getListenChannels(source = 'both') {
   let micStream = null;
   try {
     interviewer = await mixAudioStreams([tabStream]);
-    micStream = await getMicStream(true);
+    try {
+      micStream = await getMicStream(true);
+    } catch (micErr) {
+      // No usable microphone (none connected, or held by another app): the
+      // interviewer's side is what gets answered, so keep listening to the
+      // meeting audio instead of failing the whole start.
+      console.warn('Microphone unavailable; listening to meeting audio only:', micErr);
+      const why = micErr && (micErr.name === 'NotFoundError' || micErr.name === 'DevicesNotFoundError')
+        ? 'No microphone found' : 'Microphone unavailable';
+      return {
+        channels: [{ stream: interviewer, speaker: 'interviewer' }],
+        warning: `${why} — listening to meeting audio only.`,
+      };
+    }
     const you = await mixAudioStreams([micStream]);
     return {
       channels: [{ stream: interviewer, speaker: 'interviewer' }, { stream: you, speaker: 'you' }],

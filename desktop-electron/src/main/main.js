@@ -24,7 +24,10 @@ app.setName(app.isPackaged ? 'FeonixAI' : 'FeonixAI-dev');
 
 app.commandLine.appendSwitch('enable-features', 'WebRTCPipeWireCapturer');
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
-app.commandLine.appendSwitch('use-fake-ui-for-media-stream');
+// Do NOT add 'use-fake-ui-for-media-stream': it is a Chromium test switch
+// that bypasses setDisplayMediaRequestHandler below, so meeting audio came
+// back as a silent "Fake audio" track instead of real system (loopback)
+// audio. Mic/screen permissions are granted by the handlers in whenReady.
 
 const logger = new Logger(path.join(app.getPath('userData'), 'logs'));
 const settingsStore = new SettingsStore(app.getPath('userData'));

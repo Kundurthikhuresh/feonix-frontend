@@ -2,7 +2,7 @@
   "name": "feonixai-desktop",
   "version": "0.2.0",
   "private": true,
-  "description": "FeonixAI desktop shell — a thin Electron wrapper around the FeonixAI web app.",
+  "description": "FeonixAI",
   "author": "FeonixAI",
   "main": "src/main/main.js",
   "scripts": {

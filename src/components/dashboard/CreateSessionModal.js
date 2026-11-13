@@ -69,46 +69,7 @@ const RowIcon = ({ d }) => (
   </svg>
 );
 
-/* "Mock presets": ready-made practice interviews. Picking one fills in the
- * Company, Role and Job description fields. */
-const MOCK_PRESETS = [
-  {
-    label: 'Frontend Developer',
-    company: 'Mock Interview',
-    role: 'Frontend Developer',
-    jd: 'Frontend Developer building responsive web apps with React, JavaScript/TypeScript, HTML and CSS. Works with REST APIs, state management, performance optimisation, accessibility and testing. Collaborates with designers and backend engineers.',
-  },
-  {
-    label: 'Backend Developer',
-    company: 'Mock Interview',
-    role: 'Backend Developer',
-    jd: 'Backend Developer designing and building APIs and services with Node.js or Java, SQL and NoSQL databases, caching and message queues. Focus on scalability, security, clean code, testing and cloud deployment.',
-  },
-  {
-    label: 'Full Stack Developer',
-    company: 'Mock Interview',
-    role: 'Full Stack Developer',
-    jd: 'Full Stack Developer working across React frontends and Node.js backends, databases and cloud deployment. Owns features end to end, writes tests, and works in an agile team.',
-  },
-  {
-    label: 'Data Analyst',
-    company: 'Mock Interview',
-    role: 'Data Analyst',
-    jd: 'Data Analyst using SQL, Excel and Python to clean, analyse and visualise data, build dashboards (Power BI / Tableau), and turn findings into clear business recommendations.',
-  },
-  {
-    label: 'HR / Behavioural round',
-    company: 'Mock Interview',
-    role: 'HR Round',
-    jd: 'HR and behavioural interview: tell me about yourself, strengths and weaknesses, teamwork, handling conflict, career goals, why this company, and salary expectations. Answers should follow the STAR method.',
-  },
-  {
-    label: 'System Design round',
-    company: 'Mock Interview',
-    role: 'Senior Software Engineer',
-    jd: 'System design interview: design scalable systems (e.g. URL shortener, chat app, news feed), covering requirements, APIs, data model, caching, load balancing, databases, consistency and trade-offs.',
-  },
-];
+
 
 /* The CV / Resume and Documents chooser: a list with "None", each uploaded
  * file (✓ on the one in use, long names wrap instead of being cut off), and
@@ -219,6 +180,7 @@ function creditTime(credits) {
 }
 
 export default function CreateSessionModal({
+  onOpenMockPage,
   catalogue,
   trialsLeft,
   creditsLeft,
@@ -311,28 +273,9 @@ export default function CreateSessionModal({
   const [instructionsOpen, setInstructionsOpen] = useState(false);
   const ownText = ownInstructions(newContext);
 
-  // "Mock presets" list (left side).
-  const [presetsOpen, setPresetsOpen] = useState(false);
-  const presetsRef = useRef(null);
-  useEffect(() => {
-    if (!presetsOpen) return undefined;
-    const onDown = (e) => { if (presetsRef.current && !presetsRef.current.contains(e.target)) setPresetsOpen(false); };
-    const onKey = (e) => { if (e.key === 'Escape') setPresetsOpen(false); };
-    document.addEventListener('mousedown', onDown);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onDown);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [presetsOpen]);
-  const applyPreset = (preset) => {
-    setSessionType('mock');
-    setNewCompany(preset.company);
-    setNewRole(preset.role);
-    setNewJd(preset.jd);
-    setStepMsg('');
-    setStep(1);
-    setPresetsOpen(false);
+  // "Mock presets": closes this window and opens the Mock interview page.
+  const openMockPage = () => {
+    if (onOpenMockPage) onOpenMockPage();
   };
   // "View tutorial": the How It Works section of the website, in a new tab.
   const openTutorial = () => {
@@ -361,34 +304,18 @@ export default function CreateSessionModal({
             </li>
           </ol>
 
-          <div className="cs-side-actions" ref={presetsRef}>
-            {presetsOpen && (
-              <div className="cs-picker-menu cs-presets-menu" role="listbox">
-                {MOCK_PRESETS.map((preset) => (
-                  <button
-                    key={preset.label}
-                    type="button"
-                    className="cs-picker-opt"
-                    onClick={() => applyPreset(preset)}
-                  >
-                    <span className="cs-picker-name">{preset.label}</span>
-                  </button>
-                ))}
-              </div>
-            )}
+          <div className="cs-side-actions">
             <button type="button" className="cs-side-btn" onClick={openTutorial}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="2" y="6" width="14" height="12" rx="2" /><polygon points="22 8 16 12 22 16 22 8" /></svg>
               <span>View tutorial</span>
             </button>
             <button
               type="button"
-              className={`cs-side-btn ${presetsOpen ? 'is-open' : ''}`}
-              onClick={() => setPresetsOpen((v) => !v)}
+              className="cs-side-btn"
+              onClick={openMockPage}
               disabled={isCreating}
-              aria-haspopup="listbox"
-              aria-expanded={presetsOpen}
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="2" /><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 8V4H8" /><rect width="16" height="12" x="4" y="8" rx="2" /><path d="M2 14h2" /><path d="M20 14h2" /><path d="M15 13v2" /><path d="M9 13v2" /></svg>
               <span>Mock presets</span>
             </button>
           </div>

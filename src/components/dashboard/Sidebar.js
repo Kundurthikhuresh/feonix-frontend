@@ -76,6 +76,22 @@ export default function Sidebar({ user, activePane, setActivePane, themeMode, to
         )}
       </div>
 
+      <div className="nav-group">
+        <h2>Prepare</h2>
+        <button
+          className={`nav-item ${activePane === 'mock' ? 'is-current' : ''}`}
+          onClick={() => {
+            setActivePane('mock');
+            if (typeof window !== 'undefined') {
+              window.history.pushState({ pane: 'mock' }, '', '/dashboard/mock');
+            }
+          }}
+          type="button"
+        >
+          Mock interview
+        </button>
+      </div>
+
       {/* Career Platform & Account navigation sections hidden as requested */}
 
       <div className="nav-foot">

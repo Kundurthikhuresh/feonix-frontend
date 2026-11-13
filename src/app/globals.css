@@ -910,7 +910,7 @@ select {
 
 .auth-social-btn-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 8px;
 }
 
@@ -15138,19 +15138,31 @@ body[data-shell="tauri"] .answer-pane {
   justify-content: center;
   gap: 8px;
   width: 100%;
-  padding: 10px 14px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--panel);
-  color: var(--paper);
+  padding: 10px 16px;
+  border: 1px solid #e4e4e7;
+  border-radius: 12px;
+  background: #ffffff;
+  color: #18181b;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
   font: inherit;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
+  transition: all 0.15s ease-in-out;
+}
+.cs-side-btn svg {
+  flex-shrink: 0;
+  stroke: #18181b;
 }
 .cs-side-btn:hover:not([disabled]),
 .cs-side-btn.is-open {
-  border-color: var(--primary);
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #0f172a;
+}
+.cs-side-btn:hover:not([disabled]) svg,
+.cs-side-btn.is-open svg {
+  stroke: #0f172a;
 }
 .cs-presets-menu {
   bottom: calc(100% - 14px);
@@ -15990,4 +16002,67 @@ body[data-shell="tauri"] .answer-pane {
 
 @media (prefers-reduced-motion: reduce) {
   .open-prompt { animation: none; }
+}
+
+/* ---------- Mock interview page (MockInterviewPane.js) ---------- */
+.mock-pane { max-width: 1180px; }
+.mock-hero {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 28px 28px 32px;
+  margin-bottom: 22px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background:
+    radial-gradient(120% 140% at 100% 0%, color-mix(in srgb, var(--primary) 28%, transparent) 0%, transparent 60%),
+    var(--panel);
+  overflow: hidden;
+}
+.mock-hero-text { max-width: 620px; position: relative; z-index: 1; }
+.mock-hero h1 {
+  margin: 0 0 10px;
+  font-size: clamp(28px, 4vw, 40px);
+  font-weight: 650;
+  letter-spacing: -.03em;
+  color: var(--paper);
+}
+.mock-lede { margin: 0 0 14px; font-size: 16px; line-height: 1.55; color: var(--dim); }
+.mock-length { margin: 0 0 10px; font-size: 15px; color: var(--dim); }
+.mock-length strong { font-size: 20px; color: var(--paper); font-weight: 600; margin-right: 4px; }
+.mock-cost { display: flex; align-items: flex-start; gap: 10px; margin: 0; font-size: 14px; color: var(--dim); }
+.mock-cost strong { color: var(--paper); font-weight: 600; }
+.mock-cost a { color: var(--paper); text-decoration: underline; }
+.mock-cost-dot {
+  flex: none; width: 10px; height: 10px; margin-top: 5px; border-radius: 50%;
+  background: var(--primary); box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 25%, transparent);
+}
+.mock-wave {
+  display: flex; align-items: center; gap: 6px; height: 150px; flex: none;
+  opacity: .55;
+}
+.mock-wave span {
+  display: block; width: 4px; border-radius: 4px;
+  background: linear-gradient(180deg, transparent, var(--primary) 30%, var(--primary) 70%, transparent);
+}
+.mock-card {
+  display: flex; align-items: center; gap: 18px;
+  padding: 20px 22px; margin-bottom: 28px;
+  border-radius: 14px; border: 1px solid var(--line); background: var(--panel);
+}
+.mock-card-icon {
+  flex: none; display: grid; place-items: center; width: 48px; height: 48px; border-radius: 12px;
+  color: var(--paper); background: color-mix(in srgb, var(--primary) 30%, transparent);
+}
+.mock-card-text { flex: 1; min-width: 0; }
+.mock-card-text h2 { margin: 0 0 4px; font-size: 18px; font-weight: 600; color: var(--paper); }
+.mock-card-text p { margin: 0; font-size: 14px; line-height: 1.5; color: var(--dim); }
+.mock-card-btn { flex: none; padding: 12px 20px; }
+@media (max-width: 760px) {
+  .mock-wave { display: none; }
+  .mock-hero { padding: 22px 18px; }
+  .mock-card { flex-direction: column; align-items: flex-start; }
+  .mock-card-btn { width: 100%; justify-content: center; }
 }

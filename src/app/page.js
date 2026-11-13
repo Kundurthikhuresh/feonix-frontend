@@ -12,6 +12,7 @@ import Sidebar from '../components/dashboard/Sidebar';
 import SessionsPane from '../components/dashboard/SessionsPane';
 import LibraryPane from '../components/dashboard/LibraryPane';
 import CreateSessionModal from '../components/dashboard/CreateSessionModal';
+import MockInterviewPane from '../components/dashboard/MockInterviewPane';
 import AdminPane from '../components/dashboard/AdminPane';
 import CopilotAppView from '../components/copilot/CopilotAppView';
 import ReviewSessionView from '../components/review/ReviewSessionView';
@@ -513,6 +514,24 @@ export default function Page({ searchParams }) {
       setAuthRole(initialRole === 'admin' ? 'admin' : 'user');
       setAuthMode(initialAuth);
       setShowAuthModal(true);
+      // Sent back here by a failed Google/Apple sign-in (backend oauth.js).
+      const oauthError = new URLSearchParams(window.location.search).get('oauth_error');
+      if (oauthError) {
+        const OAUTH_ERRORS = {
+          google_not_configured: 'Google sign-in is not set up on the server yet. Please use email and password.',
+          apple_not_configured: 'Apple sign-in is not set up on the server yet. Please use email and password.',
+          cancelled: 'Sign-in was cancelled.',
+          email_unverified: 'That account has no verified email address. Please use email and password.',
+          account_disabled: 'This account has been disabled. Contact support.',
+          state_mismatch: 'Sign-in expired or was opened in another tab. Please try again.',
+        };
+        setAuthMsg({ text: OAUTH_ERRORS[oauthError] || 'Sign-in failed. Please try again.', type: 'err' });
+        try {
+          const clean = new URL(window.location.href);
+          clean.searchParams.delete('oauth_error');
+          window.history.replaceState(window.history.state, '', clean.pathname + clean.search);
+        } catch { }
+      }
     }
 
     const initialPane = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('pane') : null;
@@ -1141,6 +1160,25 @@ export default function Page({ searchParams }) {
   // ----------------------------------------------------
   // Session Picking & Live Assistant Logic
   // ----------------------------------------------------
+  // Mock interview page: shows it in the dashboard (and the address bar).
+  const openMockPage = () => {
+    setShowCreateSheet(false);
+    setActivePane('mock');
+    if (typeof window !== 'undefined') {
+      window.history.pushState({ pane: 'mock' }, '', '/dashboard/mock');
+    }
+  };
+  // Opens Create session as a mock: filled in from a preset, or blank for a
+  // custom one.
+  const openMockCreate = (preset) => {
+    setSessionType('mock');
+    setNewCompany(preset ? preset.company : '');
+    setNewRole(preset ? preset.role : '');
+    setNewJd(preset ? preset.jd : '');
+    setCreateMsg('');
+    setShowCreateSheet(true);
+  };
+
   const handleCreateSession = async (e) => {
     e.preventDefault();
     if (isCreatingSession) return;
@@ -1161,6 +1199,7 @@ export default function Page({ searchParams }) {
         auto_answer: newAuto,
         save_transcript: newSaveTranscript,
         billing: billingChoice,
+        practice: sessionType === 'mock',
       };
 
       const { ok, data } = await postJSONWithRetry(
@@ -1703,6 +1742,15 @@ export default function Page({ searchParams }) {
           />
         )}
 
+        {effectivePane === 'mock' && (
+          <MockInterviewPane
+            trialsLeft={trialsLeft}
+            creditsLeft={creditsLeft}
+            unlimitedPlan={unlimitedPlanLabel(account, user)}
+            onCreateMock={openMockCreate}
+          />
+        )}
+
         {(effectivePane === 'resumes' || effectivePane === 'documents') && (
           <LibraryPane
             activePane={effectivePane}
@@ -1720,6 +1768,7 @@ export default function Page({ searchParams }) {
         {/* Sheet: Create Session */}
         {showCreateSheet && (
           <CreateSessionModal
+            onOpenMockPage={openMockPage}
             catalogue={catalogue}
             trialsLeft={trialsLeft}
             creditsLeft={creditsLeft}
