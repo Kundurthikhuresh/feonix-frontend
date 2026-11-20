@@ -195,6 +195,55 @@ export default function Page({ searchParams }) {
     currentViewRef.current = currentView;
   }, [user, currentView]);
 
+  // Browser Back from the dashboard first asks "Do you want to leave the
+  // dashboard?" (handlePopState). The dashboard address is kept so the page
+  // can be put back while the question is open; Yes then really goes back.
+  const [confirmLeaveDash, setConfirmLeaveDash] = useState(false);
+  const lastDashUrlRef = useRef('/dashboard');
+  const allowLeaveDashRef = useRef(false);
+  useEffect(() => {
+    if (currentView === 'dash' && typeof window !== 'undefined'
+      && window.location.pathname.startsWith('/dashboard')) {
+      lastDashUrlRef.current = window.location.pathname + window.location.search;
+    }
+  });
+  // A "guard" history entry on top of the dashboard: Back then lands on the
+  // dashboard entry beneath it (a popstate this page can answer with the
+  // question) instead of leaving the page outright, which no page can stop.
+  // Written a tick later, after Next.js has patched history (see
+  // afterRouterReady below), so the entry keeps its router marker.
+  useEffect(() => {
+    if (currentView !== 'dash' || !user || typeof window === 'undefined') return undefined;
+    const t = setTimeout(() => {
+      if (currentViewRef.current !== 'dash') return;
+      if (window.history.state && window.history.state.dashGuard) return;
+      window.history.pushState({ view: 'dash', dashGuard: true }, '', window.location.pathname + window.location.search);
+    }, 0);
+    return () => clearTimeout(t);
+  }, [currentView, user]);
+  useEffect(() => {
+    if (!confirmLeaveDash) return undefined;
+    const onKey = (e) => { if (e.key === 'Escape') setConfirmLeaveDash(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [confirmLeaveDash]);
+  const stayOnDash = () => setConfirmLeaveDash(false);
+  const leaveDash = () => {
+    setConfirmLeaveDash(false);
+    allowLeaveDashRef.current = true;
+    // Past the guard and the dashboard entry beneath it.
+    window.history.go(-2);
+    // Nothing beneath (the dashboard was the first page in this tab): go to
+    // the landing page instead of doing nothing.
+    setTimeout(() => {
+      if (allowLeaveDashRef.current && currentViewRef.current === 'dash') {
+        allowLeaveDashRef.current = false;
+        window.history.replaceState({ view: 'landing' }, '', '/');
+        setCurrentView('landing');
+      }
+    }, 400);
+  };
+
   // React Strict Mode double-invokes the mount effect in dev (mount, clean
   // up, mount again), which fires checkUserSession() twice concurrently.
   // Both do the same fetch → enterSession → changeView('app') chain, and
@@ -579,6 +628,29 @@ export default function Page({ searchParams }) {
 
       const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
       const queryView = urlParams ? urlParams.get('view') : null;
+
+      // Back would leave the dashboard for the landing page: put the
+      // dashboard back and ask first (Yes calls history.back() again with
+      // allowLeaveDashRef set, which lands here and goes through).
+      // Any step back from the dashboard that is not onto the guard or a
+      // dashboard section (CVs, Documents) counts as leaving.
+      const leavingDash = currentViewRef.current === 'dash' && userRef.current
+        && !e.state?.dashGuard && !e.state?.pane;
+      if (leavingDash) {
+        if (allowLeaveDashRef.current) {
+          allowLeaveDashRef.current = false;
+          if (e.state?.view === 'dash' || queryView === 'dash') {
+            // Landed on a dashboard entry (nothing else beneath): leave to the landing page.
+            window.history.replaceState({ view: 'landing' }, '', '/');
+            setCurrentView('landing');
+            return;
+          }
+        } else {
+          window.history.pushState({ view: 'dash', dashGuard: true }, '', lastDashUrlRef.current || '/dashboard');
+          setConfirmLeaveDash(true);
+          return;
+        }
+      }
 
       // A review is opened in place (never pushed), so any review entry reached
       // with Back is a stale one from before — go to the landing page instead
@@ -1806,6 +1878,59 @@ export default function Page({ searchParams }) {
             onUploadDocument={handleUploadDocument}
             onSelectNoDocument={handleSelectNoDocument}
           />
+        )}
+
+        {/* Browser Back from the dashboard: "Do you want to leave?" */}
+        {confirmLeaveDash && (
+          <div
+            onClick={stayOnDash}
+            style={{
+              position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center',
+              justifyContent: 'center', padding: '16px', background: 'rgba(0, 0, 0, 0.55)',
+            }}
+          >
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="leave-dash-title"
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                width: '100%', maxWidth: '340px', padding: '24px', borderRadius: '14px',
+                background: 'var(--ink)', color: 'var(--paper)', border: '1px solid var(--line)',
+                boxShadow: '0 20px 50px rgba(0, 0, 0, 0.45)', textAlign: 'center',
+              }}
+            >
+              <h3 id="leave-dash-title" style={{ margin: '0 0 8px', fontSize: '18px', fontWeight: 700 }}>
+                Quit
+              </h3>
+              <p style={{ margin: '0 0 22px', fontSize: '14px', opacity: 0.8 }}>
+                Do you want to leave the dashboard?
+              </p>
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+                <button
+                  type="button"
+                  autoFocus
+                  onClick={stayOnDash}
+                  style={{
+                    flex: 1, padding: '10px 0', borderRadius: '10px', cursor: 'pointer', fontSize: '14px',
+                    fontWeight: 600, background: 'transparent', color: 'var(--paper)', border: '1px solid var(--line)',
+                  }}
+                >
+                  No
+                </button>
+                <button
+                  type="button"
+                  onClick={leaveDash}
+                  style={{
+                    flex: 1, padding: '10px 0', borderRadius: '10px', cursor: 'pointer', fontSize: '14px',
+                    fontWeight: 600, background: 'var(--primary)', color: '#ffffff', border: 'none',
+                  }}
+                >
+                  Yes
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     );

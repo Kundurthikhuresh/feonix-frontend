@@ -59,6 +59,72 @@ const SIZE_LABELS = {
 // it so it doesn't get clipped at the bottom of the native window.
 const CHAT_INPUT_BAR_PX = 64;
 
+// Answer card sizing. Every session opens the card at the normal size; the
+// user can then drag its edges or step it bigger/smaller with the Maximize /
+// Minimize buttons. Sizes are always clamped to the current screen, so a
+// small laptop gets small steps and a large monitor larger ones.
+const ANSWER_DEFAULT_W = 820;
+const ANSWER_MIN_W = 360;
+const ANSWER_MIN_BODY_H = 90;
+// Smallest size the Minimize button steps down to (room for the header buttons
+// and a few lines of answer), and how many clicks go from smallest to largest.
+const ANSWER_STEP_MIN_W = 520;
+const ANSWER_STEP_MIN_BODY_H = 110;
+const ANSWER_STEPS = 6;
+// Everything in the window besides the card body (card header/footer, question
+// strip, chat bar, dock). Measured at runtime; this is the fallback.
+const ANSWER_CHROME_FALLBACK_PX = 340;
+
+function screenAvail() {
+  if (typeof window === 'undefined') return { w: 1920, h: 1080 };
+  return { w: window.screen?.availWidth || 1920, h: window.screen?.availHeight || 1080 };
+}
+
+// Largest card that fits on this screen above the rest of the HUD.
+function answerMaxSize(chromeH) {
+  const { w: availW, h: availH } = screenAvail();
+  return {
+    width: Math.max(ANSWER_MIN_W, availW - 48),
+    bodyHeight: Math.max(ANSWER_MIN_BODY_H, availH - chromeH - 40),
+  };
+}
+
+const clampPx = (v, lo, hi) => Math.round(Math.max(lo, Math.min(hi, v)));
+
+// The size actually used: the user's choice, or a default that scales with
+// the screen (about a third of its height), clamped to what fits on it.
+function resolveAnswerSize(custom, chromeH) {
+  const { h: availH } = screenAvail();
+  const max = answerMaxSize(chromeH);
+  if (custom) {
+    return {
+      width: clampPx(custom.width, ANSWER_MIN_W, max.width),
+      bodyHeight: clampPx(custom.bodyHeight, ANSWER_MIN_BODY_H, max.bodyHeight),
+      fixedHeight: true,
+    };
+  }
+  return {
+    width: clampPx(ANSWER_DEFAULT_W, ANSWER_MIN_W, max.width),
+    bodyHeight: clampPx(availH * 0.34, 200, Math.min(520, max.bodyHeight)),
+    fixedHeight: false,
+  };
+}
+
+// One Maximize (+1) / Minimize (-1) click: the range between the smallest
+// step size and the largest that fits the screen is split into ANSWER_STEPS
+// equal steps, so the step size follows the user's screen size.
+function stepAnswerSize(current, dir, chromeH) {
+  const max = answerMaxSize(chromeH);
+  const minW = Math.min(ANSWER_STEP_MIN_W, max.width);
+  const minH = Math.min(ANSWER_STEP_MIN_BODY_H, max.bodyHeight);
+  const stepW = Math.max(40, (max.width - minW) / ANSWER_STEPS);
+  const stepH = Math.max(30, (max.bodyHeight - minH) / ANSWER_STEPS);
+  return {
+    width: clampPx(current.width + dir * stepW, minW, max.width),
+    bodyHeight: clampPx(current.bodyHeight + dir * stepH, minH, max.bodyHeight),
+  };
+}
+
 function OverlayContent() {
   const searchParams = useSearchParams();
   const plan = searchParams.get('plan') || 'full';
@@ -750,6 +816,60 @@ function OverlayContent() {
 
   const isAnswerWindowVisible = Boolean(thinking || isAnswering || currentDisplayAnswer) && !answerCardDismissed;
 
+  // User-chosen answer card size for this session only (null = the normal,
+  // screen-based size). Not saved: every new session opens at normal size.
+  const [answerSizeCustom, setAnswerSizeCustom] = useState(null);
+  const [answerChromeH, setAnswerChromeH] = useState(ANSWER_CHROME_FALLBACK_PX);
+  // Bumped when the screen changes (window moved to another monitor,
+  // resolution or scaling changed) so the size is re-clamped to it.
+  const [, setScreenTick] = useState(0);
+  useEffect(() => {
+    // Sizes used to be saved across sessions; drop any leftover value.
+    try { window.localStorage.removeItem('feonix.answerCardSize'); } catch { /* storage unavailable */ }
+    let last = `${window.screen?.availWidth}x${window.screen?.availHeight}`;
+    const onResize = () => {
+      const now = `${window.screen?.availWidth}x${window.screen?.availHeight}`;
+      if (now !== last) {
+        last = now;
+        setScreenTick((t) => t + 1);
+      }
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+  // A new session starts at the normal size even if the page is reused.
+  useEffect(() => {
+    setAnswerSizeCustom(null);
+  }, [querySessionId]);
+  const answerSize = resolveAnswerSize(answerSizeCustom, answerChromeH);
+  // The HUD column widens past its usual 820px when the answer card is made wider.
+  const containerMaxW = `${isAnswerWindowVisible ? Math.max(ANSWER_DEFAULT_W, answerSize.width) : ANSWER_DEFAULT_W}px`;
+
+  const handleAnswerResize = ({ width, bodyHeight }) => {
+    const next = resolveAnswerSize({ width, bodyHeight }, answerChromeH);
+    setAnswerSizeCustom({ width: next.width, bodyHeight: next.bodyHeight });
+  };
+  const handleAnswerResetSize = () => setAnswerSizeCustom(null);
+
+  // Maximize / Minimize buttons: one step bigger or smaller per click.
+  const answerMax = answerMaxSize(answerChromeH);
+  const canGrowAnswer = answerSize.width < answerMax.width || answerSize.bodyHeight < answerMax.bodyHeight;
+  const canShrinkAnswer = answerSize.width > Math.min(ANSWER_STEP_MIN_W, answerMax.width)
+    || answerSize.bodyHeight > Math.min(ANSWER_STEP_MIN_BODY_H, answerMax.bodyHeight);
+  const handleAnswerMaximize = () => setAnswerSizeCustom(stepAnswerSize(answerSize, 1, answerChromeH));
+  const handleAnswerMinimizeSize = () => setAnswerSizeCustom(stepAnswerSize(answerSize, -1, answerChromeH));
+
+  // Measure how much of the window is not the card body, so the native
+  // window can be sized to exactly fit the card the user picked.
+  useEffect(() => {
+    if (!isAnswerWindowVisible || isExpanded) return;
+    const shell = shellRef.current;
+    const body = shell?.querySelector('.fe-card-body');
+    if (!shell || !body) return;
+    const chrome = Math.ceil(shell.getBoundingClientRect().height - body.getBoundingClientRect().height) + 56;
+    if (chrome > 120 && Math.abs(chrome - answerChromeH) > 4) setAnswerChromeH(chrome);
+  });
+
   // Sync window size with the Electron overlay window for whichever
   // visibility state is current — a full HUD needs room for content, the
   // pill needs almost none, and hidden needs nothing on screen at all.
@@ -773,14 +893,15 @@ function OverlayContent() {
         const maxH = Math.min(960, availH - 60);
 
         const currentTierWidth = SIZE_PX[settings.assistantSize] || SIZE_PX.normal;
-        const targetWidth = isExpanded ? maxW : currentTierWidth;
+        const answerWidth = isAnswerWindowVisible ? answerSize.width + 48 : 0;
+        const targetWidth = isExpanded ? maxW : Math.min(availW, Math.max(currentTierWidth, answerWidth));
 
         if (isExpanded) {
           window.feonix.resize(targetWidth, maxH);
         } else if (settingsOpen) {
           window.feonix.resize(targetWidth, 620);
         } else if (isAnswerWindowVisible) {
-          const height = Math.min(availH - 80, 680);
+          const height = Math.min(availH - 20, answerChromeH + answerSize.bodyHeight);
           window.feonix.resize(targetWidth, height);
         } else if (popoverOpen) {
           window.feonix.resize(targetWidth, 540);
@@ -791,7 +912,8 @@ function OverlayContent() {
         }
       }
     }
-  }, [visibility, isAnswerWindowVisible, popoverOpen, promptHubOpen, settingsOpen, isExpanded, settings.assistantSize]);
+  }, [visibility, isAnswerWindowVisible, popoverOpen, promptHubOpen, settingsOpen, isExpanded, settings.assistantSize,
+    answerSize.width, answerSize.bodyHeight, answerChromeH]);
 
   // Focus the compose box again once an answer finishes arriving (thinking
   // goes true -> false), so the user can immediately type the next question.
@@ -1065,12 +1187,12 @@ function OverlayContent() {
             transform: 'none',
             pointerEvents: 'all',
             width: '100%',
-            maxWidth: '820px',
+            maxWidth: containerMaxW,
             zIndex: 9999,
           } : {
             pointerEvents: 'all',
             width: '100%',
-            maxWidth: '820px',
+            maxWidth: containerMaxW,
             margin: '0 auto',
           })}
         >
@@ -1097,6 +1219,13 @@ function OverlayContent() {
             onToggleExpand={handleToggleExpand}
             isExpanded={isExpanded}
             onDragStart={handleDragStart}
+            size={answerSize}
+            onResize={handleAnswerResize}
+            onResetSize={handleAnswerResetSize}
+            canGrow={canGrowAnswer}
+            canShrink={canShrinkAnswer}
+            onMaximizeSize={handleAnswerMaximize}
+            onMinimizeSize={handleAnswerMinimizeSize}
             onExample={() => {
               // The question behind the answer on screen; an example of an
               // example is still about the original question.

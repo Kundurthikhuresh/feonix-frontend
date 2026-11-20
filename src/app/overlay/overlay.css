@@ -5741,3 +5741,64 @@ body.is-resizing #answerCard {
   line-height: 1.45;
   overflow-wrap: anywhere;
 }
+
+/* Answer card: drag the top edge, sides or top corners to resize it. The
+   card's bottom stays where it is, so it grows upward and out from the
+   centre. Double-click an edge to go back to the screen-based default. */
+.fe-answer-card.fe-card-resizable {
+  position: relative;
+}
+.fe-resize-handle {
+  position: absolute;
+  z-index: 5;
+  touch-action: none;
+  background: transparent;
+}
+.fe-resize-n {
+  top: 0;
+  left: 14px;
+  right: 14px;
+  height: 7px;
+  cursor: ns-resize;
+}
+.fe-resize-e,
+.fe-resize-w {
+  top: 14px;
+  bottom: 14px;
+  width: 7px;
+  cursor: ew-resize;
+}
+.fe-resize-e { right: 0; }
+.fe-resize-w { left: 0; }
+.fe-resize-ne,
+.fe-resize-nw {
+  top: 0;
+  width: 16px;
+  height: 16px;
+}
+.fe-resize-ne { right: 0; cursor: nesw-resize; }
+.fe-resize-nw { left: 0; cursor: nwse-resize; }
+/* Small grip on the top edge so the resize affordance is discoverable. */
+.fe-resize-n::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 50%;
+  width: 36px;
+  height: 3px;
+  margin-left: -18px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  transition: background 120ms ease;
+}
+.fe-answer-card:hover .fe-resize-n::after,
+.fe-resize-n:hover::after {
+  background: rgba(255, 255, 255, 0.32);
+}
+
+/* Answer card Maximize / Minimize buttons: dimmed at the largest / smallest size. */
+.fe-size-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+  pointer-events: none;
+}
