@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import {
   Mail,
@@ -47,6 +47,28 @@ export default function AuthModal({
     setAuthEmail('');
     setAuthPassword('');
   }, [setAuthEmail, setAuthPassword]);
+
+  // Chrome's password manager fills saved logins into these fields when the
+  // form appears, ignoring autoComplete="off". It never fills a read-only
+  // field, so each field stays read-only until the user clicks or tabs into
+  // it; saved logins are then still offered in Chrome's dropdown on focus.
+  const [emailUnlocked, setEmailUnlocked] = useState(false);
+  const [passwordUnlocked, setPasswordUnlocked] = useState(false);
+
+  // Sign In and Create Account keep their own entries: switching between
+  // them starts the other form empty. (Sign In → Forgot password keeps the
+  // email, which is the one that needs the reset link.)
+  const prevModeRef = useRef(authMode);
+  useEffect(() => {
+    const prev = prevModeRef.current;
+    prevModeRef.current = authMode;
+    if (prev === authMode || authMode === 'forgot') return;
+    setAuthEmail('');
+    setAuthPassword('');
+    if (setAuthSignupCode) setAuthSignupCode('');
+    setOtpCode('');
+    setShowPassword(false);
+  }, [authMode, setAuthEmail, setAuthPassword, setAuthSignupCode]);
 
   // Center Card kept static without cursor/mouse movement animations
 
@@ -229,6 +251,8 @@ export default function AuthModal({
                       onChange={(e) => setAuthEmail(e.target.value)}
                       required
                       autoComplete="off"
+                      readOnly={!emailUnlocked}
+                      onFocus={() => setEmailUnlocked(true)}
                       className="auth-text-input"
                     />
                   </div>
@@ -290,6 +314,8 @@ export default function AuthModal({
                           onChange={(e) => setAuthPassword(e.target.value)}
                           required
                           autoComplete="new-password"
+                          readOnly={!passwordUnlocked}
+                          onFocus={() => setPasswordUnlocked(true)}
                           className="auth-text-input"
                         />
                         <button

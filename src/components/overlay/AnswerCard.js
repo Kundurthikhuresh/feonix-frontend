@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { sanitizeHTML } from '../../lib/sanitize';
 import { formatParakeetAnswer, formatSpokenAnswer } from '../../lib/answerFormatter';
 
@@ -59,7 +59,24 @@ export default function AnswerCard({
   onDragStart,
   // Asks for a concrete example of the answer on screen (code for code topics).
   onExample,
+  // Card size in px: { width, bodyHeight, fixedHeight }. fixedHeight means the
+  // user picked the height, so the body keeps it even for a short answer.
+  size = null,
+  // Called with { width, bodyHeight } while the user drags an edge, and once
+  // more with `done: true` on release. Double-clicking an edge resets.
+  onResize,
+  onResetSize,
+  // Maximize / Minimize buttons: one step bigger / smaller per click.
+  // canGrow / canShrink are false once the card is at its largest / smallest.
+  onMaximizeSize,
+  onMinimizeSize,
+  canGrow = true,
+  canShrink = true,
 }) {
+  const [feedback, setFeedback] = useState(null);
+  const cardRef = useRef(null);
+  const bodyRef = useRef(null);
+
   if (!visible || (!answer && !answerText && !thinking && !hasError)) return null;
 
   // Plain spoken-answer paragraphs when the raw text is available; the old
@@ -67,16 +84,92 @@ export default function AnswerCard({
   const spokenHtml = answerText ? formatSpokenAnswer(answerText) : '';
   const bodyHtml = spokenHtml || formatParakeetAnswer(answer);
 
-  const [feedback, setFeedback] = useState(null);
-
   // Format current or given timestamp
   const displayTime = timestamp || (new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
 
+  const canResize = Boolean(onResize) && !isExpanded;
+
+  // Screen coordinates, not client ones: the native window is resized (and
+  // moved) under the cursor while dragging, which shifts client coordinates.
+  // The card is centred and its bottom stays put, so a side edge changes the
+  // width by twice the cursor movement and the top edge grows it upward.
+  const startResize = (dir) => (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const card = cardRef.current;
+    const body = bodyRef.current;
+    if (!card || !body) return;
+    const handle = e.currentTarget;
+    try { handle.setPointerCapture(e.pointerId); } catch { /* not capturable */ }
+    const start = {
+      x: e.screenX,
+      y: e.screenY,
+      width: card.getBoundingClientRect().width,
+      bodyHeight: body.getBoundingClientRect().height,
+    };
+    let frame = 0;
+    let latest = null;
+    const compute = (ev) => {
+      const dx = ev.screenX - start.x;
+      const dy = ev.screenY - start.y;
+      let width = start.width;
+      let bodyHeight = start.bodyHeight;
+      if (dir.includes('e')) width = start.width + dx * 2;
+      if (dir.includes('w')) width = start.width - dx * 2;
+      if (dir.includes('n')) bodyHeight = start.bodyHeight - dy;
+      return { width, bodyHeight };
+    };
+    const onMove = (ev) => {
+      latest = compute(ev);
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        if (latest) onResize(latest);
+      });
+    };
+    const onUp = (ev) => {
+      if (frame) cancelAnimationFrame(frame);
+      handle.removeEventListener('pointermove', onMove);
+      handle.removeEventListener('pointerup', onUp);
+      handle.removeEventListener('pointercancel', onUp);
+      try { handle.releasePointerCapture(ev.pointerId); } catch { /* already released */ }
+      onResize({ ...compute(ev), done: true });
+    };
+    handle.addEventListener('pointermove', onMove);
+    handle.addEventListener('pointerup', onUp);
+    handle.addEventListener('pointercancel', onUp);
+  };
+
+  const cardStyle = !isExpanded && size ? { width: `${size.width}px`, maxWidth: '100%' } : undefined;
+  const bodyStyle = !isExpanded && size
+    ? (size.fixedHeight
+      ? { height: `${size.bodyHeight}px`, maxHeight: 'none' }
+      : { maxHeight: `${size.bodyHeight}px` })
+    : undefined;
+
+  const handle = (dir) => (
+    <div
+      key={dir}
+      className={`fe-resize-handle fe-resize-${dir}`}
+      onPointerDown={startResize(dir)}
+      onMouseDown={(e) => e.stopPropagation()}
+      onDoubleClick={(e) => {
+        e.stopPropagation();
+        onResetSize && onResetSize();
+      }}
+      title="Drag to resize · double-click to reset"
+    />
+  );
+
   return (
     <div
-      className={`fe-answer-card ${isExpanded ? 'fe-card-expanded' : ''}`}
+      ref={cardRef}
+      className={`fe-answer-card ${isExpanded ? 'fe-card-expanded' : ''} ${canResize ? 'fe-card-resizable' : ''}`}
+      style={cardStyle}
       onMouseDown={onDragStart}
     >
+      {canResize && ['n', 'e', 'w', 'ne', 'nw'].map(handle)}
       {/* Top Header of Answer Window */}
       <div className="fe-card-head" onMouseDown={onDragStart}>
         <div className="fe-head-left">
@@ -107,6 +200,40 @@ export default function AnswerCard({
         </div>
 
         <div className="fe-head-right">
+          {canResize && onMinimizeSize && (
+            <button
+              type="button"
+              className="fe-head-icon-btn fe-size-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                onMinimizeSize();
+              }}
+              disabled={!canShrink}
+              title="Minimize: make the answer window one step smaller"
+              aria-label="Make the answer window smaller"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+            </button>
+          )}
+          {canResize && onMaximizeSize && (
+            <button
+              type="button"
+              className="fe-head-icon-btn fe-size-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                onMaximizeSize();
+              }}
+              disabled={!canGrow}
+              title="Maximize: make the answer window one step bigger"
+              aria-label="Make the answer window bigger"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinejoin="round">
+                <rect x="4" y="4" width="16" height="16" rx="2"></rect>
+              </svg>
+            </button>
+          )}
           <button
             type="button"
             className="fe-clear-btn"
@@ -160,7 +287,9 @@ export default function AnswerCard({
 
       {/* Main Body of Answer Window */}
       <div
+        ref={bodyRef}
         className="fe-card-body"
+        style={bodyStyle}
         onMouseDown={(e) => e.stopPropagation()}
         onClick={handleCodeCopyClick}
       >
