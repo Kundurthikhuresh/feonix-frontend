@@ -63,8 +63,7 @@ function SessionTypeContent() {
   const [trialsLeft, setTrialsLeft] = useState(null);
   // The ✕ button asks "Do you want to quit this session?" before closing.
   const [confirmQuit, setConfirmQuit] = useState(false);
-  const [message, setMessage] = useState({ text: '', isError: false, busy: false });
-  const [toastMsg, setToastMsg] = useState('');
+  const [message, setMessage] = useState({ text: '', isError: false, busy: false });  const [toastMsg, setToastMsg] = useState('');
   const [showToast, setShowToast] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [buttonsDisabled, setButtonsDisabled] = useState(false);
@@ -185,7 +184,15 @@ function SessionTypeContent() {
         }
 
         if (!active) {
-          say('Create a session on the dashboard first.', true);
+          // Opened directly (not from the dashboard's Start session), the
+          // desktop app uses its own saved sign-in, which can be a different
+          // account than the browser's: name it, so a "missing" session is
+          // easy to explain.
+          const email = meData.user && meData.user.email;
+          say(
+            `No ready session${email ? ` for ${email}` : ''}. On the dashboard, click "Start session" on your session, then "Open desktop app".`,
+            true
+          );
           setButtonsDisabled(true);
           return;
         }

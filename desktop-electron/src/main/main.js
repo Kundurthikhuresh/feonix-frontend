@@ -115,6 +115,26 @@ function deliverHandoff(handoff) {
   }
 }
 
+// Opening the app directly (Start menu, desktop or taskbar shortcut) while it
+// is already running in the background — the tray keeps it alive after every
+// window is closed — arrives as a second-instance launch with no link. The
+// old code only raised the main window, which is null once it has been
+// closed, so the launch silently did nothing. Show what exists (the copilot
+// during a session, else the main window), or open a fresh main window.
+function showAppWindow() {
+  const overlayWindow = getOverlayWindow();
+  if (overlayWindow && !overlayWindow.isDestroyed()) {
+    bringToFront(overlayWindow, Boolean(settingsStore.get('alwaysOnTop')));
+    return;
+  }
+  const mainWindow = getMainWindow();
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    bringToFront(mainWindow);
+    return;
+  }
+  createMainWindow('/session-type', settingsStore);
+}
+
 // --- Deep link registration ---------------------------------------------
 
 if (process.defaultApp) {
@@ -158,7 +178,7 @@ if (!gotLock) {
     if (handoff) {
       deliverHandoff(handoff);
     } else {
-      bringToFront(getMainWindow());
+      showAppWindow();
     }
   });
 
@@ -277,5 +297,5 @@ app.on('will-quit', () => {
 });
 
 app.on('activate', () => {
-  if (BrowserWindow.getAllWindows().length === 0) createMainWindow('/session-type', settingsStore);
+  if (BrowserWindow.getAllWindows().length === 0) showAppWindow();
 });

@@ -1,4 +1,4 @@
-const { BrowserWindow, app, shell, screen } = require('electron');
+const { BrowserWindow, app, shell, screen, net } = require('electron');
 const path = require('path');
 const { syncPrivateMode } = require('./privateMode');
 
@@ -62,6 +62,54 @@ function hardenWindow(win) {
   }
 }
 
+/* The main window is transparent and frameless, so when the web app cannot be
+ * reached Chromium's error page is not drawn at all: the window is "open" but
+ * nothing shows, and opening the app looked like it did nothing. On a failed
+ * load, show a local page (its own card, Retry/Close) instead, and keep
+ * checking the web app in the background so it loads the moment it's up.
+ * Returns a function that stops the background check. */
+const OFFLINE_PAGE = path.join(__dirname, '..', 'offline.html');
+const OFFLINE_RETRY_MS = 4000;
+
+function attachOfflineFallback(win) {
+  let retryTimer = null;
+  let checking = false;
+
+  const stop = () => {
+    if (retryTimer) clearInterval(retryTimer);
+    retryTimer = null;
+  };
+
+  win.webContents.on('did-fail-load', (_event, errorCode, _description, url, isMainFrame) => {
+    // -3 (ERR_ABORTED) is a navigation replaced by another one, not a failure.
+    if (!isMainFrame || errorCode === -3 || !isTrustedUrl(url)) return;
+    win.loadFile(OFFLINE_PAGE, { query: { target: url } }).catch(() => { });
+    stop();
+    retryTimer = setInterval(async () => {
+      if (checking || win.isDestroyed()) return;
+      checking = true;
+      try {
+        const res = await net.fetch(WEB_URL, { method: 'HEAD', cache: 'no-store' });
+        if (res && !win.isDestroyed()) {
+          stop();
+          win.loadURL(url);
+        }
+      } catch {
+        // still unreachable; keep the offline page up and try again
+      } finally {
+        checking = false;
+      }
+    }, OFFLINE_RETRY_MS);
+  });
+
+  // Any successful page load (Retry button, or the background check) ends it.
+  win.webContents.on('did-navigate', (_event, url) => {
+    if (isTrustedUrl(url)) stop();
+  });
+
+  return stop;
+}
+
 /* The main window is transparent: the start page draws only its card
  * (440px wide plus a 16px margin each side for its shadow), so the window is
  * sized to that card and nothing around it is visible. Tall enough that the
@@ -108,10 +156,12 @@ function createMainWindow(routePath, settingsStore) {
 
   hardenWindow(mainWindow);
   syncPrivateMode(settingsStore, { win: mainWindow, force: true });
+  const stopOfflineFallback = attachOfflineFallback(mainWindow);
   mainWindow.loadURL(`${WEB_URL}${routePath}`);
   bringToFront(mainWindow);
 
   mainWindow.on('closed', () => {
+    stopOfflineFallback();
     mainWindow = null;
   });
 

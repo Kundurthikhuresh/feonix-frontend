@@ -229,8 +229,9 @@ export default function AnswerCard({
               title="Maximize: make the answer window one step bigger"
               aria-label="Make the answer window bigger"
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinejoin="round">
-                <rect x="4" y="4" width="16" height="16" rx="2"></rect>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
               </svg>
             </button>
           )}

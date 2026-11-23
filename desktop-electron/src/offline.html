@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+<title>FeonixAI</title>
+<style>
+  html, body { margin: 0; height: 100%; background: transparent; font-family: "Segoe UI", system-ui, sans-serif; }
+  body { display: flex; align-items: center; justify-content: center; }
+  .card {
+    width: 408px; margin: 16px; padding: 32px 28px; box-sizing: border-box;
+    background: #15171c; color: #e8eaf0; border-radius: 16px;
+    box-shadow: 0 8px 28px rgba(0,0,0,.45); text-align: center;
+    -webkit-app-region: drag;
+  }
+  h1 { font-size: 20px; margin: 0 0 8px; }
+  p { font-size: 14px; line-height: 1.5; color: #a9aeba; margin: 0 0 20px; }
+  .status { font-size: 12px; color: #7d8391; margin-top: 16px; }
+  .row { display: flex; gap: 10px; justify-content: center; }
+  button {
+    -webkit-app-region: no-drag; border: 0; border-radius: 8px; padding: 10px 18px;
+    font: inherit; font-size: 14px; cursor: pointer;
+  }
+  .primary { background: #4f7cff; color: #fff; }
+  .secondary { background: #2a2e37; color: #e8eaf0; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>FeonixAI</h1>
+    <p>Can't reach the FeonixAI service right now. Check your connection — the app will connect automatically as soon as it's available.</p>
+    <div class="row">
+      <button class="primary" id="retry">Try again</button>
+      <button class="secondary" id="close">Close</button>
+    </div>
+    <div class="status" id="status">Retrying…</div>
+  </div>
+<script>
+  const target = new URLSearchParams(location.search).get('target');
+  document.getElementById('retry').addEventListener('click', () => {
+    document.getElementById('status').textContent = 'Connecting…';
+    if (target) location.href = target;
+  });
+  document.getElementById('close').addEventListener('click', () => window.close());
+</script>
+</body>
+</html>
