@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import './session-type.css';
+import { claimDesktopLink, saveDesktopLinkKey } from '../../lib/desktopLink';
 
 // The earlier "Start Interview Session" screen (Full Session / Free Session
 // cards): hidden, code kept. The Connect Call Session screen replaces it.
@@ -166,7 +167,11 @@ function SessionTypeContent() {
       await handleRedeem({ token, session: urlSession }, currAuto);
     } else {
       try {
-        const meRes = await fetch('/api/auth/me');
+        // Opened directly (no link): sign in as the account signed in on the
+        // website, if this app was linked to that browser by an earlier
+        // hand-off. Otherwise the app's own saved sign-in is used as before.
+        await claimDesktopLink();
+        const meRes = await fetch('/api/auth/me', { cache: 'no-store' });
         if (!meRes.ok) {
           say('Sign in on the dashboard first.', true);
           setButtonsDisabled(true);
@@ -248,6 +253,7 @@ function SessionTypeContent() {
       }
 
       setRedeemed(true);
+      saveDesktopLinkKey(data.link_key);
       const sId = data.session_id || Number(handoff.session) || null;
       setSessionId(sId);
       say('');

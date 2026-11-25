@@ -3,6 +3,7 @@
 import { use, useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { postJSON } from '../lib/api';
+import { registerDesktopLink, unregisterDesktopLink } from '../lib/desktopLink';
 import { formatTimeSeconds } from '../lib/utils';
 import { useAudioRecorder } from '../hooks/useAudioRecorder';
 
@@ -787,6 +788,7 @@ export default function Page({ searchParams }) {
         const data = await res.json();
         if (stale()) return;
         setUser(data.user);
+        if (data.user) registerDesktopLink();
         writeDashCache({ user: data.user });
         if (data.user?.trials_remaining !== undefined && data.user?.trials_remaining !== null) {
           setTrialsLeft(data.user.trials_remaining);
@@ -901,6 +903,8 @@ export default function Page({ searchParams }) {
 
   const enterApp = async (loggedInUser, requestedRole = null, replaceHistory = false) => {
     setUser(loggedInUser);
+    // The desktop app, opened directly, follows this account (lib/desktopLink.js).
+    if (loggedInUser) registerDesktopLink();
     if (loggedInUser) writeDashCache({ user: loggedInUser });
     if (loggedInUser?.trials_remaining !== undefined && loggedInUser?.trials_remaining !== null) {
       setTrialsLeft(loggedInUser.trials_remaining);
@@ -1218,7 +1222,10 @@ export default function Page({ searchParams }) {
     // The page changes at once; the server is told in the background
     // (keepalive lets the request finish even as the page moves on).
     stopRecording().catch(() => {});
-    fetch('/api/auth/logout', { method: 'POST', keepalive: true }).catch(() => {});
+    // Unlink first: it needs the login that the logout request ends.
+    unregisterDesktopLink().finally(() => {
+      fetch('/api/auth/logout', { method: 'POST', keepalive: true }).catch(() => {});
+    });
     clearDashCache();
     setUser(null);
     setTrialsLeft(5);

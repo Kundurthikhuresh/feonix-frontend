@@ -46,6 +46,8 @@ export default function SessionsPane({
   onStartSession,
 }) {
   const router = useRouter();
+  // The launch page opens the desktop app only when the user clicks its
+  // "Open desktop app" button.
   const goToLaunch = (id) => router.push(`/launch?session=${id}`);
 
   const [now, setNow] = useState(Date.now());

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { getBrowserLinkKey, registerDesktopLink } from '../../lib/desktopLink';
 
 const MAC_UNBLOCK_COMMAND = 'sudo xattr -cr /Applications/FeonixAI.app';
 
@@ -32,7 +33,13 @@ function LaunchContent() {
   // waiting for the server. Links last 90 s on the server; one older than
   // 60 s is fetched again.
   const linkRef = useRef(null); // { promise, at }
-  const fetchLaunchLink = () => fetch(`/api/sessions/${sessionId}/handoff`, { method: 'POST' })
+  const fetchLaunchLink = () => fetch(`/api/sessions/${sessionId}/handoff`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    // The browser's desktop-link key, so the app can follow this account
+    // when it is later opened directly (see lib/desktopLink.js).
+    body: JSON.stringify({ key: getBrowserLinkKey() }),
+  })
     .then((res) => (res.ok ? res.json() : null))
     .then((data) => (data && (data.deep_link || data.deepLink
       || (data.token ? `feonixai://launch?token=${data.token}&session=${sessionId}` : null))) || null)
@@ -188,6 +195,7 @@ function LaunchContent() {
       }
 
       await loadSession();
+      registerDesktopLink();
 
       const isMac = typeof navigator !== 'undefined' && (/Mac|iPod|iPhone|iPad/.test(navigator.platform) || /Macintosh|Mac OS X/.test(navigator.userAgent));
       setIsMacOS(isMac);
