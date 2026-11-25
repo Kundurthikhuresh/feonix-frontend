@@ -1226,6 +1226,15 @@ function OverlayContent() {
             canShrink={canShrinkAnswer}
             onMaximizeSize={handleAnswerMaximize}
             onMinimizeSize={handleAnswerMinimizeSize}
+            onMinimizeWindow={() => {
+              // Desktop app: to the taskbar, like Chrome's Minimize. In a
+              // browser tab there is no window to minimize: hide the card.
+              if (typeof window !== 'undefined' && window.feonix?.minimize) {
+                window.feonix.minimize();
+              } else {
+                setAnswerCardDismissed(true);
+              }
+            }}
             onExample={() => {
               // The question behind the answer on screen; an example of an
               // example is still about the original question.

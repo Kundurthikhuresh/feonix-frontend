@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { unregisterDesktopLink } from '../../lib/desktopLink';
 import {
   isPrivacyModeEnabled,
   setPrivacyModeEnabled,
@@ -111,6 +112,7 @@ export default function SettingsPage() {
     try {
       await clearLocalSessionData();
       setMsg({ text: 'Local session data cleared. Signing you out…', type: 'ok' });
+      await unregisterDesktopLink();
       await fetch('/api/auth/logout', { method: 'POST' });
       setTimeout(() => router.replace('/'), 900);
     } finally {

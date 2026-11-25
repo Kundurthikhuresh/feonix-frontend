@@ -72,6 +72,8 @@ export default function AnswerCard({
   onMinimizeSize,
   canGrow = true,
   canShrink = true,
+  // Chrome-style Minimize: sends the whole copilot window to the taskbar.
+  onMinimizeWindow,
 }) {
   const [feedback, setFeedback] = useState(null);
   const cardRef = useRef(null);
@@ -200,39 +202,46 @@ export default function AnswerCard({
         </div>
 
         <div className="fe-head-right">
-          {canResize && onMinimizeSize && (
+          {/* Window buttons, drawn like Chrome's title bar: Minimize sends the
+              whole copilot to the taskbar; Maximize / Restore down toggles a
+              full-screen copilot (square / two overlapping squares). */}
+          {onMinimizeWindow && (
             <button
               type="button"
               className="fe-head-icon-btn fe-size-btn"
               onClick={(e) => {
                 e.stopPropagation();
-                onMinimizeSize();
+                onMinimizeWindow();
               }}
-              disabled={!canShrink}
-              title="Minimize: make the answer window one step smaller"
-              aria-label="Make the answer window smaller"
+              title="Minimize"
+              aria-label="Minimize"
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="square">
                 <line x1="5" y1="12" x2="19" y2="12"></line>
               </svg>
             </button>
           )}
-          {canResize && onMaximizeSize && (
+          {onToggleExpand && (
             <button
               type="button"
               className="fe-head-icon-btn fe-size-btn"
               onClick={(e) => {
                 e.stopPropagation();
-                onMaximizeSize();
+                onToggleExpand();
               }}
-              disabled={!canGrow}
-              title="Maximize: make the answer window one step bigger"
-              aria-label="Make the answer window bigger"
+              title={isExpanded ? 'Restore down' : 'Maximize'}
+              aria-label={isExpanded ? 'Restore down' : 'Maximize'}
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
-                <line x1="12" y1="5" x2="12" y2="19"></line>
-                <line x1="5" y1="12" x2="19" y2="12"></line>
-              </svg>
+              {isExpanded ? (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round">
+                  <rect x="5" y="8" width="11" height="11" rx="1.5"></rect>
+                  <path d="M8.5 8V6.5A1.5 1.5 0 0 1 10 5h7.5A1.5 1.5 0 0 1 19 6.5V14a1.5 1.5 0 0 1-1.5 1.5H16"></path>
+                </svg>
+              ) : (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round">
+                  <rect x="5.5" y="5.5" width="13" height="13" rx="1.5"></rect>
+                </svg>
+              )}
             </button>
           )}
           <button
